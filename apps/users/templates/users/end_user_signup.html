@@ -1,0 +1,25 @@
+{% extends "end_user_base_template/end_user_auth.html" %}
+
+{% block title %}
+    Sign Up
+{% endblock title %}
+
+{% block content %}
+    <h2>Sign Up</h2>
+    <form method="post">
+        {% csrf_token %}
+        <input type="text" name="username" id="username" placeholder="Username:" required>
+        <input type="email" name="email" id="email" placeholder="Email:" required><br>
+        <label for="department">Department:</label>
+        <div class="radio-buttons">
+            <input type="radio" name="department" value="instruction" required> Instruction<br>
+            <input type="radio" name="department" value="sport" required> Sport<br>
+            <input type="radio" name="department" value="research" required> Research<br>
+        </div>
+        <input type="password" name="password" id="password" placeholder="Password:" required>
+        <input type="password" name="confirm-password" id="confirm-password" placeholder="Confirm Password:" required>
+        <button type="submit" name="submit">Sign Up</button>
+        <p style="color: red;">{{ error }}</p>
+    </form>
+    <p>Already have an account? <a href="{% url "end_user_login" %}">Login</a></p>
+{% endblock content %}

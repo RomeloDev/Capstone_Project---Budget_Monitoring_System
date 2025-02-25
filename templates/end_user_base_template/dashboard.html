@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}
+            Default Title
+        {% endblock title %}</title>
+    <link rel="stylesheet" href="{% static "css/dashboard.css" %}">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2>Budget Monitoring System</h2>
+            <nav>
+                <ul>
+                    <li><a href="{% url "user_dashboard" %}">Dashboard</a></li>
+                    <li><a href="{% url "user_view_budget" %}">View Budget</a></li>
+                    <li><a href="{% url "user_purchase_request" %}">Purchase Requests</a></li>
+                    <li><a href="{% url "user_settings" %}">Settings</a></li>
+                    <li><a href="{% url "logout" %}">Logout</a></li>
+                </ul>
+            </nav>
+        </aside>
+        {% block main-content %}{% endblock main-content %}
+    </div>
+</body>
+</html>

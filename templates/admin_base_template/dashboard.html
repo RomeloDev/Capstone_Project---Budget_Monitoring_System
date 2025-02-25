@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="description" content="Admin Dashboard for managing accounts, budgets, and requests.">
+    <title>Admin | {% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="path/to/font-awesome/css/font-awesome.min.css">
+    <link rel="stylesheet" href="{% static 'css/admin_dashboard.css'%}">
+</head>
+<body>
+    <div class="dashboard">
+        <!--Sidebar -->
+        <aside class="sidebar">
+            <h2>Welcome, {{user.username}}</h2>
+            <nav>
+                <ul>
+                    <li><a href="{% url "admin_dashboard" %}">Dashboard</a></li>
+                    <li><a href="{% url "client_accounts" %}">Client Accounts</a></li>
+                    {% comment %} <li><a href="/admin/admin-accounts">Admin Accounts</a></li> {% endcomment %}
+                    <li><a href="{% url "budget_allocation" %}">Budget Allocation</a></li>
+                    <li><a href="{% url "department_request" %}">Department's Request</a></li>
+                    <li><a href="{% url "admin_logout" %}">Logout</a></li>
+                </ul>
+            </nav>
+        </aside>
+        {% block main-content %}{% endblock %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{% extends "end_user_base_template/end_user_auth.html" %}
+
+{% block title %}
+    Login
+{% endblock %}
+
+{% block content %}
+    <h2>Login</h2>
+    <form method="post">
+        {% csrf_token %}
+        <input type="text" name="email" id="email" placeholder="Enter Email:" required><br>
+        <input type="password" name="password" id="password" placeholder="Enter Password:" required><br>
+        <button type="submit" name="submit">LOGIN</button>
+        <p style="color: red;">{{ error }}</p>
+        <p>Don't have an account? <a href="{% url "end_user_signup" %}">Register</a></p>
+    </form>
+{% endblock %}

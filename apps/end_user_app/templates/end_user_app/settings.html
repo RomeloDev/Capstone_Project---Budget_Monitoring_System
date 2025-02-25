@@ -1,0 +1,58 @@
+{% extends "end_user_base_template/dashboard.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block main-content %}
+<main class="content">
+    <header>
+        <h1>Settings</h1>
+        <p>Manage your account and application preferences.</p>
+    </header>
+
+    <!-- Settings Section -->
+    <section class="settings">
+        <h2>Account Settings</h2>
+        <form action="" method="POST">
+            {% csrf_token %}
+            <div class="form-group account">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" value="" required>
+            </div>
+
+            <div class="form-group account">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="" required>
+            </div>
+
+            <div class="form-group account">
+                <label for="password">New Password</label>
+                <input type="password" id="password" name="password" placeholder="Leave blank to keep current password">
+            </div>
+
+            <button type="submit" class="save-btn">Save Changes</button>
+        </form>
+
+        <h2>Preferences</h2>
+        <form action="" method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="theme">Theme</label>
+                <select id="theme" name="theme">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="notifications">Notifications</label>
+                <select id="notifications" name="notifications">
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                </select>
+            </div>
+
+            <button type="submit" class="save-btn">Update Preferences</button>
+        </form>
+    </section>
+</main>
+{% endblock %}

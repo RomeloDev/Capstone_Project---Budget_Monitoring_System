@@ -1,0 +1,61 @@
+{% extends "end_user_base_template/dashboard.html" %}
+
+{% block title %}
+    View Budget
+{% endblock title %}
+
+{% block main-content %}
+    <main class="content">
+        <header>
+            <h1>View Budget</h1>
+            <p>Details of your department's budget allocation and usage:</p>
+        </header>
+
+        <!-- Budget Details -->
+        <section class="budget-details">
+            <div class="card">
+                <h3>Total Budget</h3>
+                <p>P{{ budget.total_allocated|default:"0.00" }}</p>
+            </div>
+            
+            <div class="card">
+                <h3>Spent</h3>
+                <p>P{{ budget.spent|default:"0.00" }}</p>
+            </div>
+            
+            <div class="card">
+                <h3>Remaining Balance</h3>
+                <p>P{{ budget.remaining|default:"0.00" }}</p>
+            </div>
+        </section>
+
+        <!-- Budget History -->
+        <section class="budget-history">
+            <h2>Budget History</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Department</th>
+                        <th>Total Allocated</th>
+                        <th>Spent</th>
+                        <th>Remaining Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if budget %}
+                    <tr>
+                        <td>{{ budget.get_department_display }}</td>
+                        <td>P{{ budget.total_allocated|floatformat:2 }}</td>
+                        <td>P{{ budget.spent|floatformat:2 }}</td>
+                        <td>P{{ budget.remaining|floatformat:2 }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">No budget allocation found.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+{% endblock %}

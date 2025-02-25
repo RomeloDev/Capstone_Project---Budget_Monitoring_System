@@ -1,0 +1,70 @@
+{% extends "end_user_base_template/dashboard.html" %}
+
+{% block title %}Dashboard{% endblock title %}
+
+{% block main-content %}
+    <!-- Main Content -->
+    <main class="content">
+        <header>
+            <h1>Welcome, {{user.username}}</h1>
+            <p>Your department's current budget status is shown below.</p>
+        </header>
+
+        <!-- Budget Summary -->
+        <section class="budget-summary">
+            <div class="card">
+                <div class="header">
+                    <h3>Total Budget</h3>
+                </div>
+                <p>0.00</p>
+            </div>
+            <div class="card">
+                <div class="header">
+                    <h3>Remaining Balance</h3>
+                </div>
+                <p>0.00</p>
+            </div>
+            <div class="card">
+                <div class="header">
+                    <h3>Approved Requests</h3>
+                </div>
+                <p>1</p>
+            </div>
+        </section>
+
+        <!-- Recent Purchase Requests -->
+        <section class="requests">
+            <h2>Recent Purchase Requests</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Request ID</th>
+                        <th>Item</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>001</td>
+                        <td>Laptop</td>
+                        <td>P70,000</td>
+                        <td>Approved</td>
+                    </tr>
+                    <tr>
+                        <td>002</td>
+                        <td>Printer</td>
+                        <td>P20,000</td>
+                        <td>Pending</td>
+                    </tr>
+                    <tr>
+                        <td>003</td>
+                        <td>Office Chairs</td>
+                        <td>P5,000</td>
+                        <td>Denied</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+{% endblock main-content %}

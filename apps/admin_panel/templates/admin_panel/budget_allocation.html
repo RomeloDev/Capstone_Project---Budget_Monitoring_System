@@ -1,0 +1,66 @@
+{% extends "admin_base_template/dashboard.html" %}
+
+{% block title %}Budget Allocation{% endblock %}
+
+{% block main-content %}
+<main class="content">
+    <header class="dashboard-header">
+        <h1>Budget Allocation</h1>
+        <p>Manage and allocate budgets to different departments.</p>
+    </header>
+
+    <!-- Budget Allocation Form -->
+    <section class="budget-form">
+        <header>
+            <h2>Allocate Budget</h2>
+            <p>Assign funds to various departments.</p>
+        </header>
+        <form action="{% url 'budget_allocation' %}" method="post">
+            {% csrf_token %}
+            <label for="department">Department:</label>
+            <select id="department" name="department" required>
+                <option value="">-- Select Department --</option>
+                {% for dept in departments %}
+                    <option value="{{ dept }}">{{ dept|title }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="amount">Budget Amount (PHP):</label>
+            <input type="number" id="amount" name="amount" min="0" required>
+
+            <button type="submit" class="allocate-btn">Allocate</button>
+        </form>
+    </section>
+
+    <!-- Budget Allocation Summary -->
+    <section class="budget-summary">
+        <header>
+            <h2>Current Budget Allocations</h2>
+        </header>
+        <table>
+            <thead>
+                <tr>
+                    <th>Department</th>
+                    <th>Total Allocated</th>
+                    <th>Spent</th>
+                    <th>Remaining</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for budget in budgets %}
+                <tr>
+                    <td>{{ budget.get_department_display }}</td>
+                    <td>P{{ budget.total_allocated|floatformat:2 }}</td>
+                    <td>P{{ budget.spent|floatformat:2 }}</td>
+                    <td>P{{ budget.remaining|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4">No budget allocations yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</main>
+{% endblock %}

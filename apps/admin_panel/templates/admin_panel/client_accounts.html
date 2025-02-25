@@ -1,0 +1,67 @@
+{% extends "admin_base_template/dashboard.html" %}
+
+{% block title %}Client Accounts{% endblock %}
+
+{% block main-content %}
+<main class="content">
+    <header class="dashboard-header">
+        <h1>Client Accounts</h1>
+        <p>Manage all registered client accounts in the system.</p>
+    </header>
+
+    <!-- Client Accounts Table -->
+    <section class="client-accounts">
+        <header>
+            <h2>Registered Clients</h2>
+            <p>View and manage all client accounts.</p>
+        </header>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>001</td>
+                    <td>John Doe</td>
+                    <td>johndoe@example.com</td>
+                    <td>Instruction</td>
+                    <td class="status active">Active</td>
+                    <td>
+                        <button class="edit-btn">Edit</button>
+                        <button class="disable-btn">Disable</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>002</td>
+                    <td>Jane Smith</td>
+                    <td>janesmith@example.com</td>
+                    <td>Research &amp; Extension</td>
+                    <td class="status disabled">Disabled</td>
+                    <td>
+                        <button class="edit-btn">Edit</button>
+                        <button class="enable-btn">Enable</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>003</td>
+                    <td>Michael Brown</td>
+                    <td>michaelbrown@example.com</td>
+                    <td>Sports</td>
+                    <td class="status active">Active</td>
+                    <td>
+                        <button class="edit-btn">Edit</button>
+                        <button class="disable-btn">Disable</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+{% endblock %}

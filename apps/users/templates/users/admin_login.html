@@ -1,0 +1,23 @@
+{% extends "admin_base_template/admin_auth.html" %}
+
+{% block title %}
+    Admin Login
+{% endblock title %}
+
+{% block content %}
+    <h3>Admin</h3>
+    <h1>LOGIN</h1>
+    {% if messages %}
+        {% for message in messages %}
+            <p style="color: red;">{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+    <hr>
+    <form method="post">
+        {% csrf_token %}
+        <input type="email" name="email" id="email" placeholder="Email:" required><br>
+        <input type="password" name="password" id="password" placeholder="Password:" required><br>
+        <a href="#" class="forgot">Forgot password?</a><br>
+        <input type="submit" value="SUBMIT">
+    </form>
+{% endblock content %}
