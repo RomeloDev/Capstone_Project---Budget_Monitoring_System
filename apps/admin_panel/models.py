@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 # Create your models here.
 class BudgetAllocation(models.Model):
@@ -26,3 +27,11 @@ class BudgetAllocation(models.Model):
     
     def __str__(self):
         return f"{self.get_department_display()} - {self.assigned_user.username if self.assigned_user else 'Unassigned'}"
+    
+class Budget(models.Model):
+    id = models.AutoField(primary_key=True)
+    title = models.CharField(max_length=100)
+    total_fund = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    remaining_budget = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)

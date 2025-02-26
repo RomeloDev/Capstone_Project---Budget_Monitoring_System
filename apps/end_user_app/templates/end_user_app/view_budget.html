@@ -15,17 +15,17 @@
         <section class="budget-details">
             <div class="card">
                 <h3>Total Budget</h3>
-                <p>P{{ budget.total_allocated|default:"0.00" }}</p>
+                <p>&#8369;{{ budget.total_allocated|default:"0.00" }}</p>
             </div>
             
             <div class="card">
                 <h3>Spent</h3>
-                <p>P{{ budget.spent|default:"0.00" }}</p>
+                <p>&#8369;{{ budget.spent|default:"0.00" }}</p>
             </div>
             
             <div class="card">
                 <h3>Remaining Balance</h3>
-                <p>P{{ budget.remaining|default:"0.00" }}</p>
+                <p>&#8369;{{ budget.remaining|default:"0.00" }}</p>
             </div>
         </section>
 
@@ -45,9 +45,9 @@
                     {% if budget %}
                     <tr>
                         <td>{{ budget.get_department_display }}</td>
-                        <td>P{{ budget.total_allocated|floatformat:2 }}</td>
-                        <td>P{{ budget.spent|floatformat:2 }}</td>
-                        <td>P{{ budget.remaining|floatformat:2 }}</td>
+                        <td>&#8369;{{ budget.total_allocated|floatformat:2 }}</td>
+                        <td>&#8369;{{ budget.spent|floatformat:2 }}</td>
+                        <td>&#8369;{{ budget.remaining|floatformat:2 }}</td>
                     </tr>
                     {% else %}
                     <tr>

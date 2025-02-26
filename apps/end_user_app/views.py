@@ -7,7 +7,13 @@ from apps.admin_panel.models import BudgetAllocation
 # Create your views here.
 @login_required
 def user_dashboard(request):
-    return render(request, 'end_user_app/dashboard.html')
+    try:
+        # Get the budget allocation of the logged-in user
+        budget = BudgetAllocation.objects.get(assigned_user=request.user)
+    except BudgetAllocation.DoesNotExist:
+        budget = None  # If no budget is assigned to the user
+        
+    return render(request, 'end_user_app/dashboard.html', {'budget': budget})
 
 @login_required
 def view_budget(request):
