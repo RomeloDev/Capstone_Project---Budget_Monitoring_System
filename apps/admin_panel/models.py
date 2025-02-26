@@ -20,6 +20,9 @@ class BudgetAllocation(models.Model):
         related_name="budget",  # User can access their budget with `user.budget`
         null=True, blank=True  # Optional, in case a budget is not yet assigned
     )
+    
+    allocated_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     @property
     def remaining(self):
