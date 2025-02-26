@@ -50,9 +50,9 @@
                 {% for budget in budgets %}
                 <tr>
                     <td>{{ budget.get_department_display }}</td>
-                    <td>P{{ budget.total_allocated|floatformat:2 }}</td>
-                    <td>P{{ budget.spent|floatformat:2 }}</td>
-                    <td>P{{ budget.remaining|floatformat:2 }}</td>
+                    <td>&#8369;{{ budget.total_allocated|floatformat:2 }}</td>
+                    <td>&#8369;{{ budget.spent|floatformat:2 }}</td>
+                    <td>&#8369;{{ budget.remaining|floatformat:2 }}</td>
                 </tr>
                 {% empty %}
                 <tr>

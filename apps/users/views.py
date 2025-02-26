@@ -53,15 +53,15 @@ def end_user_signup(request):
         if password != confirm_password:
             return render(request, 'users/end_user_signup.html', {'error': 'Passwords do not match'})
         
-        # Check if the department, username or email already exists
+        # Check if the department or username or email are already exists
         if User.objects.filter(username=username).exists():
             return render(request, 'users/end_user_signup.html', {'error': 'Username already taken.'})
 
         if User.objects.filter(email=email).exists():
-            return render(request, 'users/end_user_signup.html', {'error': 'Email already registered.'})
+            return render(request, 'users/end_user_signup.html', {'error': f'Email {email} already registered.'})
         
         if User.objects.filter(department=department).exists():
-            return render(request, 'users/end_user_signup.html', {'error': 'Department already exists.'})
+            return render(request, 'users/end_user_signup.html', {'error': f'Department {department} already registered.'})
         
         # Create and save the user
         user = User.objects.create_user(username=username, email=email, password=password, department=department)
