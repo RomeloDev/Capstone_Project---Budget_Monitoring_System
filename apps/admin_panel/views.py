@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
-from .models import BudgetAllocation
+from .models import BudgetAllocation, Budget
 
 # Create your views here.
 @login_required
@@ -25,6 +25,9 @@ def budget_allocation(request):
 
         # Find the user assigned to the department (assuming one user per department)
         assigned_user = User.objects.filter(department=department, is_staff=False).first()
+        
+        # Get the budget values in total_fund column in Budget Model or Table
+        total_fund = Budget.objects.values("total_fund")
 
         # Get or create budget for the department
         budget, created = BudgetAllocation.objects.get_or_create(department=department)
