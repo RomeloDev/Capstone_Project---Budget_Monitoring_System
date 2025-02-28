@@ -13,6 +13,7 @@ class BudgetAllocation(models.Model):
     department = models.CharField(max_length=20, choices=DEPARTMENTS, unique=True)
     total_allocated = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     spent = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    remaining_budget = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
     assigned_user = models.OneToOneField(
         settings.AUTH_USER_MODEL,  # Connect to your custom User model
@@ -24,10 +25,6 @@ class BudgetAllocation(models.Model):
     allocated_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
-    @property
-    def remaining(self):
-        return self.total_allocated - self.spent
-    
     def __str__(self):
         return f"{self.get_department_display()} - {self.assigned_user.username if self.assigned_user else 'Unassigned'}"
     

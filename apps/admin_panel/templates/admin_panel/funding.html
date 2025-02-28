@@ -1,0 +1,25 @@
+{% extends "admin_base_template/dashboard.html" %}
+
+{% block title %}Institution Funds{% endblock  %}
+
+{% block main-content %}
+    <main class="content">
+        <header class="dashboard-header">
+            <h1>Add Institutional Funds</h1>
+            <p>Set the total budget for the institution. This budget will be used to allocate funds to departments.</p>
+        </header>
+
+        <section class="fund-form">
+            <form method="POST">
+                {% csrf_token %}
+                
+                <label for="title">Title:</label>
+                <input type="text" id="title" name="title" placeholder="Enter title">
+                <label for="total_budget">Total Budget Amount (₱):</label>
+                <input type="number" id="total_budget" name="total_budget" required>
+
+                <button type="submit">Submit</button>
+            </form>
+        </section>
+    </main>
+{% endblock  %}

@@ -49,7 +49,22 @@ def budget_allocation(request):
         "budgets": budgets,
         "departments": departments
     })
-
+    
+@login_required
+def funding(request):
+    if request.method == 'POST':
+        title = request.POST.get('title')
+        total_budget = request.POST.get('total_budget')
+        
+        add_budget = Budget.objects.create(
+            title = title,
+            total_fund = total_budget,
+            remaining_budget = total_budget
+        )
+        add_budget.save()
+        
+        return redirect('funding')
+    return render(request, 'admin_panel/funding.html')
 
 @login_required
 def admin_logout(request):

@@ -501,3 +501,44 @@ button {
 button:hover {
     opacity: 0.8;
 }
+
+/* Institutional Funds Form */
+.fund-form {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    width: 50%;
+    margin: auto;
+    margin-top: 20px;
+}
+
+.fund-form label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.fund-form input {
+    width: 96.5%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    margin-bottom: 15px;
+}
+
+.fund-form button {
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.fund-form button:hover {
+    background-color: #218c53;
+}
