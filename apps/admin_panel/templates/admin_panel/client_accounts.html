@@ -19,47 +19,36 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Full Name</th>
+                    <th>USERNAME</th>
                     <th>Email</th>
                     <th>Department</th>
-                    <th>Status</th>
+                    <th>Last Login</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td>001</td>
-                    <td>John Doe</td>
-                    <td>johndoe@example.com</td>
-                    <td>Instruction</td>
-                    <td class="status active">Active</td>
-                    <td>
-                        <button class="edit-btn">Edit</button>
-                        <button class="disable-btn">Disable</button>
-                    </td>
-                </tr>
-                <tr>
-                    <td>002</td>
-                    <td>Jane Smith</td>
-                    <td>janesmith@example.com</td>
-                    <td>Research &amp; Extension</td>
-                    <td class="status disabled">Disabled</td>
-                    <td>
-                        <button class="edit-btn">Edit</button>
-                        <button class="enable-btn">Enable</button>
-                    </td>
-                </tr>
-                <tr>
-                    <td>003</td>
-                    <td>Michael Brown</td>
-                    <td>michaelbrown@example.com</td>
-                    <td>Sports</td>
-                    <td class="status active">Active</td>
-                    <td>
-                        <button class="edit-btn">Edit</button>
-                        <button class="disable-btn">Disable</button>
-                    </td>
-                </tr>
+                {% for user in end_users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.department }}</td>
+                        <td>{{ user.last_login }}</td>
+                        {% comment %} {% if user.is_active == 1 %}
+                            <td class="status active">Active</td>
+                        {% else %}
+                            <td class="status disabled">Disabled</td>
+                        {% endif %} {% endcomment %}
+                        <td>
+                            <button class="edit-btn">Edit</button>
+                            <button class="disable-btn">Disable</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">No End Users </td>
+                    </tr>
+                {% endfor %}
             </tbody>
         </table>
     </section>

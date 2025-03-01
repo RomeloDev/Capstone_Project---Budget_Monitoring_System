@@ -29,6 +29,12 @@
             <input type="number" id="amount" name="amount" min="0" required>
 
             <button type="submit" class="allocate-btn">Allocate</button>
+            <br>
+            {% if messages %}
+                {% for message in messages %}
+                    <p style="color: red;">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
         </form>
     </section>
 
@@ -43,7 +49,9 @@
                     <th>Department</th>
                     <th>Total Allocated</th>
                     <th>Spent</th>
-                    <th>Remaining</th>
+                    <th>Remaining Balance</th>
+                    <th>Allocated at</th>
+                    <th>Updated at</th>
                 </tr>
             </thead>
             <tbody>
@@ -52,7 +60,9 @@
                     <td>{{ budget.get_department_display }}</td>
                     <td>&#8369;{{ budget.total_allocated|floatformat:2 }}</td>
                     <td>&#8369;{{ budget.spent|floatformat:2 }}</td>
-                    <td>&#8369;{{ budget.remaining|floatformat:2 }}</td>
+                    <td>&#8369;{{ budget.remaining_budget|floatformat:2 }}</td>
+                    <td>{{ budget.allocated_at}}</td>
+                    <td>{{ budget.updated_at }}</td>
                 </tr>
                 {% empty %}
                 <tr>

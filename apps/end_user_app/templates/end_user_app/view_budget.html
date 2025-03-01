@@ -47,7 +47,7 @@
                         <td>{{ budget.get_department_display }}</td>
                         <td>&#8369;{{ budget.total_allocated|floatformat:2 }}</td>
                         <td>&#8369;{{ budget.spent|floatformat:2 }}</td>
-                        <td>&#8369;{{ budget.remaining|floatformat:2 }}</td>
+                        <td>&#8369;{{ budget.remaining_budget|floatformat:2 }}</td>
                     </tr>
                     {% else %}
                     <tr>

@@ -511,6 +511,7 @@ button:hover {
     width: 50%;
     margin: auto;
     margin-top: 20px;
+    margin-bottom: 25px;
 }
 
 .fund-form label {

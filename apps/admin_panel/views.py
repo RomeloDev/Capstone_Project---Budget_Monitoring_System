@@ -3,6 +3,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
 from .models import BudgetAllocation, Budget
+from apps.users.models import User
+from django.contrib import messages
+from decimal import Decimal
 
 # Create your views here.
 @login_required
@@ -11,7 +14,11 @@ def admin_dashboard(request):
 
 @login_required
 def client_accounts(request):
-    return render(request, 'admin_panel/client_accounts.html')
+    try:
+        end_users = User.objects.filter(is_staff=False)
+    except User.DoesNotExist:
+        end_users = None
+    return render(request, 'admin_panel/client_accounts.html', {'end_users': end_users})
 
 @login_required
 def departments_request(request):
@@ -22,22 +29,42 @@ def budget_allocation(request):
     if request.method == 'POST':
         department = request.POST.get('department')
         amount = request.POST.get('amount')
+        
+        # Convert amount to decimal
+        try:
+            amount = Decimal(amount)
+        except (ValueError, TypeError):
+            messages.error(request, "Invalid amount entered.")
+            return redirect("budget_allocation")
 
         # Find the user assigned to the department (assuming one user per department)
         assigned_user = User.objects.filter(department=department, is_staff=False).first()
         
-        # Get the budget values in total_fund column in Budget Model or Table
-        total_fund = Budget.objects.values("total_fund")
-
-        # Get or create budget for the department
-        budget, created = BudgetAllocation.objects.get_or_create(department=department)
+        # Get the current remaining fund (assuming only one budget exists)
+        budget_instance = Budget.objects.first()
+        if not budget_instance:
+            messages.error(request, "No institutional budget found")
+            return redirect("budget_allocation")
         
-        # Update values
-        budget.total_allocated = amount
-        budget.assigned_user = assigned_user  # Automatically assign based on department
-        budget.save()
+        remaining_fund = budget_instance.remaining_budget
+        
+        if remaining_fund >= amount:
+            # Get or create budget for the department
+            budget, created = BudgetAllocation.objects.get_or_create(department=department)
+            
+            # Update values
+            budget.total_allocated += amount
+            budget.remaining_budget = budget.total_allocated - budget.spent
+            budget.assigned_user = assigned_user  # Automatically assign based on department
+            budget.save()
+            
+            # Update the remaining balance of total fund of the institution
+            budget_instance.remaining_budget -= amount
+            budget_instance.save()
 
-        return redirect("budget_allocation")  # Reload the page after saving
+            return redirect("budget_allocation")  # Reload the page after saving
+        else:
+            messages.error(request, "Insufficient Budget")
 
     # Fetch all budget allocations
     budgets = BudgetAllocation.objects.all()
@@ -51,7 +78,7 @@ def budget_allocation(request):
     })
     
 @login_required
-def funding(request):
+def institutional_funds(request):
     if request.method == 'POST':
         title = request.POST.get('title')
         total_budget = request.POST.get('total_budget')
@@ -63,8 +90,9 @@ def funding(request):
         )
         add_budget.save()
         
-        return redirect('funding')
-    return render(request, 'admin_panel/funding.html')
+        return redirect('institutional_funds')
+    data_funds = Budget.objects.all()
+    return render(request, 'admin_panel/institutional_funds.html', {"data_funds": data_funds})
 
 @login_required
 def admin_logout(request):
