@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
@@ -6,6 +6,7 @@ from .models import BudgetAllocation, Budget
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
+from apps.end_user_app.models import PurchaseRequest
 
 # Create your views here.
 @login_required
@@ -22,7 +23,28 @@ def client_accounts(request):
 
 @login_required
 def departments_request(request):
-    return render(request, 'admin_panel/department_request.html')
+    try:
+        users_purchase_requests = PurchaseRequest.objects.all()
+    except PurchaseRequest.DoesNotExist:
+        users_purchase_requests = None
+        
+    return render(request, 'admin_panel/department_request.html', {'users_purchase_requests': users_purchase_requests})
+
+@login_required
+def handle_departments_request(request, request_id):
+    purchase_request = get_object_or_404(PurchaseRequest, id=request_id)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == "approve":
+            purchase_request.status = "Approved"
+        elif action == "reject":
+            purchase_request.status = "Rejected"
+        
+        purchase_request.save()
+        
+    return redirect('department_request')
 
 @login_required
 def budget_allocation(request):

@@ -7,4 +7,5 @@ urlpatterns = [
      path('purchase_request', views.purchase_request, name='user_purchase_request'),
     path('settings/', views.settings, name='user_settings'),
     path('logout/', views.end_user_logout, name='logout'),
+    path('purchase_request_form/', views.purchase_request_form, name='purchase_request_form'),
 ]

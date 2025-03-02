@@ -1,0 +1,37 @@
+{% extends "end_user_base_template/dashboard.html" %}
+
+{% block title %}
+    Purchase Request Form
+{% endblock title %}
+
+{% block main-content %}
+    <main class="content">
+        <!-- Purchase Request Form -->
+        <section class="purchase-form">
+            <h2>Submit a New Purchase Request</h2>
+            {% comment %} <form method="POST" action="{% url 'purchase_request' %}"> {% endcomment %}
+            <form method="post">
+                {% csrf_token %}
+                
+                <label for="item_name">Item Name:</label>
+                <input type="text" id="item_name" name="item_name" required>
+
+                <label for="amount">Amount (₱):</label>
+                <input type="number" id="amount" name="amount" required>
+
+                <label for="reason">Reason for Purchase:</label>
+                <textarea id="reason" name="reason" rows="4" required></textarea>
+
+                <div class="form-button">
+                    <button type="submit">Submit Request</button>
+                </div>
+                <br>
+                {% if messages %}
+                    {% for message in messages %}
+                        <p style="color: red;">{{ message }}</p>
+                    {% endfor %}
+                {% endif %}
+            </form>
+        </section>
+    </main>
+{% endblock main-content %}

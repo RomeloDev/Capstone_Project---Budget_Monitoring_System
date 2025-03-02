@@ -22,13 +22,13 @@
                 <div class="header">
                     <h3>Remaining Balance</h3>
                 </div>
-                <p>&#8369;{{budget.remaining|default:"0.00"}}</p>
+                <p>&#8369;{{budget.remaining_budget|default:"0.00"}}</p>
             </div>
             <div class="card">
                 <div class="header">
                     <h3>Approved Requests</h3>
                 </div>
-                <p>0</p>
+                <p>{{ approved_requests_count }}</p>
             </div>
         </section>
 
@@ -45,24 +45,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td>001</td>
-                        <td>Laptop</td>
-                        <td>P70,000</td>
-                        <td>Approved</td>
-                    </tr>
-                    <tr>
-                        <td>002</td>
-                        <td>Printer</td>
-                        <td>P20,000</td>
-                        <td>Pending</td>
-                    </tr>
-                    <tr>
-                        <td>003</td>
-                        <td>Office Chairs</td>
-                        <td>P5,000</td>
-                        <td>Denied</td>
-                    </tr>
+                    {% for purchase in purchase_requests %}
+                        <tr>
+                            <td>{{ purchase.id }}</td>
+                            <td>{{ purchase.item_name }}</td>
+                            <td>{{ purchase.amount }}</td>
+                            <td>{{ purchase.status }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4">No Purchase Requests Found</td>
+                        </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </section>

@@ -3,54 +3,54 @@
 {% block title %}Client Accounts{% endblock %}
 
 {% block main-content %}
-<main class="content">
-    <header class="dashboard-header">
-        <h1>Client Accounts</h1>
-        <p>Manage all registered client accounts in the system.</p>
-    </header>
-
-    <!-- Client Accounts Table -->
-    <section class="client-accounts">
-        <header>
-            <h2>Registered Clients</h2>
-            <p>View and manage all client accounts.</p>
+    <main class="content">
+        <header class="dashboard-header">
+            <h1>Client Accounts</h1>
+            <p>Manage all registered client accounts in the system.</p>
         </header>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>USERNAME</th>
-                    <th>Email</th>
-                    <th>Department</th>
-                    <th>Last Login</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in end_users %}
+
+        <!-- Client Accounts Table -->
+        <section class="client-accounts">
+            <header>
+                <h2>Registered Clients</h2>
+                <p>View and manage all client accounts.</p>
+            </header>
+            <table>
+                <thead>
                     <tr>
-                        <td>{{ user.id }}</td>
-                        <td>{{ user.username }}</td>
-                        <td>{{ user.email }}</td>
-                        <td>{{ user.department }}</td>
-                        <td>{{ user.last_login }}</td>
-                        {% comment %} {% if user.is_active == 1 %}
-                            <td class="status active">Active</td>
-                        {% else %}
-                            <td class="status disabled">Disabled</td>
-                        {% endif %} {% endcomment %}
-                        <td>
-                            <button class="edit-btn">Edit</button>
-                            <button class="disable-btn">Disable</button>
-                        </td>
+                        <th>ID</th>
+                        <th>USERNAME</th>
+                        <th>Email</th>
+                        <th>Department</th>
+                        <th>Last Login</th>
+                        <th>Actions</th>
                     </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="4">No End Users </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
-</main>
+                </thead>
+                <tbody>
+                    {% for user in end_users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.department }}</td>
+                            <td>{{ user.last_login }}</td>
+                            <!-- {% if user.is_active == 1 %}
+                                <td class="status active">Active</td>
+                            {% else %}
+                                <td class="status disabled">Disabled</td>
+                            {% endif %} -->
+                            <td>
+                                <button class="edit-btn">Edit</button>
+                                <button class="disable-btn">Disable</button>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4">No End Users </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
 {% endblock %}

@@ -494,7 +494,12 @@ button {
 }
 
 .disabled-btn {
-    background-color: gray;
+    background-color: rgb(114, 191, 129);
+    color: white;
+}
+
+.rejected-btn{
+    background-color: rgb(170, 66, 66);
     color: white;
 }
 

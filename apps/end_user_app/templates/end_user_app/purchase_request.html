@@ -13,7 +13,7 @@
 
         <!-- New Purchase Request Button -->
         <section class="new-request">
-            <button class="new-request-btn">+ New Purchase Request</button>
+            <button class="new-request-btn" onclick="window.location.href = '{% url "purchase_request_form" %}'">+ New Purchase Request</button>
         </section>
 
         <!-- Purchase Requests Table -->
@@ -31,30 +31,20 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td>001</td>
-                        <td>Laptop</td>
-                        <td>P50,000</td>
-                        <td><span class="status approved">Approved</span></td>
-                        <td>2025-01-10</td>
-                        <td><button class="view-btn">View Details</button></td>
-                    </tr>
-                    <tr>
-                        <td>002</td>
-                        <td>Printer</td>
-                        <td>P5,000</td>
-                        <td><span class="status pending">Pending</span></td>
-                        <td>2025-01-08</td>
-                        <td><button class="view-btn">View Details</button></td>
-                    </tr>
-                    <tr>
-                        <td>003</td>
-                        <td>Office Supplies</td>
-                        <td>P2,500</td>
-                        <td><span class="status denied">Denied</span></td>
-                        <td>2025-01-05</td>
-                        <td><button class="view-btn">View Details</button></td>
-                    </tr>
+                    {% for purchase in purchase_requests %}
+                        <tr>
+                            <td>{{ purchase.id }}</td>
+                            <td>{{ purchase.item_name }}</td>
+                            <td>{{ purchase.amount }}</td>
+                            <td>{{ purchase.status }}</td>
+                            <td>{{ purchase.created_at }}</td>
+                            <td><button class="view-btn">View Details</button></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6">No purchase requests found.</td>
+                        </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </section>

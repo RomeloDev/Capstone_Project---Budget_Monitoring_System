@@ -18,8 +18,8 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('django/admin/', admin.site.urls),
     path('', include('apps.users.urls')), #This is for auth urls
     path('end_user/', include('apps.end_user_app.urls')), # This is for end_user app urls
-    path('bms/admin/', include('apps.admin_panel.urls'))  # This is for admin_panel urls
+    path('admin/', include('apps.admin_panel.urls'))  # This is for admin_panel urls
 ]
