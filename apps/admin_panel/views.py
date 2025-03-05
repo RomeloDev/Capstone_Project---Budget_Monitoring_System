@@ -11,6 +11,10 @@ from apps.end_user_app.models import PurchaseRequest
 # Create your views here.
 @login_required
 def admin_dashboard(request):
+    try:
+        pass
+    except:
+        pass
     return render(request, 'admin_panel/dashboard.html')
 
 @login_required
@@ -37,9 +41,13 @@ def handle_departments_request(request, request_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         
+        budget_allocated = BudgetAllocation.objects.get(assigned_user=purchase_request.user)
+        
         if action == "approve":
             purchase_request.status = "Approved"
         elif action == "reject":
+            budget_allocated.remaining_budget += purchase_request.amount
+            budget_allocated.save()
             purchase_request.status = "Rejected"
         
         purchase_request.save()

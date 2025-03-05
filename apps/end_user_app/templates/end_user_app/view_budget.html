@@ -11,7 +11,7 @@
             <p>Details of your department's budget allocation and usage:</p>
         </header>
 
-        <!-- Budget Details -->
+        {% comment %} <!-- Budget Details -->
         <section class="budget-details">
             <div class="card">
                 <h3>Total Budget</h3>
@@ -27,7 +27,7 @@
                 <h3>Remaining Balance</h3>
                 <p>&#8369;{{ budget.remaining_budget|default:"0.00" }}</p>
             </div>
-        </section>
+        </section> {% endcomment %}
 
         <!-- Budget History -->
         <section class="budget-history">
