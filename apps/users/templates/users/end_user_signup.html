@@ -10,16 +10,29 @@
         {% csrf_token %}
         <input type="text" name="username" id="username" placeholder="Username:" required>
         <input type="email" name="email" id="email" placeholder="Email:" required><br>
-        <label for="department">Department:</label>
-        <div class="radio-buttons">
+        <p class="department" style="color: #625b5b">Department:</p>
+        <div class="mfo-1">
+            <p>MF0-1:</p>
+            <input type="radio" name="mf0_1" id="ccis" value="CCIS" required>
+            <label for="ccis">CCIS</label>
+            <br>
+            <input type="radio" name="mf0_1" id="ctas" value="CTAS" required>
+            <label for="ctas">CTAS</label>
+            <br>
+            <input type="radio" name="mf0_1" id="ccj" value="CCJ" required>
+            <label for="ccj">CCJ</label>
+        </div>
+        {% comment %} <div class="radio-buttons">
             <input type="radio" name="department" value="instruction" required> Instruction<br>
             <input type="radio" name="department" value="sport" required> Sport<br>
             <input type="radio" name="department" value="research" required> Research<br>
-        </div>
+        </div> {% endcomment %}
         <input type="password" name="password" id="password" placeholder="Password:" required>
         <input type="password" name="confirm-password" id="confirm-password" placeholder="Confirm Password:" required>
         <button type="submit" name="submit">Sign Up</button>
         <p style="color: red;">{{ error }}</p>
     </form>
-    <p>Already have an account? <a href="{% url "end_user_login" %}">Login</a></p>
+    <div class="redirect">
+        <p>Already have an account? <a href="{% url "end_user_login" %}">Login</a></p>
+    </div>
 {% endblock content %}

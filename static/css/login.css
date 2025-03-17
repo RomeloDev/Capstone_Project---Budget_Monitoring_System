@@ -36,12 +36,23 @@ label{
     margin-bottom: 20px;
 }
 
-.radio-buttons{
+.mfo-1{
     color: #625b5b;
     font-size: 0.9rem;
     padding: 5px 0;
     margin-bottom: 10px;
+    text-align: left;
+    margin-left: 10px;
 }
+
+.mfo-1 p{
+    margin-bottom: 5px;
+}
+
+.mfo-1 input{
+    margin-left: 10px;
+}
+
 
 .form input[type="text"], .form input[type="password"], .form input[type="email"] {
     width: 100%;
@@ -73,9 +84,10 @@ label{
 }
 
 .form p {
-    text-align: center;
-    margin-top: 20px;
+    text-align: left;
+    margin-top: 0;
 }
+
 
 .form a {
     text-decoration: none;
@@ -84,6 +96,11 @@ label{
 
 .form a:hover {
     color: #2c3e50;
+}
+
+.redirect p{
+    text-align: center;
+    margin-top: 10px;
 }
 
 /* Responsive design */

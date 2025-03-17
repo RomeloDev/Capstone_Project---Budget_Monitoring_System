@@ -80,12 +80,12 @@ WSGI_APPLICATION = 'bb_budget_monitoring_system.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'bb_budget_monitoring_db',
-        'USER': 'root',
-        'PASSWORD': '',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres_bb_budget_monitoring_db',
+        'USER': 'postgres',
+        'PASSWORD': 'superuser',
         'HOST': 'localhost',
-        'PORT': '3306'
+        'PORT': '5432'
     }
 }
 

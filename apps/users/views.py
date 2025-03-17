@@ -11,7 +11,7 @@ def admin_login(request):
             
         admin = authenticate(request, email=email, password=password)
         
-        if admin is not None and admin.is_staff:
+        if admin is not None and admin.is_admin:
             login(request, admin)
             return redirect('admin_dashboard')
         else:
@@ -45,7 +45,7 @@ def end_user_signup(request):
         # Retrieval of value in input fields
         username = request.POST.get('username')
         email = request.POST.get('email')
-        department = request.POST.get('department')
+        department = request.POST.get('mf0_1')
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm-password')
         

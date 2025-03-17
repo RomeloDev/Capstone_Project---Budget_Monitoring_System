@@ -186,7 +186,7 @@ body {
     background-color: white;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
 }
 
 .purchase-requests h2 {
@@ -198,6 +198,7 @@ body {
 .purchase-requests table {
     width: 100%;
     border-collapse: collapse;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
 }
 
 .purchase-requests table th,
@@ -227,10 +228,15 @@ body {
     background-color: white;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    width: 50%;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    width: 80%;
     margin: auto;
-    margin-top: 20px;
+    margin-top: 30px;
+}
+
+.purchase-form form{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
 }
 
 .purchase-form label {
@@ -241,7 +247,7 @@ body {
 
 .purchase-form input, 
 .purchase-form textarea {
-    width: 96.5%;
+    width: 80%;
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 5px;
@@ -249,11 +255,17 @@ body {
     margin-bottom: 15px;
 }
 
+.purchase-form .purpose{
+    grid-area: 3 / 1 / 3 / 2;
+}
+
+
 .form-button{
     display: flex;
     justify-content: center;
     align-items: center;
     margin-top: 0.7rem;
+    grid-area: 4 / 1 / 4 / 3;
 }
 
 .purchase-form button {
@@ -265,12 +277,60 @@ body {
     font-size: 17px;
     cursor: pointer;
     transition: background-color 0.3s;
+    width: 40%;
 }
 
 .purchase-form button:hover {
     background-color: #218c53;
 }
 
+form .submit_pr_button{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 2rem;
+}
+
+form .submit_pr_button button{
+    background-color: #1118aa;
+    color: white;
+    border: none;
+    padding: 0.9rem 1.5rem;
+    border-radius: 5px;
+    font-size: 17px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    width: 30%;
+    height: 4rem;
+}
+
+form .submit_pr_button button:hover{
+    background-color: #3e46e3;
+}
+
+/* Headings */
+.headings{
+    display: flex;
+    gap: 2rem;
+    padding: 1rem;
+}
+
+/* Purpose */
+.purpose{
+    padding: 1rem;
+    font-size: 0.9rem;
+}
+
+/* Add Items */
+.add_item_btn{
+    display: flex;
+    justify-content: start;
+    align-items: center;
+}
+
+.add_item_btn button{
+    width: 86%;
+}
 
 /* Status Badges */
 .status {
@@ -313,8 +373,28 @@ body {
 /* New Purchase Request Button */
 .new-request {
     display: flex;
-    justify-content: flex-end;
+    justify-content: center;
+    align-items: center;
+}
+
+.new-request-container{
     margin-bottom: 20px;
+    width: 600px;
+    padding: 2rem;
+    background-color: #FFFF;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+    border-radius: 10px; /* 5px rounded corners */
+}
+
+.new-request-container h2, .new-request-container p{
+    margin: 0 0 10px;
+}
+
+.new-request-container .buttons{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3rem;
 }
 
 .new-request-btn {

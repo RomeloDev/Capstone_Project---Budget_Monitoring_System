@@ -13,7 +13,14 @@
 
         <!-- New Purchase Request Button -->
         <section class="new-request">
-            <button class="new-request-btn" onclick="window.location.href = '{% url "purchase_request_form" %}'">+ New Purchase Request</button>
+            <div class="new-request-container">
+                <h2>Create a Request:</h2>
+                <p>Select a form:</p>
+                <div class="buttons">
+                    <button class="new-request-btn" onclick="window.location.href = '{% url "purchase_request_form" %}'">Procurement PR</button>
+                    <button class="new-request-btn" >Non-Procurement SD</button>
+                </div>
+            </div>
         </section>
 
         <!-- Purchase Requests Table -->
