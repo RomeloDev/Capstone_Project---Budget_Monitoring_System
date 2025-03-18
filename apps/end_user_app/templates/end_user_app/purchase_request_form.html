@@ -11,7 +11,7 @@
         <section class="purchase-form">
             <h2>Fill out Headings</h2>
             {% comment %} <form method="POST" action="{% url 'purchase_request' %}"> {% endcomment %}
-            <form method="post">
+            <form method="post" action="{% url "purchase_request_form" %}">
                 {% csrf_token %}
                 
                 <div>
@@ -60,8 +60,14 @@
         <section class="purchase-form">
             <h2>Fill out Items</h2>
             
-            <form action="" method="post">
+            <form action="{% url "purchase_request_form" %}" method="post">
                 {% csrf_token %}
+
+                <!-- Hidden field to store the PurchaseRequest ID -->
+                {% if latest_purchase_request %}
+                    <input type="hidden" name="purchase_request_id" value="{{ latest_purchase_request.id }}">
+                {% endif %}
+
 
                 <div>
                     <label for="stock_property_no">Stock Property No:</label>
@@ -93,14 +99,15 @@
 
         <!-- Purchase Request Items Table -->
         <section class="purchase-requests">
-            <h2>Items Requested</h2>
+            <h2>Headings Details</h2>
             <div class="headings">
-                <p><strong>Entity Name: </strong>Sample Entity Name</p>
-                <p><strong>Fund Cluster: </strong>Sample Fund Cluster</p>
-                <p><strong>Office/Section: </strong>Sample Office</p>
-                <p><strong>PR No.: </strong>PR-001</p>
-                <p><strong>Responsibility Center Code: </strong>Sample Data</p>
+                <p><strong>Entity Name: </strong>{{ latest_purchase_request.entity_name|default:"None" }}</p>
+                <p><strong>Fund Cluster: </strong>{{ latest_purchase_request.fund_cluster|default:"None" }}</p>
+                <p><strong>Office/Section: </strong>{{ latest_purchase_request.office_section|default:"None" }}</p>
+                <p><strong>PR No.: </strong>{{ latest_purchase_request.pr_no|default:"None" }}</p>
+                <p><strong>Responsibility Center Code: </strong>{{ latest_purchase_request.responsibility_center_code|default:"None" }}</p>
             </div>
+            <h2>Items Requested</h2>
             <table>
                 <thead>
                     <tr>
@@ -130,12 +137,18 @@
                 </tbody>
             </table>
             <div class="purpose">
-                <p><strong>Purpose: </strong>Lorem ipsum dolor sit, amet consectetur adipisicing elit. Illum mollitia magni iusto ex facere? Sit, ipsa sunt eveniet eaque, unde quidem veniam commodi aspernatur ipsam incidunt tempore qui, pariatur maiores?</p>
+                <p><strong>Purpose: </strong>{{ latest_purchase_request.purpose|default:"None" }}</p>
             </div>
         </section>
 
-        <form action="" method="post">
+        <form action="{% url "purchase_request_form" %}" method="post">
             {% csrf_token %}
+
+            {% if latest_purchase_request %}
+                <input type="hidden" name="latest_purchase_request_id" value="{{ latest_purchase_request.id }}">
+            {% endif %}
+            <input type="hidden" name="submit_pr" value="true"> <!-- Identifier for Submission -->
+
             <div class="submit_pr_button">
                 <button type="submit">Submit Purchase Request</button>
             </div>
