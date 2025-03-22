@@ -29,22 +29,24 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Request ID</th>
-                        <th>Item</th>
-                        <th>Amount</th>
-                        <th>Status</th>
+                        <th>PR No.</th>
+                        <th>Entity Name</th>
+                        <th>Fund Cluster</th>
+                        <th>Office/Section</th>
                         <th>Date Requested</th>
+                        <th>Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for purchase in purchase_requests %}
                         <tr>
-                            <td>{{ purchase.id }}</td>
-                            <td>{{ purchase.item_name }}</td>
-                            <td>{{ purchase.amount }}</td>
-                            <td>{{ purchase.status }}</td>
+                            <td>{{ purchase.pr_no }}</td>
+                            <td>{{ purchase.entity_name }}</td>
+                            <td>{{ purchase.fund_cluster }}</td>
+                            <td>{{ purchase.office_section }}</td>
                             <td>{{ purchase.created_at }}</td>
+                            <td>{{ purchase.submitted_status }}</td>
                             <td><button class="view-btn">View Details</button></td>
                         </tr>
                         {% empty %}

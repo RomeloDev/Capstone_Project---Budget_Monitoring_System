@@ -7,151 +7,126 @@
 {% block main-content %}
     <main class="content">
         <h1 style="text-align: center;">Procurable Purchase Request Form</h1>
-        <!-- Purchase Request Form -->
-        <section class="purchase-form">
-            <h2>Fill out Headings</h2>
-            {% comment %} <form method="POST" action="{% url 'purchase_request' %}"> {% endcomment %}
-            <form method="post" action="{% url "purchase_request_form" %}">
-                {% csrf_token %}
-                
-                <div>
-                    <label for="entity_name">Entity Name:</label>
-                    <input type="text" id="entity_name" name="entity_name" required>
-                </div>
-
-                <div>
-                    <label for="fund_cluster">Fund Cluster:</label>
-                    <input type="text" id="fund_cluster" name="fund_cluster" required>
-                </div>
-
-                <div>
-                    <label for="office_section">Office/Section:</label>
-                    <input type="text" id="office_section" name="office_section" required>
-                </div>
-
-                <div>
-                    <label for="pr_no">PR No:</label>
-                    <input type="text" id="pr_no" name="pr_no" required>
-                </div>
-
-                <div>
-                    <label for="responsiblity_center_code">Responsiblity Center Code:</label>
-                    <input type="text" id="responsiblity_center_code" name="responsiblity_center_code" required>
-                </div>
-
-                <div class="purpose">
-                    <label for="purpose">Purpose:</label>
-                    <textarea id="purpose" name="purpose" rows="4" required></textarea>
-                </div>
-
-                <div class="form-button">
-                    <button type="submit">Done</button>
-                </div>
-                <br>
-                {% if messages %}
-                    {% for message in messages %}
-                        <p style="color: red;">{{ message }}</p>
-                    {% endfor %}
-                {% endif %}
-            </form>
-        </section>
-
-        {% comment %} Add Item Form {% endcomment %}
-        <section class="purchase-form">
-            <h2>Fill out Items</h2>
-            
-            <form action="{% url "purchase_request_form" %}" method="post">
-                {% csrf_token %}
-
-                <!-- Hidden field to store the PurchaseRequest ID -->
-                {% if latest_purchase_request %}
-                    <input type="hidden" name="purchase_request_id" value="{{ latest_purchase_request.id }}">
-                {% endif %}
-
-
-                <div>
-                    <label for="stock_property_no">Stock Property No:</label>
-                    <input type="text" name="stock_property_no" id="stock_property_no" required>
-                </div>
-                <div>
-                    <label for="unit">Unit:</label>
-                    <input type="text" name="unit" id="unit" required>
-                </div>
-                <div>
-                    <label for="item_description">Item Description:</label>
-                    <input type="text" name="item_description" id="item_description" required>
-                </div>
-                <div>
-                    <label for="quantity">Quantity:</label>
-                    <input type="text" name="quantity" id="quantity" required>
-                </div>
-                <div>
-                    <label for="unit_cost">Unit Cost:</label>
-                    <input type="text" name="unit_cost" id="unit_cost" required>
-                </div>
-
-                <div class="add_item_btn">
-                    <button type="submit">Add Item</button>
-                </div>
-            </form>
-        </section>
         
-
         <!-- Purchase Request Items Table -->
         <section class="purchase-requests">
             <h2>Headings Details</h2>
-            <div class="headings">
-                <p><strong>Entity Name: </strong>{{ latest_purchase_request.entity_name|default:"None" }}</p>
-                <p><strong>Fund Cluster: </strong>{{ latest_purchase_request.fund_cluster|default:"None" }}</p>
-                <p><strong>Office/Section: </strong>{{ latest_purchase_request.office_section|default:"None" }}</p>
-                <p><strong>PR No.: </strong>{{ latest_purchase_request.pr_no|default:"None" }}</p>
-                <p><strong>Responsibility Center Code: </strong>{{ latest_purchase_request.responsibility_center_code|default:"None" }}</p>
-            </div>
-            <h2>Items Requested</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Stock/Property No</th>
-                        <th>Unit</th>
-                        <th>Item Description</th>
-                        <th>Quantity</th>
-                        <th>Unit Cost</th>
-                        <th>Total Cost</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in purchase_items %}
-                        <tr>
-                            <td>{{ item.stock_property_no }}</td>
-                            <td>{{ item.unit }}</td>
-                            <td>{{ item.item_description }}</td>
-                            <td>{{ item.quantity }}</td>
-                            <td>{{ item.unit_cost }}</td>
-                            <td>{{ item.total_cost }}</td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="6">No items added yet.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            <div class="purpose">
-                <p><strong>Purpose: </strong>{{ latest_purchase_request.purpose|default:"None" }}</p>
-            </div>
+            <form id="main-pr-form" action="{% url "purchase_request_form" %}" method="post">
+                {% csrf_token %}  
+                
+                <div class="headings">
+                    <div>
+                        <label for="entity_name">Entity Name:</label>
+                        <input type="text" id="entity_name" name="entity_name" required>  
+                    </div>
+                    <div>
+                        <label for="fund_cluster">Fund Cluster:</label>
+                        <input type="text" id="fund_cluster" name="fund_cluster" required> 
+                    </div>
+                    <div>
+                        <label for="office_section">Office/Section:</label>
+                        <input type="text" id="office_section" name="office_section" required> 
+                    </div>
+                    <div>
+                        <label for="pr_no">PR No.:</label>
+                        <input type="text" id="pr_no" name="pr_no" required> 
+                    </div>
+                    <div>
+                        <label for="responsibility_code">Responsibility Center Code:</label>
+                        <input type="text" id="responsibility_code" name="responsibility_code" required> 
+                    </div>
+                </div>
+
+                <div class="add-items">
+                    <h2>Items Requested</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Stock/Property No</th>
+                                <th>Unit</th>
+                                <th>Item Description</th>
+                                <th>Quantity</th>
+                                <th>Unit Cost</th>
+                                <th>Total Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-table-body">
+                            {% comment %} Fetch the items data from server {% endcomment %}
+                            {% for item in purchase_items %}
+                                <tr>
+                                    <td>{{ item.stock_property_no }}</td>
+                                    <td>{{ item.unit }}</td>
+                                    <td>{{ item.item_description }}</td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td>{{ item.unit_cost }}</td>
+                                    <td>{{ item.total_cost }}</td>
+                                </tr>
+                            {% endfor %}
+
+                            {% comment %} Add Purchase request items {% endcomment %}
+                            <tr id="input-row">
+                                <td class="table-inputs"><input type="text" id="stock_no" ></td>
+                                <td class="table-inputs"><input type="text" id="unit" ></td>
+                                <td class="table-inputs"><input type="text" id="item_desc" ></td>
+                                <td class="table-inputs"><input type="number" id="quantity" min="0" ></td>
+                                <td class="table-inputs"><input type="number" id="unit_cost" min="0" ></td>
+                                <td class="table-inputs"></td>
+                            </tr>  
+
+                        </tbody>
+                    </table>
+                    <div class="add-item-btn">
+                        <button type="button" id="add-item">Add Item</button>
+                    </div>
+                </div>
+
+                <div class="purpose-div">
+                    <label for="purpose">Purpose:</label>
+                    <textarea id="purpose" name="purpose" rows="3"></textarea>
+                </div>
+
+                <div class="submit_pr_button">
+                    <button name="submit_pr" type="submit">Submit Purchase Request</button>
+                </div>
+            </form>
         </section>
-
-        <form action="{% url "purchase_request_form" %}" method="post">
-            {% csrf_token %}
-
-            {% if latest_purchase_request %}
-                <input type="hidden" name="latest_purchase_request_id" value="{{ latest_purchase_request.id }}">
-            {% endif %}
-            <input type="hidden" name="submit_pr" value="true"> <!-- Identifier for Submission -->
-
-            <div class="submit_pr_button">
-                <button type="submit">Submit Purchase Request</button>
-            </div>
-        </form>
     </main>
+
+    <script>
+        document.getElementById('add-item').addEventListener('click', function() {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            fetch("{% url 'add_purchase_item' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'stock_no': document.getElementById('stock_no').value,
+                    'unit': document.getElementById('unit').value,
+                    'item_desc': document.getElementById('item_desc').value,
+                    'quantity': document.getElementById('quantity').value,
+                    'unit_cost': document.getElementById('unit_cost').value,
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    // Clear input fields
+                    document.querySelectorAll('#input-row input').forEach(input => input.value = '');
+                    
+                    // Refresh items list
+                    fetch("{% url 'purchase_request_form' %}")
+                        .then(response => response.text())
+                        .then(html => {
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(html, 'text/html');
+                            const newTableBody = doc.getElementById('items-table-body').innerHTML;
+                            document.getElementById('items-table-body').innerHTML = newTableBody;
+                        });
+                }
+            });
+        });
+    </script>
 {% endblock main-content %}

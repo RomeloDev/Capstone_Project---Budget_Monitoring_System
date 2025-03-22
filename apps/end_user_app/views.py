@@ -6,6 +6,8 @@ from apps.admin_panel.models import BudgetAllocation
 from .models import PurchaseRequest, PurchaseRequestItems
 from decimal import Decimal
 from django.contrib import messages
+from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse
 
 # Create your views here.
 @login_required
@@ -43,11 +45,11 @@ def view_budget(request):
 
 @login_required
 def purchase_request(request):
-    # try:
-    #     purchase_requests = PurchaseRequest.objects.filter(user=request.user)
-    # except PurchaseRequest.DoesNotExist:
-    #     purchase_requests = None
-    return render(request, 'end_user_app/purchase_request.html')
+    try:
+        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="Submitted")
+    except PurchaseRequest.DoesNotExist:
+        purchase_requests = None
+    return render(request, 'end_user_app/purchase_request.html', {'purchase_requests': purchase_requests})
 
 @login_required
 def settings(request):
@@ -60,73 +62,73 @@ def end_user_logout(request):
 
 @login_required 
 def purchase_request_form(request):
-    if request.method == 'POST':
-        # Purchase Request Headings Logic
-        if 'entity_name' in request.POST:
-            entity_name = request.POST.get('entity_name')
-            fund_cluster = request.POST.get('fund_cluster')
-            office_section = request.POST.get('office_section')
-            pr_no = request.POST.get('pr_no')
-            responsibility_center_code = request.POST.get('responsiblity_center_code')
-            purpose = request.POST.get('purpose')
-            
-            purchase_request, created = PurchaseRequest.objects.get_or_create(
-                pr_no=pr_no,
-                defaults={
-                    "requested_by": request.user,
-                    "entity_name": entity_name,
-                    "fund_cluster": fund_cluster,
-                    "office_section": office_section,
-                    "responsibility_center_code": responsibility_center_code,
-                    "purpose": purpose
-                }
-            )
-
-            
-            messages.success(request, "PR Headings has been added successfully")
-            return redirect('purchase_request_form')
-        elif 'purchase_request_id' in request.POST:
-            purchase_request_id = request.POST.get('purchase_request_id')
-            stock_property_no = request.POST.get('stock_property_no')
-            unit = request.POST.get('unit')
-            item_description = request.POST.get('item_description')
-            quantity = int(request.POST.get('quantity', 0))
-            unit_cost = Decimal(request.POST.get('unit_cost', 0))
-            
-            # Validate kung valid nga Purchase Request ID
-            purchase_request = get_object_or_404(PurchaseRequest, id=purchase_request_id)
-            
-            # Create new PurchaseRequestItem
-            PurchaseRequestItems.objects.create(
-                purchase_request=purchase_request,
-                stock_property_no=stock_property_no,
-                unit=unit,
-                item_description=item_description,
-                quantity=quantity,
-                unit_cost=unit_cost
-            )
-            
-            messages.success(request, "Item added Successfully!")
-            return redirect('purchase_request_form')
-        
-        elif "submit_pr" in request.POST:  # Purchase Request Submission
-            print("POST data received:", request.POST)
-            purchase_request_id = request.POST.get("latest_purchase_request_id")
-            purchase_request = get_object_or_404(PurchaseRequest, id=purchase_request_id)
-
-            purchase_request.pr_status = "Submitted"
-            purchase_request.submitted_status = "Pending"
-            purchase_request.save()
-
-            print("Purchase Request Submitted Successfully!")
-            messages.success(request, "Purchase Request Submitted Successfully!")
-            return redirect("purchase_request_form")
-        
-    latest_purchase_request = PurchaseRequest.objects.filter(requested_by=request.user).last()
-    purchase_items = latest_purchase_request.items.all() if latest_purchase_request else []
-      
+    # Get or create draft purchase request
+    purchase_request, created = PurchaseRequest.objects.get_or_create(
+        requested_by=request.user,
+        pr_status='draft',
+        defaults={
+            'entity_name': 'Draft Entity',
+            'pr_no': 'TEMP',
+            'pr_status': 'draft'
+        }
+    )
     
-    return render(request, 'end_user_app/purchase_request_form.html', {
-        'latest_purchase_request': latest_purchase_request,
-        'purchase_items': purchase_items,
+    if request.method == 'POST' and 'submit_pr' in request.POST:
+        # Handle final form submission
+        # Update purchase request details
+        # Generate proper PR number here
+        purchase_request.pr_status = 'Submitted'
+        purchase_request.submitted_status = 'Pending'
+        purchase_request.entity_name = request.POST.get('entity_name')
+        purchase_request.fund_cluster = request.POST.get('fund_cluster')
+        purchase_request.office_section = request.POST.get('office_section')
+        purchase_request.pr_no = request.POST.get('pr_no')
+        purchase_request.responsibility_center_code = request.POST.get('responsibility_code')
+        purchase_request.purpose = request.POST.get('purpose')
+        purchase_request.save()
+        
+        print("Purchase Request Submitted Sucessfully")
+        return redirect('purchase_request_form')
+    
+    context = {
+        'purchase_request': purchase_request,
+        'purchase_items': purchase_request.items.all()
+    }
+    
+    return render(request, "end_user_app/purchase_request_form.html", context)
+    
+@require_http_methods(["POST"])
+@login_required
+def add_purchase_request_items(request):
+    # Get or create draft purchase request
+    purchase_request, created = PurchaseRequest.objects.get_or_create(
+        requested_by=request.user,
+        pr_status='draft',
+        defaults={
+            'entity_name': 'Draft Entity',
+            'pr_no': 'TEMP',
+            'pr_status': 'draft'
+        }
+    )
+    
+    # Create item
+    item = PurchaseRequestItems.objects.create(
+        purchase_request=purchase_request,
+        stock_property_no=request.POST.get('stock_no'),
+        unit=request.POST.get('unit'),
+        item_description=request.POST.get('item_desc'),
+        quantity=int(request.POST.get('quantity', 0)),
+        unit_cost=float(request.POST.get('unit_cost', 0)),
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'item': {
+            'stock_property_no': item.stock_property_no,
+            'unit': item.unit,
+            'item_description': item.item_description,
+            'quantity': item.quantity,
+            'unit_cost': float(item.unit_cost),
+            'total_cost': float(item.total_cost),
+        }
     })

@@ -45,9 +45,10 @@ def end_user_signup(request):
         # Retrieval of value in input fields
         username = request.POST.get('username')
         email = request.POST.get('email')
-        department = request.POST.get('mf0_1')
+        department = request.POST.get('mfo_1')
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm-password')
+        department_head = request.POST.get('department') # This is for future changes. Add a logic about this
         
         # Validate password confirmation
         if password != confirm_password:

@@ -8,4 +8,5 @@ urlpatterns = [
     path('settings/', views.settings, name='user_settings'),
     path('logout/', views.end_user_logout, name='logout'),
     path('purchase_request_form/', views.purchase_request_form, name='purchase_request_form'),
+    path('add_purchase_item/', views.add_purchase_request_items, name='add_purchase_item'),
 ]

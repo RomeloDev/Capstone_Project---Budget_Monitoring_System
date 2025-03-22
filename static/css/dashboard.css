@@ -296,12 +296,13 @@ form .submit_pr_button button{
     color: white;
     border: none;
     padding: 0.9rem 1.5rem;
-    border-radius: 5px;
+    border-radius: 15px;
     font-size: 17px;
     cursor: pointer;
     transition: background-color 0.3s;
     width: 30%;
     height: 4rem;
+    box-shadow: 0 1.5px 5px rgb(21, 21, 21);
 }
 
 form .submit_pr_button button:hover{
@@ -310,16 +311,49 @@ form .submit_pr_button button:hover{
 
 /* Headings */
 .headings{
-    display: flex;
-    gap: 2rem;
-    padding: 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
-/* Purpose */
-.purpose{
-    padding: 1rem;
-    font-size: 0.9rem;
+.headings div label, .purpose-div label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
 }
+
+.headings div input, .purpose-div textarea, .table-inputs input{
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid hsl(240, 0%, 60%);
+    border-radius: 0.5rem;
+    box-sizing: border-box;
+}
+
+.add-item-btn{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.add-item-btn button{
+    padding: 1rem 2.5rem;
+    background: rgb(8, 218, 53);
+    border-radius: 10px;
+    border: none;
+    font-family: Arial, Helvetica, sans-serif;
+    color: azure;
+    font-size: 0.9rem;
+    box-shadow: 0px 1px 3px rgb(70, 68, 68);
+}
+
+.add-item-btn button:hover{
+    background: rgba(26, 255, 76, 0.901);
+    color: gray;
+}
+
 
 /* Add Items */
 .add_item_btn{
