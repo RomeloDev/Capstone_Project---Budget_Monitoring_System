@@ -7,14 +7,14 @@
 {% block main-content %}
     <main class="content">
         <header>
-            <h1>Purchase Requests</h1>
+            <h1 class="font-semibold text-[2rem]">Purchase Requests</h1>
             <p>Track and manage your department's purchase requests.</p>
         </header>
 
         <!-- New Purchase Request Button -->
         <section class="new-request">
             <div class="new-request-container">
-                <h2>Create a Request:</h2>
+                <h2 class="font-semibold text-[1.3rem]">Create a Request:</h2>
                 <p>Select a form:</p>
                 <div class="buttons">
                     <button class="new-request-btn" onclick="window.location.href = '{% url "purchase_request_form" %}'">Procurement PR</button>
@@ -25,7 +25,7 @@
 
         <!-- Purchase Requests Table -->
         <section class="purchase-requests">
-            <h2>Recent Purchase Requests</h2>
+            <h2 class="font-semibold text-[1.4rem]">Recent Purchase Requests</h2>
             <table>
                 <thead>
                     <tr>

@@ -1,3 +1,4 @@
+{% load static tailwind_tags %}
 <!DOCTYPE html>
 {% load static %}
 <html lang="en">
@@ -8,6 +9,9 @@
             Default Title
         {% endblock title %}</title>
     <link rel="stylesheet" href="{% static "css/dashboard.css" %}">
+    {% tailwind_css %}
+    <!-- Load HTMX -->
+    <script src="{% static 'js/htmx.min.js' %}"></script>
 </head>
 <body>
     <div class="dashboard">

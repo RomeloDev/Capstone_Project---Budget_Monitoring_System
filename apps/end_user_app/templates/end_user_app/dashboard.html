@@ -6,35 +6,35 @@
     <!-- Main Content -->
     <main class="content">
         <header>
-            <h1>Welcome, {{user.department}}</h1>
+            <h1 class="font-semibold text-[2rem]">Welcome, {{user.department}}</h1>
             <p>Your department's current budget status is shown below.</p>
         </header>
 
         <!-- Budget Summary -->
         <section class="budget-summary">
             <div class="card">
-                <div class="header">
+                <div class="header font-semibold text-[1.3rem]">
                     <h3>Total Budget</h3>
                 </div>
                 <p>&#8369;{{budget.total_allocated|default:"0.00"}}</p>
             </div>
             <div class="card">
-                <div class="header">
+                <div class="header font-semibold text-[1.3rem]">
                     <h3>Remaining Balance</h3>
                 </div>
                 <p>&#8369;{{budget.remaining_budget|default:"0.00"}}</p>
             </div>
             <div class="card">
-                <div class="header">
+                <div class="header font-semibold text-[1.3rem]">
                     <h3>Approved Requests</h3>
                 </div>
-                <p>{{ approved_requests_count }}</p>
+                <p>{{ approved_requests_count|default:"0" }}</p>
             </div>
         </section>
 
         <!-- Recent Purchase Requests -->
         <section class="requests">
-            <h2>Recent Purchase Requests</h2>
+            <h2 class="font-bold text-3xl">Recent Purchase Requests</h2>
             <table>
                 <thead>
                     <tr>

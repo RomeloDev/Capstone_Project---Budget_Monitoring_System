@@ -9,4 +9,5 @@ urlpatterns = [
     path('logout/', views.end_user_logout, name='logout'),
     path('purchase_request_form/', views.purchase_request_form, name='purchase_request_form'),
     path('add_purchase_item/', views.add_purchase_request_items, name='add_purchase_item'),
+    path('remove-item/<int:item_id>/', views.remove_purchase_item, name='remove_purchase_item'),
 ]

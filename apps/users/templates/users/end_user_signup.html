@@ -5,7 +5,7 @@
 {% endblock title %}
 
 {% block content %}
-    <h2>Sign Up</h2>
+    <h2 class="text-3xl font-semibold text-black-100">Sign Up</h2>
     <form method="post">
         {% csrf_token %}
         <input type="text" name="username" id="username" placeholder="Username:" required>

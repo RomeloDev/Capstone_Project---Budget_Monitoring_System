@@ -6,11 +6,11 @@
 
 {% block main-content %}
     <main class="content">
-        <h1 style="text-align: center;">Procurable Purchase Request Form</h1>
+        <h1 class="text-center font-semibold text-3xl">Procurable Purchase Request Form</h1>
         
         <!-- Purchase Request Items Table -->
         <section class="purchase-requests">
-            <h2>Headings Details</h2>
+            <h2 class="font-semibold text-[1.3rem]">Headings Details</h2>
             <form id="main-pr-form" action="{% url "purchase_request_form" %}" method="post">
                 {% csrf_token %}  
                 
@@ -38,7 +38,7 @@
                 </div>
 
                 <div class="add-items">
-                    <h2>Items Requested</h2>
+                    <h2 class="font-semibold text-[1.3rem]">Items Requested</h2>
                     <table>
                         <thead>
                             <tr>
@@ -48,35 +48,58 @@
                                 <th>Quantity</th>
                                 <th>Unit Cost</th>
                                 <th>Total Cost</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody id="items-table-body">
                             {% comment %} Fetch the items data from server {% endcomment %}
                             {% for item in purchase_items %}
-                                <tr>
+                                <tr id="item-{{ item.id }}" >
                                     <td>{{ item.stock_property_no }}</td>
                                     <td>{{ item.unit }}</td>
                                     <td>{{ item.item_description }}</td>
                                     <td>{{ item.quantity }}</td>
                                     <td>{{ item.unit_cost }}</td>
                                     <td>{{ item.total_cost }}</td>
+                                    <td>
+                                        <button 
+                                            type="button" 
+                                            class="focus:outline-none text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-[12px] px-3 py-1 me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
+                                            hx-delete="{% url "remove_purchase_item" item.id %}"
+                                            hx-target="#item-{{ item.id }}"
+                                            hx-swap="outerHTML"
+                                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                            Remove Item
+                                        </button>
+                                    </td>
                                 </tr>
                             {% endfor %}
+                        </tbody>
 
                             {% comment %} Add Purchase request items {% endcomment %}
                             <tr id="input-row">
-                                <td class="table-inputs"><input type="text" id="stock_no" ></td>
-                                <td class="table-inputs"><input type="text" id="unit" ></td>
-                                <td class="table-inputs"><input type="text" id="item_desc" ></td>
-                                <td class="table-inputs"><input type="number" id="quantity" min="0" ></td>
-                                <td class="table-inputs"><input type="number" id="unit_cost" min="0" ></td>
-                                <td class="table-inputs"></td>
+                                <td class="table-inputs"><input type="text" name="stock_no" id="stock_no" ></td>
+                                <td class="table-inputs"><input type="text" name="unit" id="unit" ></td>
+                                <td class="table-inputs"><input type="text" name="item_desc" id="item_desc" ></td>
+                                <td class="table-inputs"><input type="number" name="quantity" id="quantity" min="0" ></td>
+                                <td class="table-inputs"><input type="number" name="unit_cost" id="unit_cost" min="0" ></td>
+                                <td>Auto Calculate</td>
                             </tr>  
 
-                        </tbody>
                     </table>
                     <div class="add-item-btn">
-                        <button type="button" id="add-item">Add Item</button>
+                        <button 
+                            type="button" 
+                            id="add-item"
+                            hx-post="{% url "add_purchase_item" %}"
+                            hx-target="#items-table-body"
+                            hx-swap="beforeend"
+                            hx-include="tr#input-row input"
+                            hx-trigger="click"
+                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                            hx-on::after-request="document.querySelectorAll('#input-row input').forEach(input => input.value = '')">
+                            Add Item
+                        </button>
                     </div>
                 </div>
 
@@ -92,6 +115,7 @@
         </section>
     </main>
 
+    {% comment %} This is the ajax functionality on the add item table using vanilla js. I commented this code to test the htmx ajax
     <script>
         document.getElementById('add-item').addEventListener('click', function() {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -128,5 +152,5 @@
                 }
             });
         });
-    </script>
+    </script> {% endcomment %}
 {% endblock main-content %}

@@ -7,7 +7,7 @@ from .models import PurchaseRequest, PurchaseRequestItems
 from decimal import Decimal
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 
 # Create your views here.
 @login_required
@@ -111,6 +111,8 @@ def add_purchase_request_items(request):
         }
     )
     
+    print(request.POST)  # Debugging: Check what data is being sent
+    
     # Create item
     item = PurchaseRequestItems.objects.create(
         purchase_request=purchase_request,
@@ -121,14 +123,24 @@ def add_purchase_request_items(request):
         unit_cost=float(request.POST.get('unit_cost', 0)),
     )
     
-    return JsonResponse({
-        'success': True,
-        'item': {
-            'stock_property_no': item.stock_property_no,
-            'unit': item.unit,
-            'item_description': item.item_description,
-            'quantity': item.quantity,
-            'unit_cost': float(item.unit_cost),
-            'total_cost': float(item.total_cost),
-        }
-    })
+    return render(request, "end_user_app/partials/item_row.html", {"item": item})
+    
+    # return JsonResponse({
+    #     'success': True,
+    #     'item': {
+    #         'stock_property_no': item.stock_property_no,
+    #         'unit': item.unit,
+    #         'item_description': item.item_description,
+    #         'quantity': item.quantity,
+    #         'unit_cost': float(item.unit_cost),
+    #         'total_cost': float(item.total_cost),
+    #     }
+    # })
+    
+    
+@require_http_methods(["DELETE"])
+def remove_purchase_item(request, item_id):
+    remove_item = get_object_or_404(PurchaseRequestItems, id=item_id)
+    remove_item.delete()
+    return JsonResponse({"success": True})
+    

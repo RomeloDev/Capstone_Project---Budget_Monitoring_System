@@ -70,3 +70,4 @@ def end_user_signup(request):
         return redirect('user_dashboard')
         
     return render(request, 'users/end_user_signup.html')
+

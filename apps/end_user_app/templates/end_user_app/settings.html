@@ -5,13 +5,13 @@
 {% block main-content %}
 <main class="content">
     <header>
-        <h1>Settings</h1>
+        <h1 class="font-bold text-[2rem]">Settings</h1>
         <p>Manage your account and application preferences.</p>
     </header>
 
     <!-- Settings Section -->
     <section class="settings">
-        <h2>Account Settings</h2>
+        <h2 class="font-semibold text-xl">Account Settings</h2>
         <form action="" method="POST">
             {% csrf_token %}
             <div class="form-group account">
@@ -32,7 +32,7 @@
             <button type="submit" class="save-btn">Save Changes</button>
         </form>
 
-        <h2>Preferences</h2>
+        <h2 class="font-semibold text-xl">Preferences</h2>
         <form action="" method="POST">
             {% csrf_token %}
             <div class="form-group">

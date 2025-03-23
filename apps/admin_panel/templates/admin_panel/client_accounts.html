@@ -9,10 +9,80 @@
             <p>Manage all registered client accounts in the system.</p>
         </header>
 
+        <div class="flex justify-center items-center">
+            <div class="flex flex-col w-[500px] bg-white p-[1.5rem] rounded-xl shadow-lg">
+                <h2 class="text-center font-bold text-[1.4rem] text-[#2c3e50] mb-4">Create an End User Account</h2>
+                <p class="font-semibold text-[1.1rem]">Personal Details:</p>
+                <div class="pl-8 pr-8 pt-2 pb-2">
+                    <div class="flex flex-col mb-3">
+                        <label for="username" class="font-medium text-[0.9rem]">Username:</label>
+                        <input type="text" name="username" id="username" class="rounded-lg h-[2rem]" required>
+                    </div>
+                    <div class="flex flex-col mb-3">
+                        <label for="fullname" class="font-medium text-[0.9rem]">Fullname:</label>
+                        <input type="text" name="fullname" id="fullname" class="rounded-lg h-[2rem]" required>
+                    </div>
+                    <div class="flex flex-col mb-3">
+                        <label for="email" class="font-medium text-[0.9rem]">Email:</label>
+                        <input type="email" name="email" id="email" class="rounded-lg h-[2rem]" required>
+                    </div>
+                </div>
+                <div>
+                    <p class="font-semibold text-[1.1rem]">Department:</p>
+                    <div>
+                        <p class="text-[14px] ml-8">MFO1:</p>
+                        <input type="radio" name="department" id="ccj" class="ml-[3.5rem] mr-1" value="MFO1-CCJ" required><label for="ccj">CCJ</label>
+                        <input type="radio" name="department" id="ccis" class="ml-[3.5rem] mr-1" value="MFO1-CCIS" required><label for="ccis">CCIS</label>
+                        <input type="radio" name="department" id="ctas" class="ml-[3.5rem] mr-1" value="MFO1-CTAS" required><label for="ctas">CTAS</label>
+                    </div>
+                    <div>
+                        <p class="text-[14px] ml-8 mt-[10px]">MFO3:</p>
+                        <input type="radio" name="department" id="research" class="ml-[3.5rem] mr-1" value="MFO3-Research" required><label for="research">Research</label>
+                    </div>
+                    <div>
+                        <p class="text-[14px] ml-8 mt-[10px]">MFO4:</p>
+                        <input type="radio" name="department" id="extension" class="ml-[3.5rem] mr-1" value="MFO4-Extension Services"><label for="extension" required>Extension Services</label>
+                    </div>
+                    <div>
+                        <p class="text-[14px] ml-8 mt-[10px]">STO:</p>
+                        <input type="radio" name="department" id="sports" class="ml-[3.5rem] mr-1" value="STO-Sports" required><label for="sports">Sports</label>
+                        <input type="radio" name="department" id="medic" class="ml-[3.5rem] mr-1" value="STO-Medic" required><label for="medic">Medic</label>
+                        <input type="radio" name="department" id="guidance" class="ml-[3.5rem] mr-1" value="STO-Guidance" required><label for="guidance">Guidance</label>
+                        <input type="radio" name="department" id="library" class="ml-[3.5rem] mr-1" value="STO-Library" required><label for="library">Library</label>
+                        <input type="radio" name="department" id="ssg" class="ml-[3.5rem] mr-1" value="STO-SSG" required><label for="ssg">SSG</label>
+                        <input type="radio" name="department" id="publication" class="ml-[3.5rem] mr-1" value="STO-Publication" required><label for="publication">Publication</label>
+                        <input type="radio" name="department" id="sds" class="ml-[3.5rem] mr-1" value="STO-SDS" required><label for="sds">SDS</label>
+                    </div>
+                    <div>
+                        <p class="text-[14px] ml-8 mt-[10px]">GASS (General Administrative Support Services):</p>
+                        <input type="radio" name="department" id="admin" class="ml-[3.5rem] mr-1" value="GASS-Admin" required><label for="admin">Admin</label>
+                        <input type="radio" name="department" id="clearance" class="ml-[3.5rem] mr-1" value="GASS-Clearance" required><label for="clearance">Clearance</label>
+                        <input type="radio" name="department" id="hr" class="ml-[3.5rem] mr-1" value="GASS-HR" required><label for="hr">HR</label>
+                    </div>
+                </div>
+                <div>
+                    <p class="font-semibold text-[1.1rem] mt-4">Security:</p>
+                    <div class="pl-8 pr-8 pb-3 pt-3">
+                        <div class="flex flex-col">
+                            <label for="password" class="font-medium text-[0.9rem]">Password:</label>
+                            <input type="password" name="password" id="password" class="rounded-lg h-[2rem]" required>
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="confirm-password" class="font-medium text-[0.9rem]">Confirm Password:</label>
+                            <input type="password" name="confirm-password" id="confirm-password" class="rounded-lg h-[2rem]" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-center items-center">
+                    <button type="button" class="text-white bg-gradient-to-r from-green-400 via-green-500 to-green-600 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 dark:focus:ring-green-800 font-semibold rounded-lg text-lg px-5 py-2.5 text-center me-2 mb-2 w-[15rem] mt-5 h-[3rem] shadow-lg">Regiter</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Client Accounts Table -->
         <section class="client-accounts">
             <header>
-                <h2>Registered Clients</h2>
+                <h2 class="font-bold text-2xl">Registered Clients</h2>
                 <p>View and manage all client accounts.</p>
             </header>
             <table>

@@ -15,7 +15,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-    width: 220px;
+    width: 255px;
     background-color: #fff;
     color: #2c3e50;
     padding: 20px;
@@ -207,7 +207,6 @@ body {
 }
 
 .client-accounts header h2, .admin-accounts header h2 {
-    font-size: 20px;
     margin-bottom: 10px;
     color: #2c3e50;
 }
