@@ -22,5 +22,6 @@ urlpatterns = [
     path('', include('apps.users.urls')), #This is for auth urls
     path('end_user/', include('apps.end_user_app.urls')), # This is for end_user app urls
     path('admin/', include('apps.admin_panel.urls')),  # This is for admin_panel urls
+    path('approving_officer/', include('apps.approving_officer_app.urls')),
     path("__reload__/", include("django_browser_reload.urls")), # This is for django_brwoser_reload setup
 ]

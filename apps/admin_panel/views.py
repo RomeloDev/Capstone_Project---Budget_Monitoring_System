@@ -7,6 +7,7 @@ from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
 from apps.end_user_app.models import PurchaseRequest
+from apps.users.models import User
 
 # Create your views here.
 @login_required
@@ -24,6 +25,35 @@ def client_accounts(request):
     except User.DoesNotExist:
         end_users = None
     return render(request, 'admin_panel/client_accounts.html', {'end_users': end_users})
+
+@login_required
+def register_account(request):
+    if request.method == "POST":
+         # Retrieval of value in input fields
+        username = request.POST.get('username')
+        fullname = request.POST.get('fullname')
+        email = request.POST.get('email')
+        department = request.POST.get('department')
+        password = request.POST.get('password')
+        confirm_password = request.POST.get('confirm-password')
+        
+        # Validate password confirmation
+        if password != confirm_password:
+            return render(request, 'admin_panel/client_accounts.html', {'error': 'Passwords do not match'})
+        
+        # Check if the department or username or email are already exists
+        if User.objects.filter(username=username).exists():
+            return render(request, 'admin_panel/client_accounts.html', {'error': 'Username already taken.'})
+
+        if User.objects.filter(email=email).exists():
+            return render(request, 'admin_panel/client_accounts.html', {'error': f'Email {email} already registered.'})
+        
+        if User.objects.filter(department=department).exists():
+            return render(request, 'admin_panel/client_accounts.html', {'error': f'Department {department} already registered.'})
+        
+        # Create and save the user
+        user = User.objects.create_user(username=username, fullname=fullname, email=email, password=password, department=department)
+        return render(request, "admin_panel/client_accounts.html", {'success': "Account registered successfully!"})
 
 @login_required
 def departments_request(request):
@@ -128,3 +158,11 @@ def institutional_funds(request):
 def admin_logout(request):
     logout(request)
     return redirect('admin_login')
+
+@login_required
+def audit_trail(request):
+    return render(request, 'admin_panel/audit_trail.html')
+
+@login_required
+def budget_re_alignment(request):
+    return render(request, 'admin_panel/budget_re-alignment.html')

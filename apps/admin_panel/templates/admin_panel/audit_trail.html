@@ -1,0 +1,74 @@
+{% extends "admin_base_template/dashboard.html" %}
+
+{% block title %}Audit Trail{% endblock title %}
+
+{% block main-content %}
+<main class="content space-y-6">
+    <header class="dashboard-header">
+        <h1 class="text-3xl font-bold mb-2">Audit Trail</h1>
+        <p class="text-gray-200">Manage and monitor end user and approving officer activity logs.</p>
+    </header>
+
+    <!-- Filter Section -->
+    <section class="bg-white p-4 rounded shadow-md">
+        <form method="get" class="flex flex-col md:flex-row items-center gap-4">
+            <div class="w-full md:w-1/3">
+                <label for="user_filter" class="block text-sm font-medium text-gray-700 mb-1">Select End User</label>
+                <select id="user_filter" name="user_id" class="w-full border border-gray-300 rounded px-3 py-2">
+                    <option value="">-- All End Users --</option>
+                    <!-- Example static options; replace with dynamic in actual use -->
+                    <option value="1">MFO1_CCJ</option>
+                    <option value="2">MFO1-CCIS</option>
+                    <option value="3">MFO1_CTAS</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mt-6">
+                    Filter Logs
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Audit Trail Table -->
+    <section class="bg-white p-4 rounded shadow-md overflow-x-auto">
+        <h2 class="text-xl font-semibold mb-4">Recent Activity</h2>
+        <table class="min-w-full border border-gray-300">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="py-2 px-4 border-b text-left">Date & Time</th>
+                    <th class="py-2 px-4 border-b text-left">User</th>
+                    <th class="py-2 px-4 border-b text-left">Department</th>
+                    <th class="py-2 px-4 border-b text-left">Action Type</th>
+                    <th class="py-2 px-4 border-b text-left">Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Static example rows (replace with dynamic loop) -->
+                <tr>
+                    <td class="py-2 px-4 border-b">2025-04-10 09:45 AM</td>
+                    <td class="py-2 px-4 border-b">MFO1_CCJ</td>
+                    <td class="py-2 px-4 border-b">College of Criminal Justice</td>
+                    <td class="py-2 px-4 border-b">Purchase Request</td>
+                    <td class="py-2 px-4 border-b">Submitted a purchase request for office supplies.</td>
+                </tr>
+                <tr>
+                    <td class="py-2 px-4 border-b">2025-04-10 09:10 AM</td>
+                    <td class="py-2 px-4 border-b">MFO1_CTAS</td>
+                    <td class="py-2 px-4 border-b">College of Technology and Allied Sciences</td>
+                    <td class="py-2 px-4 border-b">Budget Re-Alignment</td>
+                    <td class="py-2 px-4 border-b">Re-aligned ₱1,500 from Office Equipment to Travel Fund.</td>
+                </tr>
+                <tr>
+                    <td class="py-2 px-4 border-b">2025-04-09 04:20 PM</td>
+                    <td class="py-2 px-4 border-b">MFO1_CCIS</td>
+                    <td class="py-2 px-4 border-b">College of Computing and Information Sciences</td>
+                    <td class="py-2 px-4 border-b">Activity Design</td>
+                    <td class="py-2 px-4 border-b">Submitted an activity design for financial literacy seminar.</td>
+                </tr>
+                <!-- More static rows as needed -->
+            </tbody>
+        </table>
+    </section>
+</main>
+{% endblock main-content %}

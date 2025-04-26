@@ -12,17 +12,23 @@
     <!-- Budget Allocation Form -->
     <section class="budget-form">
         <header>
-            <h2>Allocate Budget</h2>
+            <h2 class="font-semibold">Allocate Budget</h2>
             <p>Assign funds to various departments.</p>
         </header>
         <form action="{% url 'budget_allocation' %}" method="post">
             {% csrf_token %}
             <label for="department">Department:</label>
             <select id="department" name="department" required>
-                <option value="">-- Select Department --</option>
+                <option value="" disabled selected>-- Select Department --</option>
                 {% for dept in departments %}
                     <option value="{{ dept }}">{{ dept|title }}</option>
                 {% endfor %}
+            </select>
+
+            <label for="papp">PAPP:</label>
+            <select name="papp" id="papp">
+                <option value="" disabled selected>-- Select PAPP --</option>
+                <option value="travel">0001010 - Travel</option>
             </select>
 
             <label for="amount">Budget Amount (PHP):</label>
@@ -41,7 +47,7 @@
     <!-- Budget Allocation Summary -->
     <section class="budget-summary">
         <header>
-            <h2>Current Budget Allocations</h2>
+            <h2 class="font-semibold">Current Budget Allocations</h2>
         </header>
         <table>
             <thead>

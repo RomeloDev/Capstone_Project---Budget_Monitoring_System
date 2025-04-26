@@ -1,0 +1,58 @@
+{% extends "end_user_base_template/dashboard.html" %}
+
+{% block title %}
+    Budget Re-alignment
+{% endblock title %}
+
+{% block main-content %}
+    <main class="content">
+        <h1 class="text-3xl font-bold mb-6">Budget Re-Alignment</h1>
+
+<p class="mb-6 text-gray-600">
+    Re-align your department's budget by transferring funds from one PAPP to another. For example, if your travel budget is insufficient, you can transfer from another available PAPP.
+</p>
+
+<form class="bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto border border-gray-300">
+    <!-- PAPP to be Increased -->
+    <div class="mb-4">
+        <label for="target_papp" class="block text-sm font-medium text-gray-700 mb-2">PAPP to Re-Align (Target)</label>
+        <select id="target_papp" name="target_papp" class="w-full border border-gray-300 rounded px-4 py-2">
+            <option selected disabled>Select Target PAPP</option>
+            <option value="travel">Travel Expenses</option>
+            <option value="supplies">Office Supplies</option>
+            <option value="training">Training & Development</option>
+        </select>
+    </div>
+
+    <!-- Source PAPP -->
+    <div class="mb-4">
+        <label for="source_papp" class="block text-sm font-medium text-gray-700 mb-2">Source PAPP (to deduct from)</label>
+        <select id="source_papp" name="source_papp" class="w-full border border-gray-300 rounded px-4 py-2">
+            <option selected disabled>Select Source PAPP</option>
+            <option value="travel">Travel Expenses</option>
+            <option value="supplies">Office Supplies</option>
+            <option value="training">Training & Development</option>
+        </select>
+    </div>
+
+    <!-- Amount -->
+    <div class="mb-4">
+        <label for="amount" class="block text-sm font-medium text-gray-700 mb-2">Amount to Re-Align (₱)</label>
+        <input type="number" id="amount" name="amount" class="w-full border border-gray-300 rounded px-4 py-2" placeholder="Enter amount">
+    </div>
+
+    <!-- Reason -->
+    <div class="mb-6">
+        <label for="reason" class="block text-sm font-medium text-gray-700 mb-2">Reason for Re-Alignment</label>
+        <textarea id="reason" name="reason" rows="4" class="w-full border border-gray-300 rounded px-4 py-2" placeholder="Explain why you are requesting the re-alignment..."></textarea>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex justify-end">
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">
+            Submit Re-Alignment Request
+        </button>
+    </div>
+</form>
+    </main>
+{% endblock main-content %}

@@ -1,0 +1,49 @@
+{% extends "admin_base_template/dashboard.html" %}
+
+{% block title %}
+    Manage Budget Re-Alignment
+{% endblock title %}
+
+{% block main-content %}
+<main class="content space-y-6">
+    <header>
+        <h1 class="text-3xl font-bold mb-2">Budget Re-Alignment Requests</h1>
+        <p class="text-gray-600">View and manage all submitted budget re-alignment requests from end users.</p>
+    </header>
+
+    <section class="bg-white p-4 rounded shadow-md overflow-x-auto">
+        <table class="min-w-full table-auto border border-gray-200">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="px-4 py-2 text-left">Date Submitted</th>
+                    <th class="px-4 py-2 text-left">Submitted By</th>
+                    <th class="px-4 py-2 text-left">Department</th>
+                    <th class="px-4 py-2 text-left">Target PAPP</th>
+                    <th class="px-4 py-2 text-left">Source PAPP</th>
+                    <th class="px-4 py-2 text-left">Amount (₱)</th>
+                    <th class="px-4 py-2 text-left">Status</th>
+                    <th class="px-4 py-2 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Example static row -->
+                <tr class="border-t">
+                    <td class="px-4 py-2">2025-04-22</td>
+                    <td class="px-4 py-2">MFO1_CCJ</td>
+                    <td class="px-4 py-2">College of Criminal Justice</td>
+                    <td class="px-4 py-2">Travel Expenses</td>
+                    <td class="px-4 py-2">Office Supplies</td>
+                    <td class="px-4 py-2">1,500.00</td>
+                    <td class="px-4 py-2 text-yellow-600 font-semibold">Pending</td>
+                    <td class="px-4 py-2 space-x-2">
+                        <a href="#" class="text-blue-600 hover:underline">View</a>
+                        <a href="#" class="text-green-600 hover:underline">Approve</a>
+                        <a href="#" class="text-red-600 hover:underline">Reject</a>
+                    </td>
+                </tr>
+                <!-- Repeat for each realignment request -->
+            </tbody>
+        </table>
+    </section>
+</main>
+{% endblock main-content %}

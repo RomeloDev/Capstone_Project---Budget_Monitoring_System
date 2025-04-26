@@ -1,0 +1,75 @@
+{% extends "approving_officer_base_template/dashboard.html" %}
+
+{% block title %}
+    Department's Request
+{% endblock %}
+
+{% block main-content %}
+<h1 class="text-3xl font-bold mb-4">Department's Request</h1>
+<p class="text-gray-600">Manage Procurement/Non-Procurement Requests from departments.</p>
+
+<div class="overflow-x-auto mt-10">
+    <table class="min-w-full bg-white border border-gray-800">
+        <thead class="bg-gray-200 border-b border-gray-800">
+            <tr>
+                <th class="py-2 px-4 border-b">Request ID</th>
+                <th class="py-2 px-4 border-b">Department</th>
+                <th class="py-2 px-4 border-b">Entity Name</th>
+                <th class="py-2 px-4 border-b">Amount</th>
+                <th class="py-2 px-4 border-b">Status</th>
+                <th class="py-2 px-4 border-b">Action</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white border-b-2 border-gray-800">
+            <!-- Sample Pending Request -->
+            <tr>
+                <td class="py-2 px-4 border-b">REQ-001</td>
+                <td class="py-2 px-4 border-b">MFO1_CCIS</td>
+                <td class="py-2 px-4 border-b">Laptop</td>
+                <td class="py-2 px-4 border-b">&#8369;45,000</td>
+                <td class="py-2 px-4 border-b">
+                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm">Pending</span>
+                </td>
+                <td class="py-2 px-4 border-b space-x-2">
+                    <a href="#" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
+                        <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2">Reject</button>
+                    </form>
+                </td>
+            </tr>
+
+            <!-- Sample Approved Request -->
+            <tr>
+                <td class="py-2 px-4 border-b">REQ-002</td>
+                <td class="py-2 px-4 border-b">MFO1_CCJ</td>
+                <td class="py-2 px-4 border-b">Office Chairs</td>
+                <td class="py-2 px-4 border-b">&#8369;10,000</td>
+                <td class="py-2 px-4 border-b">
+                    <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm">Approved</span>
+                </td>
+                <td class="py-2 px-4 border-b space-x-2">
+                    <a href="#" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>
+                    <button class="bg-gray-400 text-white px-3 py-1 rounded cursor-not-allowed" disabled>Approved</button>
+                </td>
+            </tr>
+
+            <!-- Sample Rejected Request -->
+            <tr>
+                <td class="py-2 px-4 border-b">REQ-003</td>
+                <td class="py-2 px-4 border-b">MFO1_CTAS</td>
+                <td class="py-2 px-4 border-b">Printer Ink</td>
+                <td class="py-2 px-4 border-b">&#8369;2,000</td>
+                <td class="py-2 px-4 border-b">
+                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-sm">Rejected</span>
+                </td>
+                <td class="py-2 px-4 border-b space-x-2">
+                    <a href="#" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>
+                    <button class="bg-red-400 text-white px-3 py-1 rounded cursor-not-allowed" disabled>Rejected</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

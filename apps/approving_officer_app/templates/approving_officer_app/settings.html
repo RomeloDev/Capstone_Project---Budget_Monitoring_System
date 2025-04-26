@@ -1,0 +1,61 @@
+{% extends "approving_officer_base_template/dashboard.html" %}
+
+{% block title %}
+    Settings
+{% endblock title %}
+
+{% block main-content %}
+<main class="content space-y-6">
+    <header>
+        <h1 class="text-3xl font-bold mb-2">Settings</h1>
+        <p class="text-gray-600">Manage your profile, change password, and preferences.</p>
+    </header>
+
+    <form class="bg-white p-6 rounded shadow-md max-w-3xl space-y-6">
+        <!-- Profile Info -->
+        <section>
+            <h2 class="text-xl font-semibold mb-4">Profile Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
+                    <input type="text" id="first_name" name="first_name" class="w-full border border-gray-300 rounded px-4 py-2" value="">
+                </div>
+                <div>
+                    <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
+                    <input type="text" id="last_name" name="last_name" class="w-full border border-gray-300 rounded px-4 py-2" value="">
+                </div>
+                <div class="md:col-span-2">
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                    <input type="email" id="email" name="email" class="w-full border border-gray-300 rounded px-4 py-2" value="">
+                </div>
+            </div>
+        </section>
+
+        <!-- Change Password -->
+        <section>
+            <h2 class="text-xl font-semibold mb-4">Change Password</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="current_password" class="block text-sm font-medium text-gray-700">Current Password</label>
+                    <input type="password" id="current_password" name="current_password" class="w-full border border-gray-300 rounded px-4 py-2">
+                </div>
+                <div>
+                    <label for="new_password" class="block text-sm font-medium text-gray-700">New Password</label>
+                    <input type="password" id="new_password" name="new_password" class="w-full border border-gray-300 rounded px-4 py-2">
+                </div>
+                <div class="md:col-span-2">
+                    <label for="confirm_password" class="block text-sm font-medium text-gray-700">Confirm New Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" class="w-full border border-gray-300 rounded px-4 py-2">
+                </div>
+            </div>
+        </section>
+
+        <!-- Save Button -->
+        <div class="flex justify-end">
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">
+                Save Changes
+            </button>
+        </div>
+    </form>
+</main>
+{% endblock main-content %}

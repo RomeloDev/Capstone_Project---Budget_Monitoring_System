@@ -5,15 +5,58 @@
 {% endblock %}
 
 {% block content %}
-    <h2 class="text-center font-semibold text-3xl">Login</h2>
-    <form method="post">
-        {% csrf_token %}
-        <input type="text" name="email" id="email" placeholder="Enter Email:" required><br>
-        <input type="password" name="password" id="password" placeholder="Enter Password:" required><br>
-        <button type="submit" name="submit">LOGIN</button>
-        <p style="color: red;">{{ error }}</p>
-        <div class="redirect">
-            <p>Don't have an account? <a href="{% url "end_user_signup" %}">Register</a></p>
-        </div>
-    </form>
+<div class="relative w-full h-screen">
+    <img src="static/assets/admin_bg_img.jpg"
+         alt="University Photo" 
+         class="absolute w-full h-full object-cover">
+    
+    <!-- Overlay -->
+    <div class="absolute inset-0 bg-purple-900 bg-opacity-70"></div>
+
+    <div class="h-screen flex flex-col items-center justify-center relative z-10">
+        <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" 
+             alt="Bisu Logo" 
+             class="w-[80px] h-[80px] mb-3">
+        <h2 class="text-lg text-center font-semibold text-white drop-shadow-md">
+            Bohol Island State University - Balilihan Campus
+        </h2>
+        <h1 class="text-3xl md:text-4xl text-center font-serif font-bold mt-3 text-white drop-shadow-lg">
+            Budget Monitoring System
+        </h1>
+
+        <!-- Login Form -->
+        <form method="POST" action="{% url "end_user_login" %}" class="mt-8 w-full max-w-sm p-6 bg-white bg-opacity-20 backdrop-blur-md rounded-xl shadow-lg">
+            {% csrf_token %}
+            <h2 class="text-center text-white text-2xl font-semibold mb-6">Welcome Back!</h2>
+            
+            <!-- Input Fields -->
+            <div class="space-y-4">
+                <div class="flex items-center bg-white rounded-full px-4 py-3 shadow-md">
+                    <span class="text-gray-500"><i class="fas fa-envelope"></i></span>
+                    <input type="email" name="email" placeholder="Email Address" required class="w-full bg-transparent outline-none h-[20px] border-none px-2 text-gray-700 focus:ring-0">
+                </div>
+
+                <div class="flex items-center bg-white rounded-full px-4 py-3 shadow-md">
+                    <span class="text-gray-500"><i class="fas fa-lock"></i></span>
+                    <input type="password" name="password" placeholder="Password" required class="w-full bg-transparent outline-none h-[20px] border-none px-2 text-gray-700 focus:ring-0">
+                </div>
+            </div>
+
+            <!-- Login Button -->
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6 rounded-full font-semibold text-lg shadow-md transition duration-300">
+                LOGIN
+            </button>
+
+            <p class="text-red-600">{{ error }}</p>
+
+            <!-- Forgot Password -->
+            <p class="text-white text-center mt-4 text-sm">
+                <a href="#" class="underline">Forgot Password?</a>
+            </p>
+        </form>
+    </div>
+</div>    
+
+<!-- Fixed FontAwesome Icons -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
 {% endblock %}

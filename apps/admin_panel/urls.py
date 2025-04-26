@@ -9,4 +9,7 @@ urlpatterns = [
     path('departments-request/<int:request_id>/', views.handle_departments_request, name='handle_purchase_request'),
     path('institutional-funds/', views.institutional_funds, name='institutional_funds'),
     path('admin_logout/', views.admin_logout, name='admin_logout'),
+    path('registration/', views.register_account, name='register_account'),
+    path('audit_trail', views.audit_trail, name='audit_trail'),
+    path('budget_realignment', views.budget_re_alignment, name='budget_realignment'),
 ]

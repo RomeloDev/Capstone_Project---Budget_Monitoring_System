@@ -14,10 +14,6 @@
     <script src="{% static 'js/htmx.min.js' %}"></script>
 </head>
 <body>
-    <div class="container">
-        <div class="{{ form_class }} form">
-            {% block content%} {% endblock %}
-        </div>
-    </div>
+    {% block content %}{% endblock %}
 </body>
 </html>

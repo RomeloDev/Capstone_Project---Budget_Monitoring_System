@@ -96,6 +96,10 @@ def purchase_request_form(request):
     }
     
     return render(request, "end_user_app/purchase_request_form.html", context)
+
+@login_required
+def re_alignment(request):
+    return render(request, "end_user_app/re_alignment.html")
     
 @require_http_methods(["POST"])
 @login_required
@@ -142,5 +146,6 @@ def add_purchase_request_items(request):
 def remove_purchase_item(request, item_id):
     remove_item = get_object_or_404(PurchaseRequestItems, id=item_id)
     remove_item.delete()
-    return JsonResponse({"success": True})
+    return HttpResponse(status=200)  # Empty response with 200 OK
+    #return JsonResponse({"success": True})
     

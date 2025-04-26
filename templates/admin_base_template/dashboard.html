@@ -21,10 +21,12 @@
                 <ul>
                     <li><a href="{% url "admin_dashboard" %}">Dashboard</a></li>
                     <li><a href="{% url "client_accounts" %}">Client Accounts</a></li>
+                    <li><a href="{% url "audit_trail" %}">Audit Trail</a></li>
                     <li><a href="{% url "institutional_funds" %}">Add Institutional Funds</a></li>
                     {% comment %} <li><a href="/admin/admin-accounts">Admin Accounts</a></li> {% endcomment %}
                     <li><a href="{% url "budget_allocation" %}">Budget Allocation</a></li>
-                    <li><a href="{% url "department_request" %}">Department's Request</a></li>
+                    <li><a href="{% url "budget_realignment" %}">Budget Re-Alignment Request</a></li>
+                    {% comment %} <li><a href="{% url "department_request" %}">Department's Request</a></li> {% endcomment %}
                     <li><a href="{% url "admin_logout" %}">Logout</a></li>
                 </ul>
             </nav>

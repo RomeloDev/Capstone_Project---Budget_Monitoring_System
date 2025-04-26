@@ -11,71 +11,110 @@
 
         <div class="flex justify-center items-center">
             <div class="flex flex-col w-[500px] bg-white p-[1.5rem] rounded-xl shadow-lg">
-                <h2 class="text-center font-bold text-[1.4rem] text-[#2c3e50] mb-4">Create an End User Account</h2>
-                <p class="font-semibold text-[1.1rem]">Personal Details:</p>
-                <div class="pl-8 pr-8 pt-2 pb-2">
-                    <div class="flex flex-col mb-3">
-                        <label for="username" class="font-medium text-[0.9rem]">Username:</label>
-                        <input type="text" name="username" id="username" class="rounded-lg h-[2rem]" required>
-                    </div>
-                    <div class="flex flex-col mb-3">
-                        <label for="fullname" class="font-medium text-[0.9rem]">Fullname:</label>
-                        <input type="text" name="fullname" id="fullname" class="rounded-lg h-[2rem]" required>
-                    </div>
-                    <div class="flex flex-col mb-3">
-                        <label for="email" class="font-medium text-[0.9rem]">Email:</label>
-                        <input type="email" name="email" id="email" class="rounded-lg h-[2rem]" required>
-                    </div>
-                </div>
-                <div>
-                    <p class="font-semibold text-[1.1rem]">Department:</p>
-                    <div>
-                        <p class="text-[14px] ml-8">MFO1:</p>
-                        <input type="radio" name="department" id="ccj" class="ml-[3.5rem] mr-1" value="MFO1-CCJ" required><label for="ccj">CCJ</label>
-                        <input type="radio" name="department" id="ccis" class="ml-[3.5rem] mr-1" value="MFO1-CCIS" required><label for="ccis">CCIS</label>
-                        <input type="radio" name="department" id="ctas" class="ml-[3.5rem] mr-1" value="MFO1-CTAS" required><label for="ctas">CTAS</label>
-                    </div>
-                    <div>
-                        <p class="text-[14px] ml-8 mt-[10px]">MFO3:</p>
-                        <input type="radio" name="department" id="research" class="ml-[3.5rem] mr-1" value="MFO3-Research" required><label for="research">Research</label>
-                    </div>
-                    <div>
-                        <p class="text-[14px] ml-8 mt-[10px]">MFO4:</p>
-                        <input type="radio" name="department" id="extension" class="ml-[3.5rem] mr-1" value="MFO4-Extension Services"><label for="extension" required>Extension Services</label>
-                    </div>
-                    <div>
-                        <p class="text-[14px] ml-8 mt-[10px]">STO:</p>
-                        <input type="radio" name="department" id="sports" class="ml-[3.5rem] mr-1" value="STO-Sports" required><label for="sports">Sports</label>
-                        <input type="radio" name="department" id="medic" class="ml-[3.5rem] mr-1" value="STO-Medic" required><label for="medic">Medic</label>
-                        <input type="radio" name="department" id="guidance" class="ml-[3.5rem] mr-1" value="STO-Guidance" required><label for="guidance">Guidance</label>
-                        <input type="radio" name="department" id="library" class="ml-[3.5rem] mr-1" value="STO-Library" required><label for="library">Library</label>
-                        <input type="radio" name="department" id="ssg" class="ml-[3.5rem] mr-1" value="STO-SSG" required><label for="ssg">SSG</label>
-                        <input type="radio" name="department" id="publication" class="ml-[3.5rem] mr-1" value="STO-Publication" required><label for="publication">Publication</label>
-                        <input type="radio" name="department" id="sds" class="ml-[3.5rem] mr-1" value="STO-SDS" required><label for="sds">SDS</label>
-                    </div>
-                    <div>
-                        <p class="text-[14px] ml-8 mt-[10px]">GASS (General Administrative Support Services):</p>
-                        <input type="radio" name="department" id="admin" class="ml-[3.5rem] mr-1" value="GASS-Admin" required><label for="admin">Admin</label>
-                        <input type="radio" name="department" id="clearance" class="ml-[3.5rem] mr-1" value="GASS-Clearance" required><label for="clearance">Clearance</label>
-                        <input type="radio" name="department" id="hr" class="ml-[3.5rem] mr-1" value="GASS-HR" required><label for="hr">HR</label>
-                    </div>
-                </div>
-                <div>
-                    <p class="font-semibold text-[1.1rem] mt-4">Security:</p>
-                    <div class="pl-8 pr-8 pb-3 pt-3">
-                        <div class="flex flex-col">
-                            <label for="password" class="font-medium text-[0.9rem]">Password:</label>
-                            <input type="password" name="password" id="password" class="rounded-lg h-[2rem]" required>
+                <form action="{% url "register_account" %}" method="post">
+                    {% csrf_token %}
+                    <h2 class="text-center font-bold text-[1.4rem] text-[#2c3e50] mb-4">Create an End User Account</h2>
+                    <p class="font-semibold text-[1.1rem]">Personal Details:</p>
+
+                    {% comment %} Personal Details Section {% endcomment %}
+                    <div class="pl-8 pr-8 pt-2 pb-2">
+                        <div class="flex flex-col mb-3">
+                            <label for="username" class="font-medium text-[0.9rem]">Username:</label>
+                            <input type="text" name="username" id="username" class="rounded-lg h-[2rem]" required>
                         </div>
-                        <div class="flex flex-col">
-                            <label for="confirm-password" class="font-medium text-[0.9rem]">Confirm Password:</label>
-                            <input type="password" name="confirm-password" id="confirm-password" class="rounded-lg h-[2rem]" required>
+                        <div class="flex flex-col mb-3">
+                            <label for="fullname" class="font-medium text-[0.9rem]">Fullname:</label>
+                            <input type="text" name="fullname" id="fullname" class="rounded-lg h-[2rem]" required>
+                        </div>
+                        <div class="flex flex-col mb-3">
+                            <label for="email" class="font-medium text-[0.9rem]">Email:</label>
+                            <input type="email" name="email" id="email" class="rounded-lg h-[2rem]" required>
                         </div>
                     </div>
-                </div>
-                <div class="flex justify-center items-center">
-                    <button type="button" class="text-white bg-gradient-to-r from-green-400 via-green-500 to-green-600 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 dark:focus:ring-green-800 font-semibold rounded-lg text-lg px-5 py-2.5 text-center me-2 mb-2 w-[15rem] mt-5 h-[3rem] shadow-lg">Regiter</button>
-                </div>
+
+                    {% comment %} Departments Section {% endcomment %}
+                    
+                        <p class="font-semibold text-[1.1rem]">Department:</p>
+                        
+                        {% comment %} Dropdown {% endcomment %}
+                        <div class="ml-8 w-[20rem]">
+                            <label for="dropdown" class="block text-sm font-medium text-gray-700">Select an option</label>
+                            <select id="dropdown" name="department" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-500 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ml-8">
+                                <option value="" disabled selected>Select Here</option>
+                                <option value="MFO1-CCJ">MFO1-CCJ</option>
+                                <option value="MFO1-CCIS">MFO1-CCIS</option>
+                                <option value="MFO1-CTAS">MFO1-CTAS</option>
+                                <option value="MFO3-Research">MFO3-Research</option>
+                                <option value="MFO4-Extension Services">MFO4-Extension Services</option>
+                                <option value="MFO4-STO:Sports">MFO4-STO:Sports</option>
+                                <option value="MFO4-STO:Library">MFO4-STO:Library</option>
+                                <option value="MFO4-STO:SDS">MFO4-STO:SDS</option>
+                                <option value="MFO4-STO:Medic">MFO4-STO:Medic</option>
+                                <option value="MFO4-STO:SSG">MFO4-STO:SSG</option>
+                                <option value="MFO4-STO:Guidance">MFO4-STO:Guidance</option>
+                                <option value="MFO4-STO:Publication">MFO4-STO:Publication</option>
+                                <option value="MFO4-GASS:Admin">MFO4-GASS:Admin</option>
+                                <option value="MFO4-GASS:Clearance">MFO4-GASS:Clearance</option>
+                                <option value="MFO4-GASS:HR">MFO4-GASS:HR</option>
+                                <option value="MFO4-GASS:Security">MFO4-GASS:Security</option>
+                                <option value="MFO4-GASS:General Services">MFO4-GASS:General Services</option>
+                                <option value="MFO4-GASS:DRRM">MFO4-GASS:DRRM</option>
+                                <option value="MFO4-GASS:GAD">MFO4-GASS:GAD</option>
+                            </select>
+                        </div>
+
+                        {% comment %} <div>
+                            <p class="text-[14px] ml-8">MFO1:</p>
+                            <input type="radio" name="department" id="ccj" class="ml-[3.5rem] mr-1" value="MFO1-CCJ" required><label for="ccj">CCJ</label>
+                            <input type="radio" name="department" id="ccis" class="ml-[3.5rem] mr-1" value="MFO1-CCIS" required><label for="ccis">CCIS</label>
+                            <input type="radio" name="department" id="ctas" class="ml-[3.5rem] mr-1" value="MFO1-CTAS" required><label for="ctas">CTAS</label>
+                        </div>
+                        <div>
+                            <p class="text-[14px] ml-8 mt-[10px]">MFO3:</p>
+                            <input type="radio" name="department" id="research" class="ml-[3.5rem] mr-1" value="MFO3-Research" required><label for="research">Research</label>
+                        </div>
+                        <div>
+                            <p class="text-[14px] ml-8 mt-[10px]">MFO4:</p>
+                            <input type="radio" name="department" id="extension" class="ml-[3.5rem] mr-1" value="MFO4-Extension Services"><label for="extension" required>Extension Services</label>
+                        </div>
+                        <div>
+                            <p class="text-[14px] ml-8 mt-[10px]">STO:</p>
+                            <input type="radio" name="department" id="sports" class="ml-[3.5rem] mr-1" value="STO-Sports" required><label for="sports">Sports</label>
+                            <input type="radio" name="department" id="medic" class="ml-[3.5rem] mr-1" value="STO-Medic" required><label for="medic">Medic</label>
+                            <input type="radio" name="department" id="guidance" class="ml-[3.5rem] mr-1" value="STO-Guidance" required><label for="guidance">Guidance</label>
+                            <input type="radio" name="department" id="library" class="ml-[3.5rem] mr-1" value="STO-Library" required><label for="library">Library</label>
+                            <input type="radio" name="department" id="ssg" class="ml-[3.5rem] mr-1" value="STO-SSG" required><label for="ssg">SSG</label>
+                            <input type="radio" name="department" id="publication" class="ml-[3.5rem] mr-1" value="STO-Publication" required><label for="publication">Publication</label>
+                            <input type="radio" name="department" id="sds" class="ml-[3.5rem] mr-1" value="STO-SDS" required><label for="sds">SDS</label>
+                        </div>
+                        <div>
+                            <p class="text-[14px] ml-8 mt-[10px]">GASS (General Administrative Support Services):</p>
+                            <input type="radio" name="department" id="admin" class="ml-[3.5rem] mr-1" value="GASS-Admin" required><label for="admin">Admin</label>
+                            <input type="radio" name="department" id="clearance" class="ml-[3.5rem] mr-1" value="GASS-Clearance" required><label for="clearance">Clearance</label>
+                            <input type="radio" name="department" id="hr" class="ml-[3.5rem] mr-1" value="GASS-HR" required><label for="hr">HR</label>
+                        </div> {% endcomment %}
+                    
+
+                    {% comment %} Security Details Section {% endcomment %}
+                    <div>
+                        <p class="font-semibold text-[1.1rem] mt-4">Security:</p>
+                        <div class="pl-8 pr-8 pb-3 pt-3">
+                            <div class="flex flex-col">
+                                <label for="password" class="font-medium text-[0.9rem]">Password:</label>
+                                <input type="password" name="password" id="password" class="rounded-lg h-[2rem]" required>
+                            </div>
+                            <div class="flex flex-col">
+                                <label for="confirm-password" class="font-medium text-[0.9rem]">Confirm Password:</label>
+                                <input type="password" name="confirm-password" id="confirm-password" class="rounded-lg h-[2rem]" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-center items-center">
+                        <button type="submit" class="text-white shadow-lg bg-gradient-to-r from-green-400 via-green-500 to-green-600 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 dark:focus:ring-green-800 font-semibold rounded-lg text-lg px-5 py-2.5 text-center me-2 mb-2 w-[15rem] mt-5 h-[3rem]">Regiter</button>
+                    </div>
+                    <p class="text-red-600 text-[1rem] text-center">{{ error }}</p>
+                    <p class="text-green-500 text-[1rem] text-center">{{ success }}</p>
+                </form>
             </div>
         </div>
 
@@ -110,8 +149,8 @@
                                 <td class="status disabled">Disabled</td>
                             {% endif %} -->
                             <td>
-                                <button class="edit-btn">Edit</button>
-                                <button class="disable-btn">Disable</button>
+                                <button class="edit-btn px-5 py-1">Edit</button>
+                                <button class="disable-btn px-5 py-1">Disable</button>
                             </td>
                         </tr>
                     {% empty %}
