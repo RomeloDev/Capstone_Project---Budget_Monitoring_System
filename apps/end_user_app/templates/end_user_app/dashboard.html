@@ -10,7 +10,7 @@
             <p>Your department's current budget status is shown below.</p>
         </header>
 
-        <!-- Budget Summary -->
+        <!-- Budget Summary 
         <section class="budget-summary">
             <div class="card">
                 <div class="header font-semibold text-[1.3rem]">
@@ -30,12 +30,64 @@
                 </div>
                 <p>{{ approved_requests_count|default:"0" }}</p>
             </div>
-        </section>
+        </section> -->
+
+        <!-- Stat Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+            <div class="bg-green-100 border-l-4 border-green-500 p-4 rounded-lg shadow">
+                <p class="text-lg font-semibold text-green-800">Total Budget</p>
+                <p class="text-3xl font-bold text-green-900 mt-2">&#8369;{{user_total_allocated|default:"0.00"}}</p>
+            </div>
+            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded-lg shadow">
+                <p class="text-lg font-semibold text-yellow-800">Remaining Balance</p>
+                <p class="text-3xl font-bold text-yellow-900 mt-2">&#8369;{{user_remaining_budget|default:"0.00"}}</p>
+            </div>
+            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 rounded-lg shadow">
+                <p class="text-lg font-semibold text-blue-800">Approved Requests</p>
+                <p class="text-3xl font-bold text-blue-900 mt-2">{{ approved_requests_count|default:"0" }}</p>
+            </div>
+        </div>
 
         <!-- Recent Purchase Requests -->
         <section class="requests">
             <h2 class="font-bold text-3xl">Recent Purchase Requests</h2>
             <table>
+                <thead>
+                    <tr>
+                        <th>PR No.</th>
+                        <th>Entity Name</th>
+                        <th>Fund Cluster</th>
+                        <th>Office/Section</th>
+                        <th>Date Requested</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for purchase in purchase_requests %}
+                        <tr>
+                            <td>{{ purchase.pr_no }}</td>
+                            <td>{{ purchase.entity_name }}</td>
+                            <td>{{ purchase.fund_cluster }}</td>
+                            <td>{{ purchase.office_section }}</td>
+                            <td>{{ purchase.created_at }}</td>
+                            <td class="py-2 px-4 border-b">
+                                {% if purchase.submitted_status == 'Pending' %}
+                                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-md">Pending</span>
+                                {% elif purchase.submitted_status == 'Approved' %}
+                                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-md">Approved</span>
+                                {% else %}
+                                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-md">Rejected</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6">No purchase requests found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% comment %} <table>
                 <thead>
                     <tr>
                         <th>Request ID</th>
@@ -58,7 +110,7 @@
                         </tr>
                     {% endfor %}
                 </tbody>
-            </table>
+            </table> {% endcomment %}
         </section>
     </main>
 {% endblock main-content %}

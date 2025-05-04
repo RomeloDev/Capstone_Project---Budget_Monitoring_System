@@ -10,6 +10,7 @@
         
         <!-- Purchase Request Items Table -->
         <section class="purchase-requests">
+            
             <h2 class="font-semibold text-[1.3rem]">Headings Details</h2>
             <form id="main-pr-form" action="{% url "purchase_request_form" %}" method="post">
                 {% csrf_token %}  
@@ -86,6 +87,11 @@
                                 <td>Auto Calculated</td>
                             </tr>  
 
+                            <tr id="total-amount-row" class="font-bold">
+                                <td colspan="5" style="text-align: right">Total Amount</td>
+                                <td>P {{ purchase_request.total_amount }}</td>
+                            </tr>
+
                     </table>
                     <div class="add-item-btn">
                         <button 
@@ -109,11 +115,31 @@
                 </div>
 
                 <div class="mt-5"> 
-                    <label for="source">Source:</label>
-                    <select name="source" id="source" class="block w-[20rem] px-3 py-2 bg-white border border-gray-500 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="" disabled selected>Select Here</option>
+                    <label for="source">Select PAPP:</label>
+                    <select name="papp" id="source" class="block w-[20rem] px-3 py-2 bg-white border border-gray-500 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="" disabled selected required>Select Here</option>
+                        {% for papp in papps %}
+                            <option value="{{ papp }}">{{ papp }}</option>
+                        {% endfor %}
                     </select>
                 </div>
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <p class="text-center text-[1.2rem] mt-2 font-medium 
+                            {% if message.tags == 'success' %}
+                                text-green-600
+                            {% elif message.tags == 'error' %}
+                                text-red-600
+                            {% else %}
+                                text-gray-700
+                            {% endif %}
+                        ">
+                            {{ message }}
+                        </p>
+                    {% endfor %}
+                {% endif %}
+
 
                 <div class="submit_pr_button">
                     <button name="submit_pr" type="submit">Submit Purchase Request</button>

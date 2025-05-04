@@ -1,0 +1,8 @@
+<!-- Empty row to be replaced/removed -->
+<tr id="item-{{ item_id }}"></tr>
+
+<!-- New total amount row with hx-swap-oob -->
+<tr id="total-amount-row" hx-swap-oob="true" class="font-bold">
+    <td colspan="5" style="text-align: right;">Total Amount</td>
+    <td class="text-center">P {{ purchase_request.total_amount }}</td>
+</tr>

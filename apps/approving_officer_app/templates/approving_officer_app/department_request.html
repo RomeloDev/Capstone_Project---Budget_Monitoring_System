@@ -8,7 +8,16 @@
 <h1 class="text-3xl font-bold mb-4">Department's Request</h1>
 <p class="text-gray-600">Manage Procurement/Non-Procurement Requests from departments.</p>
 
-<div class="overflow-x-auto mt-10">
+<div class="overflow-x-auto mt-7">
+    <form method="get" class="mb-4">
+        <label for="request_type" class="mr-2 font-semibold">Filter by Request Type:</label>
+        <select name="request_type" id="request_type" onchange="this.form.submit()" class="px-4 py-2 border border-gray-400 rounded">
+            <option value="">All</option>
+            <option value="Procurement" {% if request.GET.request_type == 'Procurement' %}selected{% endif %}>Procurement</option>
+            <option value="Non-procurement" {% if request.GET.request_type == 'Non-procurement' %}selected{% endif %}>Non-procurement</option>
+        </select>
+    </form>
+    
     <table class="min-w-full bg-white border border-gray-800">
         <thead class="bg-gray-200 border-b border-gray-800">
             <tr>
@@ -20,7 +29,7 @@
                 <th class="py-2 px-4 border-b">Action</th>
             </tr>
         </thead>
-        <tbody class="bg-white border-b-2 border-gray-800">
+        {% comment %} <tbody class="bg-white border-b-2 border-gray-800">
             <!-- Sample Pending Request -->
             <tr>
                 <td class="py-2 px-4 border-b">REQ-001</td>
@@ -69,7 +78,86 @@
                     <button class="bg-red-400 text-white px-3 py-1 rounded cursor-not-allowed" disabled>Rejected</button>
                 </td>
             </tr>
+        </tbody> {% endcomment %}
+        <tbody class="bg-white border-b-2 border-gray-800 text-center">
+            {% if purchase_requests %}
+                {% for req in purchase_requests %}
+                <tr>
+                    <td class="py-2 px-4 border-b">PR-{{ req.pr_no }}</td>
+                    <td class="py-2 px-4 border-b">{{ req.office_section }}</td>
+                    <td class="py-2 px-4 border-b">{{ req.entity_name }}</td>
+                    <td class="py-2 px-4 border-b">&#8369;{{ req.total_amount|floatformat:2 }}</td>
+                    <td class="py-2 px-4 border-b">
+                        {% if req.submitted_status == 'Pending' %}
+                            <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm">Pending</span>
+                        {% elif req.submitted_status == 'Approved' %}
+                            <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm">Approved</span>
+                        {% else %}
+                            <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-sm">Rejected</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="py-2 px-4 border-b space-x-2">
+                        <a href="#" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>
+                        
+                        {% if req.submitted_status == 'Pending' %}
+                        <form method="post" action="{% url 'handle_request_action' req.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
+                            <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2">Reject</button>
+                        </form>
+                        {% else %}
+                            <button class="bg-gray-400 text-white px-3 py-1 rounded cursor-not-allowed" disabled>{{ req.submitted_status|title }}</button>
+                        {% endif %}
+                    </td>
+
+                    {% comment %} <td class="py-2 px-4 border-b space-x-2">
+                        <a href="#" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>
+                        <form method="post" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
+                            <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2">Reject</button>
+                        </form>
+                    </td> {% endcomment %}
+
+                    {% comment %} <td class="py-2 px-4 border-b space-x-2">
+                        <a href="" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>
+                        
+                        {% if req.submitted_status == 'Pending' %}
+                        <form method="post" action="{% url 'handle_request_action' req.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" name="action" value="Approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
+                            <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2">Reject</button>
+                        </form>
+                        {% else %}
+                            <button class="bg-gray-400 text-white px-3 py-1 rounded cursor-not-allowed" disabled>{{ req.submitted_status|title }}</button>
+                        {% endif %}
+                    </td> {% endcomment %}
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="py-4 text-center text-gray-600">No requests found.</td>
+                </tr>
+            {% endif %}
         </tbody>
+        
     </table>
+
+    {% if messages %}
+        {% for message in messages %}
+            <p class="text-center text-[1.2rem] mt-2 font-medium 
+                {% if message.tags == 'success' %}
+                    text-green-600
+                {% elif message.tags == 'error' %}
+                    text-red-600
+                {% else %}
+                    text-gray-700
+                {% endif %}
+            ">
+                {{ message }}
+            </p>
+        {% endfor %}
+    {% endif %}
 </div>
 {% endblock %}

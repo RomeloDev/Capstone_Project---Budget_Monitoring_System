@@ -35,8 +35,9 @@ def end_user_login(request):
         if user is not None and not user.is_staff and not user.is_approving_officer:
             login(request, user)
             return redirect('user_dashboard')
-        # elif user is not None and user.is_approving_officer:
-        #     login()
+        elif user is not None and user.is_approving_officer:
+            login(request, user)
+            return redirect('approving_officer_dashboard')
         else:
             return render(request, 'users/end_user_login.html', {'error': 'Invalid Credentials'})
     

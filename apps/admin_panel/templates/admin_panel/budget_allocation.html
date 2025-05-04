@@ -28,7 +28,9 @@
             <label for="papp">PAPP:</label>
             <select name="papp" id="papp">
                 <option value="" disabled selected>-- Select PAPP --</option>
-                <option value="travel">0001010 - Travel</option>
+                <option value="0001010 - Travel">0001010 - Travel</option>
+                <option value="0001321 - Training">0001321 - Training</option>
+                <option value="0001442 - Foods">0001442 - Foods</option>
             </select>
 
             <label for="amount">Budget Amount (PHP):</label>
@@ -36,9 +38,26 @@
 
             <button type="submit" class="allocate-btn">Allocate</button>
             <br>
-            {% if messages %}
-                {% for message in messages %}
+            {% if messages.success %}
+                {% for message in messages.success %}
+                    <p style="color: green;">{{ message }}</p>
+                {% endfor %}
+
+            {% elif messages.error %}
+                {% for message in messages.error %}
                     <p style="color: red;">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+
+            {% if messages.warning %}
+                {% for message in messages %}
+                    <p style="color: orange;">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+
+            {% if messages.info %}
+                {% for message in messages %}
+                    <p style="color: blue;">{{ message }}</p>
                 {% endfor %}
             {% endif %}
         </form>
@@ -52,6 +71,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>PAPP</th>
                     <th>Department</th>
                     <th>Total Allocated</th>
                     <th>Spent</th>
@@ -63,7 +83,8 @@
             <tbody>
                 {% for budget in budgets %}
                 <tr>
-                    <td>{{ budget.get_department_display }}</td>
+                    <td>{{ budget.papp }}</td>
+                    <td>{{ budget.department }}</td>
                     <td>&#8369;{{ budget.total_allocated|floatformat:2 }}</td>
                     <td>&#8369;{{ budget.spent|floatformat:2 }}</td>
                     <td>&#8369;{{ budget.remaining_budget|floatformat:2 }}</td>

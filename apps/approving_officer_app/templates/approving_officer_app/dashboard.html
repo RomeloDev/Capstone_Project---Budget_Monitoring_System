@@ -11,15 +11,15 @@
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
     <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded-lg shadow">
         <p class="text-lg font-semibold text-yellow-800">Pending Requests</p>
-        <p class="text-3xl font-bold text-yellow-900 mt-2">5</p>
+        <p class="text-3xl font-bold text-yellow-900 mt-2">{{ pending_request|default:"0"}}</p>
     </div>
     <div class="bg-green-100 border-l-4 border-green-500 p-4 rounded-lg shadow">
         <p class="text-lg font-semibold text-green-800">Approved Requests</p>
-        <p class="text-3xl font-bold text-green-900 mt-2">12</p>
+        <p class="text-3xl font-bold text-green-900 mt-2">{{ approved_request|default:"0" }}</p>
     </div>
     <div class="bg-red-100 border-l-4 border-red-500 p-4 rounded-lg shadow">
         <p class="text-lg font-semibold text-red-800">Rejected Requests</p>
-        <p class="text-3xl font-bold text-red-900 mt-2">3</p>
+        <p class="text-3xl font-bold text-red-900 mt-2">{{ rejected_request|default:"0"}}</p>
     </div>
 </div>
 

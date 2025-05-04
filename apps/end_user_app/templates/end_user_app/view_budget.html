@@ -36,6 +36,7 @@
                 <thead>
                     <tr>
                         <th>Department</th>
+                        <th>PAPP</th>
                         <th>Total Allocated</th>
                         <th>Spent</th>
                         <th>Remaining Balance</th>
@@ -43,19 +44,23 @@
                 </thead>
                 <tbody>
                     {% if budget %}
-                    <tr>
-                        <td>{{ budget.get_department_display }}</td>
-                        <td>&#8369;{{ budget.total_allocated|floatformat:2 }}</td>
-                        <td>&#8369;{{ budget.spent|floatformat:2 }}</td>
-                        <td>&#8369;{{ budget.remaining_budget|floatformat:2 }}</td>
-                    </tr>
+                        {% for b in budget %}
+                        <tr>
+                            <td>{{ b.department }}</td>
+                            <td>{{ b.papp }}</td>
+                            <td>&#8369;{{ b.total_allocated|floatformat:2 }}</td>
+                            <td>&#8369;{{ b.spent|floatformat:2 }}</td>
+                            <td>&#8369;{{ b.remaining_budget|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
                     {% else %}
-                    <tr>
-                        <td colspan="4">No budget allocation found.</td>
-                    </tr>
+                        <tr>
+                            <td colspan="5">No budget allocation found.</td>
+                        </tr>
                     {% endif %}
                 </tbody>
             </table>
+            
         </section>
     </main>
 {% endblock %}

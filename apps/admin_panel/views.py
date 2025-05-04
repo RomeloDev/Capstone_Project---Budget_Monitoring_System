@@ -6,8 +6,9 @@ from .models import BudgetAllocation, Budget
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
-from apps.end_user_app.models import PurchaseRequest
+from apps.end_user_app.models import PurchaseRequest, Budget_Realignment
 from apps.users.models import User
+from django.db import transaction
 
 # Create your views here.
 @login_required
@@ -51,9 +52,13 @@ def register_account(request):
         if User.objects.filter(department=department).exists():
             return render(request, 'admin_panel/client_accounts.html', {'error': f'Department {department} already registered.'})
         
-        # Create and save the user
-        user = User.objects.create_user(username=username, fullname=fullname, email=email, password=password, department=department)
-        return render(request, "admin_panel/client_accounts.html", {'success': "Account registered successfully!"})
+        if department == 'Approving-Officer':
+            approving_officer = User.objects.create_approving_officer(username=username, fullname=fullname, email=email, password=password)
+            return render(request, "admin_panel/client_accounts.html", {'success': "Approving Officer Account registered successfully!"})
+        else:
+            # Create and save the user
+            user = User.objects.create_user(username=username, fullname=fullname, email=email, password=password, department=department)
+            return render(request, "admin_panel/client_accounts.html", {'success': "Account registered successfully!"})
 
 @login_required
 def departments_request(request):
@@ -88,6 +93,7 @@ def handle_departments_request(request, request_id):
 def budget_allocation(request):
     if request.method == 'POST':
         department = request.POST.get('department')
+        papp = request.POST.get('papp')
         amount = request.POST.get('amount')
         
         # Convert amount to decimal
@@ -110,18 +116,26 @@ def budget_allocation(request):
         
         if remaining_fund >= amount:
             # Get or create budget for the department
-            budget, created = BudgetAllocation.objects.get_or_create(department=department)
+            allocate = BudgetAllocation.objects.create(
+                department=department,
+                papp=papp,
+                total_allocated=amount,
+                remaining_budget=amount,
+                assigned_user=assigned_user,
+            )
             
             # Update values
-            budget.total_allocated += amount
-            budget.remaining_budget = budget.total_allocated - budget.spent
-            budget.assigned_user = assigned_user  # Automatically assign based on department
-            budget.save()
+            # budget.papp = papp
+            # budget.total_allocated += amount
+            # budget.remaining_budget = budget.total_allocated - budget.spent
+            # budget.assigned_user = assigned_user  # Automatically assign based on department
+            # budget.save()
             
             # Update the remaining balance of total fund of the institution
             budget_instance.remaining_budget -= amount
             budget_instance.save()
 
+            messages.success(request, f"Budget of {amount} allocated to {department} for {papp}.")
             return redirect("budget_allocation")  # Reload the page after saving
         else:
             messages.error(request, "Insufficient Budget")
@@ -130,7 +144,7 @@ def budget_allocation(request):
     budgets = BudgetAllocation.objects.all()
 
     # Fetch distinct department names (only for selection)
-    departments = User.objects.filter(is_staff=False).values_list('department', flat=True).distinct()
+    departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
     
     return render(request, "admin_panel/budget_allocation.html", {
         "budgets": budgets,
@@ -165,4 +179,63 @@ def audit_trail(request):
 
 @login_required
 def budget_re_alignment(request):
-    return render(request, 'admin_panel/budget_re-alignment.html')
+    try:
+        re_alignment_request = Budget_Realignment.objects.all()
+    except Budget_Realignment.DoesNotExist:
+        re_alignment_request = None
+    return render(request, 'admin_panel/budget_re-alignment.html', {'re_alignment_request': re_alignment_request})
+
+@login_required
+def handle_re_alignment_request_action(request, pk):
+    req = get_object_or_404(Budget_Realignment, pk=pk)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'approve':
+            try:
+                with transaction.atomic():
+                    source_alloc = BudgetAllocation.objects.select_for_update().get(papp=req.source_papp)
+                    target_alloc = BudgetAllocation.objects.select_for_update().get(papp=req.target_papp)
+                    
+                    if source_alloc.remaining_budget < req.amount:
+                        messages.error(request, "Insufficient budget in source PAPP to realign.")
+                        return redirect('budget_re_alignment')
+                    
+                    # Deduct from source and add to target
+                    source_alloc.remaining_budget -= req.amount
+                    target_alloc.remaining_budget += req.amount
+                    
+                    # Save both allocations
+                    source_alloc.save()
+                    target_alloc.save()
+
+                    # Update request status
+                    req.status = 'Approved'
+                    req.approved_by = request.user
+                    req.save()
+                    
+                    messages.success(request, f'Budget Realignment Request of {req.requested_by.department} has been approved.')
+            except BudgetAllocation.DoesNotExist:
+                messages.error(request, "Source or Target PAPP not found.")
+            except Exception as e:
+                messages.error(request, f"Something went wrong: {e}")
+        elif action == 'reject':
+            req.status = 'rejected'
+            req.approved_by = request.user
+            req.save()
+            messages.error(request, f'Budget Realignment Request of {req.requested_by.department} has been rejected.')
+
+        
+        
+        # action = request.POST.get('action')
+        # if action == 'approve':
+        #     req.status = 'Approved'
+        #     messages.success(request, f'Budget Realignment Request of {req.requested_by.department} has been approved.')
+        # elif action == 'reject':
+        #     req.status = 'Rejected'
+        #     messages.error(request, f'Budget Realignment Request of {req.requested_by.department} has been rejected.')
+        # req.approved_by = request.user
+        # req.save()
+        
+    return redirect('budget_realignment')
