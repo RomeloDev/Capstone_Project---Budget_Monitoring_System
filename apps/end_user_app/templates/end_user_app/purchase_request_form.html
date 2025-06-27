@@ -1,5 +1,7 @@
 {% extends "end_user_base_template/dashboard.html" %}
 
+{% load humanize %}
+
 {% block title %}
     Purchase Request Form
 {% endblock title %}
@@ -60,8 +62,8 @@
                                     <td>{{ item.unit }}</td>
                                     <td>{{ item.item_description }}</td>
                                     <td>{{ item.quantity }}</td>
-                                    <td>{{ item.unit_cost }}</td>
-                                    <td>{{ item.total_cost }}</td>
+                                    <td>&#8369; {{ item.unit_cost|intcomma }}</td>
+                                    <td>&#8369; {{ item.total_cost|intcomma }}</td>
                                     <td>
                                         <button 
                                             type="button" 
@@ -89,7 +91,7 @@
 
                             <tr id="total-amount-row" class="font-bold">
                                 <td colspan="5" style="text-align: right">Total Amount</td>
-                                <td>P {{ purchase_request.total_amount }}</td>
+                                <td>&#8369; {{ purchase_request.total_amount|intcomma }}</td>
                             </tr>
 
                     </table>

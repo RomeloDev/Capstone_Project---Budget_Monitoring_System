@@ -1,5 +1,7 @@
 {% extends "end_user_base_template/dashboard.html" %}
 
+{% load humanize %}
+
 {% block title %}
     View Budget
 {% endblock title %}
@@ -48,9 +50,9 @@
                         <tr>
                             <td>{{ b.department }}</td>
                             <td>{{ b.papp }}</td>
-                            <td>&#8369;{{ b.total_allocated|floatformat:2 }}</td>
-                            <td>&#8369;{{ b.spent|floatformat:2 }}</td>
-                            <td>&#8369;{{ b.remaining_budget|floatformat:2 }}</td>
+                            <td>&#8369;{{ b.total_allocated|floatformat:2|intcomma }}</td>
+                            <td>&#8369;{{ b.spent|floatformat:2|intcomma }}</td>
+                            <td>&#8369;{{ b.remaining_budget|floatformat:2|intcomma }}</td>
                         </tr>
                         {% endfor %}
                     {% else %}

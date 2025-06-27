@@ -1,5 +1,7 @@
 {% extends "admin_base_template/dashboard.html" %}
 
+{% load humanize %}
+
 {% block title %}
     Manage Budget Re-Alignment
 {% endblock title %}
@@ -33,11 +35,13 @@
                         <td class="px-4 py-2">{{ request.requested_by.department }}</td>
                         <td class="px-4 py-2">{{ request.target_papp }}</td>
                         <td class="px-4 py-2">{{ request.source_papp }}</td>
-                        <td class="px-4 py-2">&#8369; {{ request.amount }}</td>
+                        <td class="px-4 py-2">&#8369; {{ request.amount|intcomma }}</td>
                         {% if request.status == 'Pending' %}
                         <td class="px-4 py-2 text-yellow-600 font-semibold">{{ request.status }}</td>
                         {% elif request.status == 'Approved' %}
                         <td class="px-4 py-2 text-blue-600 font-semibold">{{ request.status }}</td>
+                        {% elif request.status == 'rejected' %}
+                        <td class="px-4 py-2 text-red-600 font-semibold">{{ request.status }}</td>
                         {% endif %}
                         <td class="px-4 py-2 border-b space-x-2">
                             <a href="#" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>

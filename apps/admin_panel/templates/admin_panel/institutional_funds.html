@@ -1,5 +1,7 @@
 {% extends "admin_base_template/dashboard.html" %}
 
+{% load humanize %}
+
 {% block title %}Institution Funds{% endblock  %}
 
 {% block main-content %}
@@ -44,8 +46,8 @@
                         <tr>
                             <td>{{ budget.id }}</td>
                             <td>{{ budget.title }}</td>
-                            <td>{{ budget.total_fund }}</td>
-                            <td>{{ budget.remaining_budget }}</td>
+                            <td>&#8369; {{ budget.total_fund|intcomma }}</td>
+                            <td>&#8369; {{ budget.remaining_budget|intcomma }}</td>
                             <td>{{ budget.created_at }}</td>
                             <td>{{ budget.updated_at }}</td>
                         </tr>

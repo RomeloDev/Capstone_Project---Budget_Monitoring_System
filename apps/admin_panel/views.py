@@ -9,15 +9,36 @@ from decimal import Decimal
 from apps.end_user_app.models import PurchaseRequest, Budget_Realignment
 from apps.users.models import User
 from django.db import transaction
+from django.db.models import Sum
+from django.template.defaultfilters import floatformat
+from django.contrib.humanize.templatetags.humanize import intcomma
+
+
 
 # Create your views here.
 @login_required
 def admin_dashboard(request):
     try:
-        pass
+        end_users_total = User.objects.filter(is_staff=False, is_approving_officer=True).count()
+        total_budget = Budget.objects.aggregate(Sum('total_fund'))['total_fund__sum']
+        total_pending_realignment_request = Budget_Realignment.objects.filter(status='Pending').count()
+        total_approved_realignment_request = Budget_Realignment.objects.filter(status='Approved').count()
+        budget_allocated = BudgetAllocation.objects.all()
     except:
-        pass
-    return render(request, 'admin_panel/dashboard.html')
+        end_users_total = 0
+        total_budget = 0
+        total_pending_realignment_request = 0
+        total_approved_realignment_request = 0
+        budget_allocated = None
+
+
+
+    return render(request, 'admin_panel/dashboard.html', {'end_users_total': end_users_total,
+    'total_budget': total_budget, 
+    'total_pending_realignment_request': total_pending_realignment_request, 'total_approved_realignment_request': total_approved_realignment_request,
+    'budget_allocated': budget_allocated,
+    'intcomma': intcomma
+    })
 
 @login_required
 def client_accounts(request):

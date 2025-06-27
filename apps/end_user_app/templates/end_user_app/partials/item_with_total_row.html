@@ -1,11 +1,12 @@
 <!-- Item row to be inserted into #items-table-body -->
+ {% load humanize %}
 <tr id="item-{{ item.id }}">
     <td>{{ item.stock_property_no }}</td>
     <td>{{ item.unit }}</td>
     <td>{{ item.item_description }}</td>
     <td>{{ item.quantity }}</td>
-    <td>{{ item.unit_cost }}</td>
-    <td>{{ item.total_cost }}</td>
+    <td>&#8369; {{ item.unit_cost|intcomma }}</td>
+    <td>&#8369; {{ item.total_cost|intcomma }}</td>
     <td>
         <button 
             type="button" 
@@ -22,5 +23,5 @@
 <!-- This replaces the total amount row -->
 <tr id="total-amount-row" hx-swap-oob="true" class="font-bold">
     <td colspan="5" style="text-align: right;">Total Amount</td>
-    <td class="text-center">P {{ purchase_request.total_amount }}</td>
+    <td class="text-center">P {{ purchase_request.total_amount|intcomma }}</td>
 </tr>

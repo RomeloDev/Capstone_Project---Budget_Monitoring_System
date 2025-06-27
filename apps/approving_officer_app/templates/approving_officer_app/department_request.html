@@ -1,5 +1,7 @@
 {% extends "approving_officer_base_template/dashboard.html" %}
 
+{% load humanize %}
+
 {% block title %}
     Department's Request
 {% endblock %}
@@ -86,7 +88,7 @@
                     <td class="py-2 px-4 border-b">PR-{{ req.pr_no }}</td>
                     <td class="py-2 px-4 border-b">{{ req.office_section }}</td>
                     <td class="py-2 px-4 border-b">{{ req.entity_name }}</td>
-                    <td class="py-2 px-4 border-b">&#8369;{{ req.total_amount|floatformat:2 }}</td>
+                    <td class="py-2 px-4 border-b">&#8369;{{ req.total_amount|floatformat:2|intcomma }}</td>
                     <td class="py-2 px-4 border-b">
                         {% if req.submitted_status == 'Pending' %}
                             <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm">Pending</span>

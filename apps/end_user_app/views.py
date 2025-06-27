@@ -11,6 +11,7 @@ from django.http import JsonResponse, HttpResponse
 from django.template.loader import render_to_string
 from decimal import Decimal
 from django.db.models import Sum
+from django.contrib.humanize.templatetags.humanize import intcomma
 
 # Create your views here.
 @login_required
@@ -250,4 +251,8 @@ def remove_purchase_item(request, item_id):
 
     # return HttpResponse(status=200)  # Empty response with 200 OK
     #return JsonResponse({"success": True})
+    
+@login_required
+def department_pre(request):
+    return render(request, "end_user_app/department_pre.html")
     

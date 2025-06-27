@@ -4,6 +4,7 @@ from django.contrib.auth import logout
 from apps.end_user_app.models import PurchaseRequest
 from apps.admin_panel.models import BudgetAllocation
 from django.contrib import messages
+from django.contrib.humanize.templatetags.humanize import intcomma
 
 # Create your views here.
 @login_required

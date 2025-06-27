@@ -48,6 +48,8 @@ INSTALLED_APPS = [
     'tailwind',
     'theme',
     'django_browser_reload',
+    'django.contrib.humanize',
+
 ]
 
 # For tailwind config

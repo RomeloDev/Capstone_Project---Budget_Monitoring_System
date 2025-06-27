@@ -1,5 +1,7 @@
 {% extends "admin_base_template/dashboard.html" %}
 
+{% load humanize %}
+
 {% block title %}Budget Allocation{% endblock %}
 
 {% block main-content %}
@@ -85,9 +87,9 @@
                 <tr>
                     <td>{{ budget.papp }}</td>
                     <td>{{ budget.department }}</td>
-                    <td>&#8369;{{ budget.total_allocated|floatformat:2 }}</td>
-                    <td>&#8369;{{ budget.spent|floatformat:2 }}</td>
-                    <td>&#8369;{{ budget.remaining_budget|floatformat:2 }}</td>
+                    <td>&#8369;{{ budget.total_allocated|floatformat:2|intcomma }}</td>
+                    <td>&#8369;{{ budget.spent|floatformat:2|intcomma }}</td>
+                    <td>&#8369;{{ budget.remaining_budget|floatformat:2|intcomma }}</td>
                     <td>{{ budget.allocated_at}}</td>
                     <td>{{ budget.updated_at }}</td>
                 </tr>
