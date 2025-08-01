@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'unfold',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -155,3 +156,15 @@ STATICFILES_DIRS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = "users.User"  
+
+UNFOLD = {
+    "SITE_TITLE": "🔥 My Custom Admin",
+    "SITE_HEADER": "🔥 My Admin Panel",
+    "SITE_URL": "/admin",  # Optional: where clicking the logo takes you
+    "DARK_MODE": True,     # Enable dark mode
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "show_all_models": True,
+    },
+}
