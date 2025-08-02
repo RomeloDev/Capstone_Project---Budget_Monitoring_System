@@ -893,6 +893,10 @@ select {
   grid-column: span 2 / span 2;
 }
 
+.col-span-3 {
+  grid-column: span 3 / span 3;
+}
+
 .mx-auto {
   margin-left: auto;
   margin-right: auto;
@@ -1004,6 +1008,38 @@ select {
 
 .mt-\[10px\] {
   margin-top: 10px;
+}
+
+.mr-\[\] {
+  margin-right: ;
+}
+
+.mr-\[5rem\] {
+  margin-right: 5rem;
+}
+
+.ml-\[5rem\] {
+  margin-left: 5rem;
+}
+
+.ml-\[2rem\] {
+  margin-left: 2rem;
+}
+
+.ml-\[1\.9rem\] {
+  margin-left: 1.9rem;
+}
+
+.ml-\[1\.8rem\] {
+  margin-left: 1.8rem;
+}
+
+.ml-\[1\.7rem\] {
+  margin-left: 1.7rem;
+}
+
+.mt-12 {
+  margin-top: 3rem;
 }
 
 .block {
@@ -1155,12 +1191,16 @@ select {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
 
-.grid-cols-6 {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
 .grid-cols-7 {
   grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .flex-col {
@@ -1185,6 +1225,10 @@ select {
 
 .gap-6 {
   gap: 1.5rem;
+}
+
+.gap-10 {
+  gap: 2.5rem;
 }
 
 .space-x-2 > :not([hidden]) ~ :not([hidden]) {
@@ -1333,6 +1377,11 @@ select {
 .border-green-500 {
   --tw-border-opacity: 1;
   border-color: rgb(34 197 94 / var(--tw-border-opacity, 1));
+}
+
+.border-green-600 {
+  --tw-border-opacity: 1;
+  border-color: rgb(22 163 74 / var(--tw-border-opacity, 1));
 }
 
 .border-red-500 {
@@ -1581,6 +1630,10 @@ select {
   padding-top: 0.75rem;
 }
 
+.pt-8 {
+  padding-top: 2rem;
+}
+
 .text-left {
   text-align: left;
 }
@@ -1661,6 +1714,18 @@ select {
 .text-xl {
   font-size: 1.25rem;
   line-height: 1.75rem;
+}
+
+.text-\[20px\] {
+  font-size: 20px;
+}
+
+.text-\[18px\] {
+  font-size: 18px;
+}
+
+.text-\[1\.5rem\] {
+  font-size: 1.5rem;
 }
 
 .font-bold {
@@ -1804,6 +1869,10 @@ select {
 .text-yellow-900 {
   --tw-text-opacity: 1;
   color: rgb(113 63 18 / var(--tw-text-opacity, 1));
+}
+
+.text-\[\] {
+  color: ;
 }
 
 .underline {
