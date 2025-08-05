@@ -1,37 +1,149 @@
 {% load static tailwind_tags %}
 <!DOCTYPE html>
-{% load static %}
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <meta name="description" content="Admin Dashboard for managing accounts, budgets, and requests.">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin | {% block title %}{% endblock %}</title>
-    <link rel="stylesheet" href="path/to/font-awesome/css/font-awesome.min.css">
-    <link rel="stylesheet" href="{% static 'css/admin_dashboard.css'%}">
+    <meta name="description" content="Admin Dashboard">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     {% tailwind_css %}
-</head>
-<body>
-    <div class="dashboard">
-        <!--Sidebar -->
-        <aside class="sidebar">
-            <h2 class="font-bold">Welcome, {{user.department}}</h2>
-            <nav>
-                <ul>
-                    <li><a href="{% url "admin_dashboard" %}">Dashboard</a></li>
-                    <li><a href="{% url "client_accounts" %}">Manage User Accounts</a></li>
-                    <li><a href="{% url "audit_trail" %}">Audit Trail</a></li>
-                    <li><a href="{% url "institutional_funds" %}">Add Institutional Funds</a></li>
-                    {% comment %} <li><a href="/admin/admin-accounts">Admin Accounts</a></li> {% endcomment %}
-                    <li><a href="{% url "budget_allocation" %}">Budget Allocation</a></li>
-                    <li><a href="{% url "budget_realignment" %}">Budget Re-Alignment Request</a></li>
-                    {% comment %} <li><a href="{% url "department_request" %}">Department's Request</a></li> {% endcomment %}
-                    <li><a href="{% url "admin_logout" %}">Logout</a></li>
-                </ul>
-            </nav>
-        </aside>
-        {% block main-content %}{% endblock %}
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  </head>
+  <body class="bg-gray-100 text-gray-900 font-sans">
+    <div class="flex min-h-screen">
+      
+      <!-- Sidebar -->
+      <aside class="w-64 bg-white border-r fixed h-screen z-20 flex flex-col">
+        <div class="px-6 py-2 border-b">
+          <div class="flex flex-col items-center mt-2 mb-2">
+            <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" class="h-[50px] me-3 sm:h-[50px]" alt="Flowbite Logo" />
+            <span class="self-center text-sm font-semibold whitespace-nowrap text-black mt-1">BISU Balilihan</span>
+            <span class="self-center text-lg font-semibold whitespace-nowrap text-black px-3">Budget Monitoring System</span>
+          </div>
+          {% comment %} <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Welcome,</h2>
+          <p class="text-lg font-bold text-gray-800">{{ user.department }}</p> {% endcomment %}
+        </div>
+        <nav class="flex-1 overflow-y-auto mt-2 px-3">
+          <h3 class="font-semibold text-[16px] px-3 py-3">Navigation</h3>
+          <ul class="space-y-1 text-sm">
+            
+            <li>
+              <a href="{% url 'admin_dashboard' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'admin_dashboard' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                <span>Dashboard</span>
+              </a>
+            </li>
+            
+            <li>
+              <a href="{% url 'client_accounts' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'client_accounts' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-users w-5 text-center"></i>
+                <span>Users</span>
+              </a>
+            </li>
+
+            <li>
+              <a href="{% url 'audit_trail' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'audit_trail' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i>
+                <span>Audit Trail</span>
+              </a>
+            </li>
+
+            <li>
+              <a href="{% url 'institutional_funds' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'institutional_funds' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-building-columns w-5 text-center"></i>
+                <span>Approved Budget</span>
+              </a>
+            </li>
+
+            <li>
+              <a href="{% url 'budget_allocation' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'budget_allocation' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-hand-holding-dollar w-5 text-center"></i>
+                <span>Budget Allocation</span>
+              </a>
+            </li>
+
+            <li>
+              <a href="{% url 'pre_request_page' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'pre_request_page' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-file-invoice w-5 text-center"></i>
+                <span>PRE Request</span>
+              </a>
+            </li>
+
+            <li>
+              <a href="{% url 'budget_realignment' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'budget_realignment' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-retweet w-5 text-center"></i>
+                <span>Re-Alignment Request</span>
+              </a>
+            </li>
+
+            <li class="pt-6 border-t mt-6">
+              <a href="{% url 'admin_logout' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md text-red-600 hover:bg-red-50">
+                <i class="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i>
+                <span>Logout</span>
+              </a>
+            </li>
+
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="ml-64 flex flex-col w-full">
+        <!-- Topbar -->
+        <header class="bg-white border-b px-6 py-4 sticky top-0 z-10 shadow-sm">
+          <h1 class="text-xl font-semibold">Admin Panel</h1>
+          <p class="text-sm text-gray-500">Welcome back, {{ user.department }}!</p>
+        </header>
+
+        <!-- Page Content -->
+        <main class="p-6">
+          {% block main-content %}{% endblock %}
+        </main>
+      </div>
     </div>
-</body>
+  </body>
 </html>

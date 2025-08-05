@@ -1,19 +1,19 @@
+{% load static tailwind_tags %}
 <!DOCTYPE html>
-{% load static %}
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>
-        {% block title %}Default title{% endblock title %}
-    </title>
-    <link rel="stylesheet" href="{% static "css/admin_auth.css" %}">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Admin Login{% endblock title %}</title>
+    {% tailwind_css %}
 </head>
-<body>
-    <div class="container">
-        <div class="form {{cssClass}}">
-            {% block content %}{% endblock content %}
-        </div>
+<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-gray-100 to-blue-100 px-4">
+
+    <!-- Main container (optional max-w-sm) -->
+    <div class="w-full max-w-md bg-white/90 backdrop-blur-md shadow-2xl rounded-xl p-8">
+        {% block content %}
+        {% endblock content %}
     </div>
+
 </body>
 </html>

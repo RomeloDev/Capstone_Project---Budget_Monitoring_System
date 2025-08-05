@@ -1,66 +1,86 @@
 {% extends "admin_base_template/dashboard.html" %}
-
 {% load humanize %}
 
 {% block title %}Dashboard{% endblock %}
 
 {% block main-content %}
-<main class="content p-6">
-    <header class="dashboard-header mb-8">
-        <h1 class="text-3xl font-bold text-gray-100">Dashboard</h1>
-        <p class="text-gray-100">Welcome back, {{ user.department }}! Here's an overview of the system's current status:</p>
-    </header>
+<div class="flex flex-col w-full">
+  
+  <!-- Header -->
+  <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
+    <h1 class="text-[20px] font-bold">Dashboard</h1>
+    <p class="text-sm text-blue-100 mt-1">
+      Welcome back, {{ user.department }}! Here's an overview of the system’s current status:
+    </p>
+  </header>
+
+  <!-- Main Section -->
+  <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
 
     <!-- Summary Cards -->
-    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <div class="bg-white rounded-2xl shadow-md p-6">
-            <h3 class="text-sm font-medium text-gray-600">Total Users</h3>
-            <p class="text-2xl font-bold text-gray-800">{{ end_users_total }}</p>
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      
+      <!-- Total Users Card -->
+        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
+        <h2 class="text-md text-gray-700 mb-1">Total Users</h2>
+        <div class="text-2xl font-bold">{{ end_users_total }}</div>
+        <div class="text-blue-600 text-sm mt-1">Updated live</div>
         </div>
-        <div class="bg-white rounded-2xl shadow-md p-6">
-            <h3 class="text-sm font-medium text-gray-600">Total Budget</h3>
-            <p class="text-2xl font-bold text-gray-800">&#8369; {{ total_budget|intcomma }}</p>
+
+        <!-- Total Budget Card -->
+        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
+        <h2 class="text-md text-gray-700 mb-1">Total Budget</h2>
+        <div class="text-2xl font-bold">&#8369; {{ total_budget|intcomma }}</div>
+        <div class="text-green-500 text-sm mt-1">+₱1,000 since last month</div>
         </div>
-        <div class="bg-white rounded-2xl shadow-md p-6">
-            <h3 class="text-sm font-medium text-gray-600">Pending Requests</h3>
-            <p class="text-2xl font-bold text-gray-800">{{ total_pending_realignment_request }}</p>
+
+        <!-- Pending Requests Card -->
+        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
+        <h2 class="text-md text-gray-700 mb-1">Pending Requests</h2>
+        <div class="text-2xl font-bold">{{ total_pending_realignment_request }}</div>
+        <div class="text-yellow-500 text-sm mt-1">Needs attention</div>
         </div>
-        <div class="bg-white rounded-2xl shadow-md p-6">
-            <h3 class="text-sm font-medium text-gray-600">Approved Requests</h3>
-            <p class="text-2xl font-bold text-gray-800">{{ total_approved_realignment_request }}</p>
+
+        <!-- Approved Requests Card -->
+        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
+        <h2 class="text-md text-gray-700 mb-1">Approved Requests</h2>
+        <div class="text-2xl font-bold">{{ total_approved_realignment_request }}</div>
+        <div class="text-green-500 text-sm mt-1">All good</div>
         </div>
+
     </section>
 
-    <!-- System Overview Table -->
-<section class="system-overview">
-    <h2 class="text-xl font-semibold text-gray-800 mb-4">Department Budget Overview</h2>
-    <div class="overflow-x-auto bg-white shadow-md rounded-2xl">
+    <!-- Department Budget Table -->
+    <section>
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Department Budget Overview</h2>
+      <div class="overflow-x-auto bg-white rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border border-gray-200">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
-            <thead class="bg-gray-50 text-left text-md font-medium text-gray-800 uppercase tracking-wider">
-                <tr>
-                    <th class="px-6 py-3">Department</th>
-                    <th class="px-6 py-3">Allocated Budget</th>
-                    <th class="px-6 py-3">Used Budget</th>
-                    <th class="px-6 py-3">Remaining Budget</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for allocation in budget_allocated %}
-                <tr>
-                    <td class="px-6 py-4 text-gray-700">{{ allocation.department }}</td>
-                    <td class="px-6 py-4">&#8369; {{ allocation.total_allocated|intcomma }}</td>
-                    <td class="px-6 py-4">&#8369; {{ allocation.spent|intcomma }}</td>
-                    <td class="px-6 py-4">&#8369;{{ allocation.remaining_budget|intcomma }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="4" class="px-6 py-4 text-center text-gray-500">No data available.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
+          <thead class="bg-blue-600 text-left font-semibold text-gray-50">
+            <tr>
+              <th class="px-6 py-3">Department</th>
+              <th class="px-6 py-3">Allocated Budget</th>
+              <th class="px-6 py-3">Used Budget</th>
+              <th class="px-6 py-3">Remaining Budget</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for allocation in budget_allocated %}
+              <tr>
+                <td class="px-6 py-4 text-gray-700">{{ allocation.department }}</td>
+                <td class="px-6 py-4">&#8369; {{ allocation.total_allocated|intcomma }}</td>
+                <td class="px-6 py-4">&#8369; {{ allocation.spent|intcomma }}</td>
+                <td class="px-6 py-4">&#8369; {{ allocation.remaining_budget|intcomma }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="px-6 py-4 text-center text-gray-500">No data available.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
         </table>
-    </div>
-</section>
-
-</main>
+      </div>
+    </section>
+    
+  </main>
+</div>
 {% endblock %}

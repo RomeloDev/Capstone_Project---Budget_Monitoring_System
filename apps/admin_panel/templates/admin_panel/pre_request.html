@@ -1,0 +1,96 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}PRE Request{% endblock %}
+
+{% block main-content %}
+<div class="flex flex-col w-full">
+  
+  <!-- Header -->
+  <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
+    <h1 class="text-[20px] font-bold">Program of Receipts and Expenditures</h1>
+    <p class="text-sm text-blue-100 mt-1">Manage Program of Receipts and Expenditures (PRE) Request of every department.</p>
+  </header>
+
+  <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
+
+    <!-- Filter Section -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Filter PRE Requests</h2>
+      <form method="get" class="flex flex-col md:flex-row md:items-end flex-wrap gap-4">
+        <!-- Department Filter -->
+        <div class="w-full md:w-1/3">
+          <label for="department_filter" class="block text-sm font-medium text-gray-700 mb-1">Select Department</label>
+          <select id="department_filter" name="department" class="w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <option value="">-- All Departments --</option>
+            <option value="MFO1_CCJ">MFO1_CCJ</option>
+            <option value="MFO1_CCIS">MFO1_CCIS</option>
+            <option value="MFO1_CTAS">MFO1_CTAS</option>
+            <!-- Optional dynamic loop -->
+            {# {% for dept in departments %} 
+              <option value="{{ dept.code }}">{{ dept.name }}</option>
+            {% endfor %} #}
+          </select>
+        </div>
+
+        <!-- Filter Button -->
+        <div class="w-full md:w-auto">
+          <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition w-full md:w-auto">
+            Filter Requests
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Table Section -->
+    <section class="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">PRE Requests</h2>
+      <table class="min-w-full table-auto border border-gray-200 text-sm">
+        <thead class="bg-gray-100 text-gray-700 font-semibold">
+          <tr>
+            <th class="px-4 py-2 text-left">Date Submitted</th>
+            <th class="px-4 py-2 text-left">Submitted By</th>
+            <th class="px-4 py-2 text-left">Quarter</th>
+            <th class="px-4 py-2 text-left">Total Amount</th>
+            <th class="px-4 py-2 text-left">Status</th>
+            <th class="px-4 py-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for request in pre_requests %}
+            <tr class="border-t">
+              <td class="px-4 py-2">{{ request.created_at|date:"M d, Y" }}</td>
+              <td class="px-4 py-2">{{ request.submitted_by.department }}</td>
+              <td class="px-4 py-2">{{ request.quarter }}</td>
+              <td class="px-4 py-2">&#8369;{{ request.total_amount|floatformat:2|intcomma }}</td>
+              <td class="px-4 py-2 font-semibold 
+                {% if request.status == 'Pending' %}text-yellow-600
+                {% elif request.status == 'Approved' %}text-blue-600
+                {% elif request.status == 'Declined' %}text-red-600
+                {% endif %}">
+                {{ request.status }}
+              </td>
+              <td class="px-4 py-2 space-x-2">
+                <a href="{% url 'pre_request_detail' request.id %}" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">View</a>
+                {% if request.status == 'Pending' %}
+                  <form method="post" action="{% url 'pre_request_action' request.id %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
+                    <button type="submit" name="action" value="decline" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2">Decline</button>
+                  </form>
+                {% else %}
+                  <button class="bg-gray-400 text-white px-3 py-1 rounded cursor-not-allowed" disabled>{{ request.status|title }}</button>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-4 text-gray-500">No PRE requests found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+{% endblock %}

@@ -260,3 +260,7 @@ def handle_re_alignment_request_action(request, pk):
         # req.save()
         
     return redirect('budget_realignment')
+
+@login_required
+def pre_request_page(request):
+    return render(request, "admin_panel/pre_request.html")
