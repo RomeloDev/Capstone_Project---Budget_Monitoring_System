@@ -11,5 +11,6 @@ urlpatterns = [
     path('add_purchase_item/', views.add_purchase_request_items, name='add_purchase_item'),
     path('remove-item/<int:item_id>/', views.remove_purchase_item, name='remove_purchase_item'),
     path('re_alignment/', views.re_alignment, name='re_alignment'),
-    path('department_pre/', views.department_pre, name='department_pre'),
+    path('department_pre/', views.department_pre_form, name='department_pre_form'),
+    path('department_pre_page/', views.department_pre_page, name='department_pre_page'),
 ]

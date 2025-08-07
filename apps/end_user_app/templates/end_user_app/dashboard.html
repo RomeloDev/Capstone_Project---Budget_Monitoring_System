@@ -1,118 +1,105 @@
 {% extends "end_user_base_template/dashboard.html" %}
-
 {% load humanize %}
 
 {% block title %}Dashboard{% endblock title %}
 
 {% block main-content %}
-    <!-- Main Content -->
-    <main class="content">
-        <header>
-            <h1 class="font-semibold text-[2rem]">Welcome, {{user.department}}</h1>
-            <p>Your department's current budget status is shown below.</p>
-        </header>
+<main class="content space-y-10">
+    <!-- Greeting -->
+    <header>
+        <h1 class="text-3xl font-bold text-gray-800">Welcome, {{ user.department|default:"Department" }}</h1>
+        <p class="text-gray-600">Monitor your department's budget, requests, and activity.</p>
+    </header>
 
-        <!-- Budget Summary 
-        <section class="budget-summary">
-            <div class="card">
-                <div class="header font-semibold text-[1.3rem]">
-                    <h3>Total Budget</h3>
-                </div>
-                <p>&#8369;{{budget.total_allocated|default:"0.00"}}</p>
-            </div>
-            <div class="card">
-                <div class="header font-semibold text-[1.3rem]">
-                    <h3>Remaining Balance</h3>
-                </div>
-                <p>&#8369;{{budget.remaining_budget|default:"0.00"}}</p>
-            </div>
-            <div class="card">
-                <div class="header font-semibold text-[1.3rem]">
-                    <h3>Approved Requests</h3>
-                </div>
-                <p>{{ approved_requests_count|default:"0" }}</p>
-            </div>
-        </section> -->
+    <!-- Stat Cards -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div class="bg-green-100 p-6 rounded-xl shadow-md border-l-4 border-green-500 hover:scale-[1.02] transition-transform">
+            <p class="text-sm font-medium text-gray-500">Total Budget</p>
+            <p class="text-3xl font-bold text-green-700 mt-2">&#8369;{{ total_budget|floatformat:2|default:"0.00" }}</p>
+        </div>
+        <div class="bg-yellow-100 p-6 rounded-xl shadow-md border-l-4 border-yellow-500 hover:scale-[1.02] transition-transform">
+            <p class="text-sm font-medium text-gray-500">Remaining Balance</p>
+            <p class="text-3xl font-bold text-yellow-700 mt-2">&#8369;{{ remaining_balance|floatformat:2|default:"0.00" }}</p>
+        </div>
+        <div class="bg-blue-100 p-6 rounded-xl shadow-md border-l-4 border-blue-500 hover:scale-[1.02] transition-transform">
+            <p class="text-sm font-medium text-gray-500">Approved Requests</p>
+            <p class="text-3xl font-bold text-blue-700 mt-2">{{ approved_requests_count|default:"0" }}</p>
+        </div>
+    </section>
 
-        <!-- Stat Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-            <div class="bg-green-100 border-l-4 border-green-500 p-4 rounded-lg shadow">
-                <p class="text-lg font-semibold text-green-800">Total Budget</p>
-                <p class="text-3xl font-bold text-green-900 mt-2">&#8369;{{user_total_allocated|default:"0.00"|intcomma}}</p>
-            </div>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded-lg shadow">
-                <p class="text-lg font-semibold text-yellow-800">Remaining Balance</p>
-                <p class="text-3xl font-bold text-yellow-900 mt-2">&#8369;{{user_remaining_budget|default:"0.00"|intcomma}}</p>
-            </div>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 rounded-lg shadow">
-                <p class="text-lg font-semibold text-blue-800">Approved Requests</p>
-                <p class="text-3xl font-bold text-blue-900 mt-2">{{ approved_requests_count|default:"0" }}</p>
+    <!-- Budget Usage Progress Bar -->
+    {% if total_budget and remaining_balance %}
+    <section class="bg-white rounded-xl p-6 shadow-md">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Budget Usage</h2>
+        <div class="relative w-full bg-gray-100 rounded-full h-5 overflow-hidden">
+            <div class="h-5 bg-gradient-to-r from-green-400 to-green-600 transition-all duration-700 rounded-full"
+                 style="width: {{ usage_percentage|floatformat:0 }}%;">
             </div>
         </div>
+        <div class="flex justify-between text-sm text-gray-600 mt-1">
+            <span>₱{{ spent|floatformat:2 }} spent</span>
+            <span>{{ usage_percentage|floatformat:0 }}%</span>
+            <span>of ₱{{ total_budget|floatformat:2 }}</span>
+        </div>
+    </section>
+    {% endif %}
 
-        <!-- Recent Purchase Requests -->
-        <section class="requests">
-            <h2 class="font-bold text-3xl">Recent Purchase Requests</h2>
-            <table>
-                <thead>
+    <!-- Recent Budget Activities -->
+    <section class="bg-white rounded-xl p-6 shadow-md">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Recent Budget Activities</h2>
+        <ul class="divide-y divide-gray-200">
+            {% for activity in budget_activities %}
+                <li class="py-3 flex justify-between items-center">
+                    <span class="text-gray-700">{{ activity.description }}</span>
+                    <span class="text-sm text-gray-500">{{ activity.timestamp|naturaltime }}</span>
+                </li>
+            {% empty %}
+                <li class="text-gray-500 italic py-3">No recent activity.</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <!-- Purchase Requests Table -->
+    <section class="bg-white rounded-xl p-6 shadow-md">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Recent Purchase Requests</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 text-sm text-gray-600 uppercase tracking-wider">
                     <tr>
-                        <th>PR No.</th>
-                        <th>Entity Name</th>
-                        <th>Fund Cluster</th>
-                        <th>Office/Section</th>
-                        <th>Date Requested</th>
-                        <th>Status</th>
+                        <th class="px-4 py-3 text-left">PR No.</th>
+                        <th class="px-4 py-3 text-left">Entity Name</th>
+                        <th class="px-4 py-3 text-left">Fund Cluster</th>
+                        <th class="px-4 py-3 text-left">Office/Section</th>
+                        <th class="px-4 py-3 text-left">Date Requested</th>
+                        <th class="px-4 py-3 text-left">Status</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="text-sm bg-white divide-y divide-gray-100">
                     {% for purchase in purchase_requests %}
-                        <tr>
-                            <td>{{ purchase.pr_no }}</td>
-                            <td>{{ purchase.entity_name }}</td>
-                            <td>{{ purchase.fund_cluster }}</td>
-                            <td>{{ purchase.office_section }}</td>
-                            <td>{{ purchase.created_at }}</td>
-                            <td class="py-2 px-4 border-b">
-                                {% if purchase.submitted_status == 'Pending' %}
-                                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-md">Pending</span>
-                                {% elif purchase.submitted_status == 'Approved' %}
-                                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-md">Approved</span>
-                                {% else %}
-                                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-md">Rejected</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6">No purchase requests found.</td>
-                        </tr>
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-4 py-2">{{ purchase.pr_no }}</td>
+                        <td class="px-4 py-2">{{ purchase.entity_name }}</td>
+                        <td class="px-4 py-2">{{ purchase.fund_cluster }}</td>
+                        <td class="px-4 py-2">{{ purchase.office_section }}</td>
+                        <td class="px-4 py-2">{{ purchase.created_at|date:"M d, Y" }}</td>
+                        <td class="px-4 py-2">
+                            {% if purchase.submitted_status == 'Pending' %}
+                                <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs">Pending</span>
+                            {% elif purchase.submitted_status == 'Approved' %}
+                                <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs">Approved</span>
+                            {% else %}
+                                <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs">Rejected</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-gray-500 italic py-4">No purchase requests yet.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            {% comment %} <table>
-                <thead>
-                    <tr>
-                        <th>Request ID</th>
-                        <th>Item</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for purchase in purchase_requests %}
-                        <tr>
-                            <td>{{ purchase.id }}</td>
-                            <td>{{ purchase.item_name }}</td>
-                            <td>{{ purchase.amount }}</td>
-                            <td>{{ purchase.status }}</td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="4">No Purchase Requests Found</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table> {% endcomment %}
-        </section>
-    </main>
-{% endblock main-content %}
+        </div>
+    </section>
+</main>
+{% endblock %}

@@ -33,15 +33,14 @@
         </select>
       </div>
 
-      <!-- PAPP -->
+      <!-- Approved Budget Selection -->
       <div>
-        <label for="papp" class="block text-sm font-medium text-gray-700 mb-1">Approved Budget</label>
-        <select name="papp" id="papp" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        <label for="approved_budget" class="block text-sm font-medium text-gray-700 mb-1">Approved Budget</label>
+        <select name="approved_budget" id="approved_budget" required class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
           <option value="" disabled selected>-- Select Approved Budget --</option>
-          <option value="Q1">2026 Approved Budget for Q1</option>
-          <option value="Q2">2026 Approved Budget for Q2</option>
-          <option value="Q3">2026 Approved Budget for Q3</option>
-          <option value="Q4">2026 Approved Budget for Q4</option>
+          {% for approved in approved_budgets %}
+            <option value="{{ approved.id }}">{{ approved.title }} - ₱{{ approved.amount|intcomma }}</option>
+          {% endfor %}
         </select>
       </div>
 
@@ -79,6 +78,18 @@
         {% endif %}
       </div>
     </form>
+    {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+                <div class="text-white px-4 py-2 mt-1 rounded 
+                    {% if message.tags == 'error' %} bg-red-500
+                    {% elif message.tags == 'success' %} bg-green-500
+                    {% else %} bg-gray-500 {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
   </section>
 
   <!-- Budget Allocation Summary Table -->
@@ -91,7 +102,7 @@
       <table class="min-w-full text-sm">
         <thead class="bg-blue-600 text-gray-50 font-semibold">
           <tr>
-            <th class="py-2 px-4">PAPP</th>
+            <th class="py-2 px-4">Approved_Budget</th>
             <th class="py-2 px-4">Department</th>
             <th class="py-2 px-4">Total Allocated</th>
             <th class="py-2 px-4">Spent</th>
@@ -103,7 +114,7 @@
         <tbody class="text-gray-700">
           {% for budget in budgets %}
             <tr class="hover:bg-gray-50">
-              <td class="py-2 px-4 border">{{ budget.papp }}</td>
+              <td class="py-2 px-4 border">{{ budget.approved_budget }}</td>
               <td class="py-2 px-4 border">{{ budget.department }}</td>
               <td class="py-2 px-4 border">&#8369;{{ budget.total_allocated|floatformat:2|intcomma }}</td>
               <td class="py-2 px-4 border">&#8369;{{ budget.spent|floatformat:2|intcomma }}</td>

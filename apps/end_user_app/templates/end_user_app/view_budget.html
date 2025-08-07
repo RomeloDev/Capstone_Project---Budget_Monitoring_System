@@ -1,68 +1,58 @@
 {% extends "end_user_base_template/dashboard.html" %}
-
 {% load humanize %}
 
-{% block title %}
-    View Budget
-{% endblock title %}
+{% block title %}View Budget{% endblock title %}
 
 {% block main-content %}
-    <main class="content">
-        <header>
-            <h1 class="font-bold text-[2rem]">View Budget</h1>
-            <p>Details of your department's budget allocation and usage:</p>
-        </header>
+<main class="content space-y-10">
+    <!-- Header -->
+    <header>
+        <h1 class="text-3xl font-bold text-gray-800">View Budget</h1>
+        <p class="text-gray-600">Here’s your department’s historical and current budget data.</p>
+    </header>
 
-        {% comment %} <!-- Budget Details -->
-        <section class="budget-details">
-            <div class="card">
-                <h3>Total Budget</h3>
-                <p>&#8369;{{ budget.total_allocated|default:"0.00" }}</p>
-            </div>
-            
-            <div class="card">
-                <h3>Spent</h3>
-                <p>&#8369;{{ budget.spent|default:"0.00" }}</p>
-            </div>
-            
-            <div class="card">
-                <h3>Remaining Balance</h3>
-                <p>&#8369;{{ budget.remaining_budget|default:"0.00" }}</p>
-            </div>
-        </section> {% endcomment %}
+    <!-- Budget History Section -->
+    <section class="bg-white p-6 rounded-xl shadow-md">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Budget History</h2>
 
-        <!-- Budget History -->
-        <section class="budget-history">
-            <h2 class="font-semibold text-[40px]">Budget History</h2>
-            <table>
-                <thead>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-100 text-gray-600 uppercase tracking-wider">
                     <tr>
-                        <th>Department</th>
-                        <th>PAPP</th>
-                        <th>Total Allocated</th>
-                        <th>Spent</th>
-                        <th>Remaining Balance</th>
+                        <th class="px-4 py-3 text-left">Approved Budget Title</th>
+                        <th class="px-4 py-3 text-left">Period</th>
+                        <th class="px-4 py-3 text-left">Total Allocated</th>
+                        <th class="px-4 py-3 text-left">Spent</th>
+                        <th class="px-4 py-3 text-left">Remaining</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="bg-white divide-y divide-gray-100">
                     {% if budget %}
                         {% for b in budget %}
-                        <tr>
-                            <td>{{ b.department }}</td>
-                            <td>{{ b.papp }}</td>
-                            <td>&#8369;{{ b.total_allocated|floatformat:2|intcomma }}</td>
-                            <td>&#8369;{{ b.spent|floatformat:2|intcomma }}</td>
-                            <td>&#8369;{{ b.remaining_budget|floatformat:2|intcomma }}</td>
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="px-4 py-3">{{ b.approved_budget.title }}</td>
+                            <td class="px-4 py-3">
+                                {{ b.approved_budget.period }}
+                            </td>
+                            <td class="px-4 py-3 font-semibold text-green-700">
+                                ₱{{ b.total_allocated|floatformat:2|intcomma }}
+                            </td>
+                            <td class="px-4 py-3 text-red-600">
+                                ₱{{ b.spent|floatformat:2|intcomma }}
+                            </td>
+                            <td class="px-4 py-3 text-blue-700">
+                                ₱{{ b.remaining_budget|floatformat:2|intcomma }}
+                            </td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="5">No budget allocation found.</td>
+                            <td colspan="6" class="text-center text-gray-500 italic py-6">No budget allocations found.</td>
                         </tr>
                     {% endif %}
                 </tbody>
             </table>
-            
-        </section>
-    </main>
+        </div>
+    </section>
+</main>
 {% endblock %}

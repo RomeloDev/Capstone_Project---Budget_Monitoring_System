@@ -1,26 +1,26 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin  # 🧠 Use Unfold’s upgraded admin
-from apps.admin_panel.models import Budget, BudgetAllocation, AuditTrail
+from apps.admin_panel.models import Budget, BudgetAllocation, AuditTrail, ApprovedBudget
 
 @admin.register(BudgetAllocation)
-class BudgetAllocationAdmin(ModelAdmin):
+class BudgetAllocationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'approved_budget', 'department', 'total_allocated', 'spent', 'allocated_at', 'updated_at')
+
+@admin.register(ApprovedBudget)
+class ApprovedBudgetAdmin(ModelAdmin):
     list_display = (
         "id",
-        "department",
-        "papp",
-        "total_allocated",
-        "spent",
+        "title",
+        "period",
+        "amount",
         "remaining_budget",
-        "assigned_user",
-        "allocated_at",
+        "created_at",
         "updated_at",
     )
-    search_fields = ("papp", "assigned_user__username", "department")
-    list_filter = ("department", "allocated_at", "updated_at")
-    date_hierarchy = "allocated_at"
-    ordering = ("-allocated_at",)
-    list_per_page = 25
-
+    search_fields = ("title",)
+    list_filter = ("period", "created_at")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
 
 @admin.register(Budget)
 class BudgetAdmin(ModelAdmin):

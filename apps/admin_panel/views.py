@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
-from .models import BudgetAllocation, Budget
+from .models import BudgetAllocation, Budget, ApprovedBudget
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
@@ -12,6 +12,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.template.defaultfilters import floatformat
 from django.contrib.humanize.templatetags.humanize import intcomma
+from django.utils import timezone
 
 
 
@@ -112,82 +113,92 @@ def handle_departments_request(request, request_id):
 
 @login_required
 def budget_allocation(request):
-    if request.method == 'POST':
-        department = request.POST.get('department')
-        papp = request.POST.get('papp')
-        amount = request.POST.get('amount')
-        
-        # Convert amount to decimal
-        try:
-            amount = Decimal(amount)
-        except (ValueError, TypeError):
-            messages.error(request, "Invalid amount entered.")
-            return redirect("budget_allocation")
-
-        # Find the user assigned to the department (assuming one user per department)
-        assigned_user = User.objects.filter(department=department, is_staff=False).first()
-        
-        # Get the current remaining fund (assuming only one budget exists)
-        budget_instance = Budget.objects.first()
-        if not budget_instance:
-            messages.error(request, "No institutional budget found")
-            return redirect("budget_allocation")
-        
-        remaining_fund = budget_instance.remaining_budget
-        
-        if remaining_fund >= amount:
-            # Get or create budget for the department
-            allocate = BudgetAllocation.objects.create(
-                department=department,
-                papp=papp,
-                total_allocated=amount,
-                remaining_budget=amount,
-                assigned_user=assigned_user,
-            )
-            
-            # Update values
-            # budget.papp = papp
-            # budget.total_allocated += amount
-            # budget.remaining_budget = budget.total_allocated - budget.spent
-            # budget.assigned_user = assigned_user  # Automatically assign based on department
-            # budget.save()
-            
-            # Update the remaining balance of total fund of the institution
-            budget_instance.remaining_budget -= amount
-            budget_instance.save()
-
-            messages.success(request, f"Budget of {amount} allocated to {department} for {papp}.")
-            return redirect("budget_allocation")  # Reload the page after saving
-        else:
-            messages.error(request, "Insufficient Budget")
-
-    # Fetch all budget allocations
-    budgets = BudgetAllocation.objects.all()
-
-    # Fetch distinct department names (only for selection)
+    approved_budgets = ApprovedBudget.objects.all()
     departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
     
-    return render(request, "admin_panel/budget_allocation.html", {
-        "budgets": budgets,
-        "departments": departments
-    })
+    if request.method == 'POST':
+        department = request.POST.get('department')
+        approved_budget_id = request.POST.get('approved_budget')
+        amount = request.POST.get('amount')
+        
+        # Validation
+        if not department or not approved_budget_id or not amount:
+            messages.error(request, "All fields are required.")
+            return redirect('budget_allocation')
+        
+        try:
+            amount = float(amount)
+            if amount < 0:
+                raise ValueError("Amount cannot be negative.")
+        except ValueError:
+            messages.error(request, "Enter a valid non-negative amount.")
+            return redirect('budget_allocation')
+        
+        try:
+            approved_budget = ApprovedBudget.objects.get(id=approved_budget_id)
+        except ApprovedBudget.DoesNotExist:
+            messages.error(request, "Selected approved budget does not exist.")
+            return redirect('budget_allocation')
+        
+        # Prevent duplicate department allocations for same approved budget
+        existing = BudgetAllocation.objects.filter(department=department, approved_budget=approved_budget).exists()
+        if existing:
+            messages.warning(request, "This department already has an allocation under this budget.")
+            return redirect('budget_allocation')
+
+        # Save Allocations
+        BudgetAllocation.objects.create(
+            department=department,
+            approved_budget= approved_budget,
+            total_allocated = amount
+        )
+        
+        # Force update the approved budget’s updated_at field
+        approved_budget.updated_at = timezone.now()
+        approved_budget.save(update_fields=['updated_at'])
+        
+        messages.success(request, "Budget successfully allocated.")
+        return redirect('budget_allocation')
     
+    # --- 📊 Load existing allocations for table view ---
+    allocations = (
+        BudgetAllocation.objects
+        .select_related('approved_budget')
+        .order_by('-allocated_at')
+    )
+    
+    return render(request, "admin_panel/budget_allocation.html", {'approved_budgets': approved_budgets, 'departments': departments, 'budgets': allocations})
+    
+# This is the Approved Budget View
 @login_required
 def institutional_funds(request):
     if request.method == 'POST':
         title = request.POST.get('title')
-        total_budget = request.POST.get('total_budget')
+        period = request.POST.get('period')
+        amount = request.POST.get('amount')
         
-        add_budget = Budget.objects.create(
-            title = title,
-            total_fund = total_budget,
-            remaining_budget = total_budget
-        )
-        add_budget.save()
+        # Validation
+        if not title or not period or not amount:
+            messages.error(request, "All fields are required.")
+            return redirect("institutional_funds")
+        else:
+            try:
+                amount = Decimal(amount)
+            except (ValueError, TypeError):
+                messages.error(request, "Invalid amount entered.")
+                return redirect("institutional_funds")
         
-        return redirect('institutional_funds')
-    data_funds = Budget.objects.all()
-    return render(request, 'admin_panel/institutional_funds.html', {"data_funds": data_funds})
+            # Create the approved budget
+            ApprovedBudget.objects.create(
+                title=title,
+                period=period,
+                amount=amount
+            )
+            messages.success(request, "Approved budget successfully added.")
+            return redirect("institutional_funds")
+        
+    approved_budgets = ApprovedBudget.objects.order_by('-created_at')
+    return render(request, 'admin_panel/institutional_funds.html', {'approved_budgets': approved_budgets})
 
 @login_required
 def admin_logout(request):

@@ -19,7 +19,7 @@
         <p class="text-gray-600">Set the approved budget for a specific quarter or year.</p>
         </header>
         
-        <form method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form method="POST" action="{% url "institutional_funds" %}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         {% csrf_token %}
 
         <div>
@@ -50,6 +50,18 @@
             </button>
         </div>
         </form>
+        {% if messages %}
+            <div class="mb-4">
+                {% for message in messages %}
+                    <div class="text-white px-4 py-2 mt-1 rounded 
+                        {% if message.tags == 'error' %} bg-red-500
+                        {% elif message.tags == 'success' %} bg-green-500
+                        {% else %} bg-gray-500 {% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
     </section>
 
     <!-- Budget History Table -->
@@ -66,6 +78,7 @@
                 <th class="py-2 px-4">Title</th>
                 <th class="py-2 px-4">Period</th>
                 <th class="py-2 px-4">Amount</th>
+                <th class="py-2 px-4">Remaining Balance</th>
                 <th class="py-2 px-4">Created At</th>
                 <th class="py-2 px-4">Updated At</th>
             </tr>
@@ -77,6 +90,7 @@
                 <td class="py-2 px-4 border-b">{{ budget.title }}</td>
                 <td class="py-2 px-4 border-b">{{ budget.period }}</td>
                 <td class="py-2 px-4 border-b">&#8369;{{ budget.amount|intcomma }}</td>
+                <td class="py-2 px-4 border-b">&#8369;{{ budget.remaining_budget|intcomma }}</td>
                 <td class="py-2 px-4 border-b">{{ budget.created_at }}</td>
                 <td class="py-2 px-4 border-b">{{ budget.updated_at }}</td>
             </tr>

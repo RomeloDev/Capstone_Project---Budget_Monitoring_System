@@ -18,31 +18,40 @@ from django.contrib.humanize.templatetags.humanize import intcomma
 def user_dashboard(request):
     try:
         # Get the budget allocation of the logged-in user
-        budget = BudgetAllocation.objects.filter(assigned_user=request.user)
-        user_total_allocated = budget.aggregate(Sum('total_allocated'))['total_allocated__sum'] or 0
-        user_remaining_budget = budget.aggregate(Sum('remaining_budget'))['remaining_budget__sum'] or 0
+        budget = BudgetAllocation.objects.filter(department=request.user.department)
+        total_budget = sum(a.total_allocated for a in budget)
+        total_spent = sum(a.spent for a in budget)
+        remaining_balance = total_budget - total_spent
         purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="Submitted")
         approved_requests_count = PurchaseRequest.objects.filter(requested_by=request.user, submitted_status="Approved").count()
     except BudgetAllocation.DoesNotExist or PurchaseRequest.DoesNotExist:
         budget = None
-        user_total_allocated = None
-        user_remaining_budget = None
-        purchase_request = None
+        total_budget = None
+        remaining_balance = None
+        purchase_requests = None
         approved_requests_count = 0
-    
+        
+    spent = total_budget - remaining_balance
+    if total_budget > 0:
+        usage_percentage = (spent / total_budget) * 100
+    else:
+        usage_percentage = 0
+
     return render(request, 'end_user_app/dashboard.html', {
-        'budget': budget, 
-        'user_total_allocated': user_total_allocated,
-        'user_remaining_budget': user_remaining_budget,
+        "total_budget": total_budget,
+        "remaining_balance": remaining_balance,
         'purchase_requests': purchase_requests,
         'approved_requests_count': approved_requests_count,
+        "spent": spent,
+        "usage_percentage": usage_percentage,
         })
 
 @login_required
 def view_budget(request):
     try:
-        # Get the budget allocation of the logged-in user
-        budget = BudgetAllocation.objects.filter(assigned_user=request.user)
+        # Fetch all budget allocations for the logged-in user and include related approved_budget
+        budget = BudgetAllocation.objects.select_related('approved_budget').filter(department=request.user.department)
+
     except BudgetAllocation.DoesNotExist:
         budget = None  # If no budget is assigned to the user
     
@@ -253,6 +262,16 @@ def remove_purchase_item(request, item_id):
     #return JsonResponse({"success": True})
     
 @login_required
-def department_pre(request):
-    return render(request, "end_user_app/department_pre.html")
+def department_pre_form(request):
+    return render(request, "end_user_app/department_pre_form.html")
+
+@login_required
+def department_pre_page(request):
+    user = request.user
+    user_dept = user.department
+    
+    has_budget = BudgetAllocation.objects.filter(department=user_dept).exists()
+    return render(request, "end_user_app/department_pre_page.html", {
+        'has_budget': has_budget,
+    })
     
