@@ -16,30 +16,17 @@
             <div>
                 <h2 class="text-xl font-bold mb-4">Personnel Services</h2>
                 <div class="mb-6 border-l-4 border-yellow-400 pl-4">
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                        <label class="col-span-2 font-medium">Basic Salary</label>
-                        <input type="number" name="basic_salary_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                        <input type="number" name="basic_salary_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                        <input type="number" name="basic_salary_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                        <input type="number" name="basic_salary_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                        <input type="number" name="basic_salary_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                        <label class="col-span-2 font-medium">Honoraria</label>
-                        <input type="number" name="honoraria_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                        <input type="number" name="honoraria_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                        <input type="number" name="honoraria_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                        <input type="number" name="honoraria_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                        <input type="number" name="honoraria_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                        <label class="col-span-2 font-medium">Overtime Pay</label>
-                        <input type="number" name="overtime_pay_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                        <input type="number" name="overtime_pay_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                        <input type="number" name="overtime_pay_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                        <input type="number" name="overtime_pay_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                        <input type="number" name="overtime_pay_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
+                        {% for item in personnel_services %}
+                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        </div>
+                        {% endfor %}
+                    
                     <div class="grid grid-cols-7 gap-4 items-center mb-2">
                         <label class="col-span-2 font-bold underline">Total Personnel Services</label>
                         <input class="border-gray-950 border-2" type="number" min="0" name="total_personnel_q1_total" class="form-input" placeholder="Q1 Total" step="0.01">
@@ -56,26 +43,16 @@
             <div class="mb-6 border-l-4 border-blue-500 pl-4">
                 <!--Traveling Expenses section-->
                 <h3 class="text-lg font-semibold mb-1">Traveling Expenses</h3>
-
-                    <!-- Line Item: Local -->
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                        <label class="col-span-2 font-medium">Traveling Expenses - Local</label>
-                        <input type="number" name="travel_local_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                        <input type="number" name="travel_local_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                        <input type="number" name="travel_local_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                        <input type="number" name="travel_local_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                        <input type="number" name="travel_local_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <!-- Line Item: Foreign -->
-                    <div class="grid grid-cols-7 gap-4 items-center mb-3">
-                        <label class="col-span-2 font-medium">Traveling Expenses - Foreign</label>
-                        <input type="number" name="travel_foreign_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                        <input type="number" name="travel_foreign_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                        <input type="number" name="travel_foreign_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                        <input type="number" name="travel_foreign_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                        <input type="number" name="travel_foreign_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
+                        {% for item in MOOE_traveling_expenses %}
+                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        </div>
+                        {% endfor %}
 
                 <!-- Line Item: Training and Scholarship Expenses -->
                 <h3 class="text-lg font-semibold mb-1">Training and Scholarship Expenses</h3>

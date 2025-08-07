@@ -263,10 +263,45 @@ def remove_purchase_item(request, item_id):
     
 @login_required
 def department_pre_form(request):
-    return render(request, "end_user_app/department_pre_form.html")
+    context = {
+        # Personnel Services Section
+        'personnel_services': [
+            {
+                'label': 'Basic Salary',
+                'name': 'basic_salary'
+            },
+            {
+                'label': 'Honoraria',
+                'name': 'honoraria'
+            },
+            {
+                'label': 'Overtime Pay',
+                'name': 'overtime_pay'
+            }
+        ],
+        
+        # Maintenance and Other Operating Expenses (MOOE) Section
+        # Traveling Expenses
+        'MOOE_traveling_expenses': [
+            {
+                'label': 'Traveling Expenses - Local',
+                'name': 'travel_local'
+            },
+            {
+                'label': 'Traveling Expenses - Foreign',
+                'name': 'travel_foreign'
+            }
+        ],
+        
+        
+    }
+    
+    
+    return render(request, "end_user_app/department_pre_form.html", context)
 
 @login_required
 def department_pre_page(request):
+    
     user = request.user
     user_dept = user.department
     
