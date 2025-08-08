@@ -293,6 +293,206 @@ def department_pre_form(request):
             }
         ],
         
+        # Training and Scholarship Expenses
+        'MOOE_training_and_scholarship_expenses': [
+            {
+                'label': 'Training Expenses',
+                'name': 'training_expenses'
+            },
+        ],
+        
+        # Supplies and Materials Expenses
+        'MOOE_supplies_and_materials_expenses': [
+            {
+                'label': 'Office Supplies Expenses',
+                'name': 'office_supplies_expenses'
+            },
+            {
+                'label': 'Accountable Form Expenses',
+                'name': 'accountable_form_expenses'
+            },
+            {
+                'label': 'Agricultural and Marine Supplies Expenses',
+                'name': 'agri_marine_supplies_expenses'
+            },
+            {
+                'label': 'Drugs and Medicines',
+                'name': 'drugs_medicines'
+            },
+            {
+                'label': 'Medical, Dental & Laboratory Supplies Expenses',
+                'name': 'med_dental_lab_supplies_expenses'
+            },
+            {
+                'label': 'Food Supplies Expenses',
+                'name': 'food_supplies_expenses'
+            },
+            {
+                'label': 'Fuel, Oil and Lubricants Expenses',
+                'name': 'fuel_oil_lubricants_expenses'
+            },
+            {
+                'label': 'Textbooks and Instructional Materials Expenses',
+                'name': 'textbooks_instructional_materials_expenses'
+            },
+            {
+                'label': 'Construction Materials Expenses',
+                'name': 'construction_material_expenses'
+            },
+            {
+                'label': 'Other Supplies & Materials Expenses',
+                'name': 'other_supplies_materials_expenses'
+            }
+        ],
+        
+        # Semi-Expendable Machinery and Equipment Expenses
+        'MOOE_semi_expendable_machinery_equipment_expenses': [
+            {
+                'label': 'Machinery',
+                'name': 'semee_machinery'
+            },
+            {
+                'label': 'Office Equipment',
+                'name': 'semee_office_equipment'
+            },
+            {
+                'label': 'Information and Communications Technology Equipment',
+                'name': 'semee_information_communication'
+            },
+            {
+                'label': 'Communications Equipment',
+                'name': 'semee_communications_equipment'
+            },
+            {
+                'label': 'Disaster Response and Rescue Equipment',
+                'name': 'semee_drr_equipment'
+            },
+            {
+                'label': 'Medical Equipment',
+                'name': 'semee_medical_equipment'
+            },
+            {
+                'label': 'Printing Equipment',
+                'name': 'semee_printing_equipment'
+            },
+            {
+                'label': 'Sports Equipment',
+                'name': 'semee_sports_equipment'
+            },
+            {
+                'label': 'Technical and Scientific Equipment',
+                'name': 'semee_technical_scientific_equipment'
+            },
+            {
+                'label': 'ICT Equipment',
+                'name': 'semee_ict_equipment'
+            },
+            {
+                'label': 'Other Machinery and Equipment',
+                'name': 'semee_other_machinery_equipment'
+            }
+        ],
+        
+        # Semi-Expendable Furniture, Fixtures and Books Expenses
+        'MOOE_semi_expendable_furnitures_fixtures_books_expenses': [
+            {
+                'label': 'Furniture and Fixtures',
+                'name': 'furniture_fixtures'
+            },
+            {
+                'label': 'Books',
+                'name': 'books'
+            }
+        ],
+        
+        # Utility Expenses
+        'MOOE_utility_expenses': [
+            {
+                'label': 'Water Expenses',
+                'name': 'water_expenses'
+            },
+            {
+                'label': 'Electricity Expenses',
+                'name': 'electricity_expenses'
+            }
+        ],
+        
+        # Communication Expenses
+        'MOOE_communication_expenses': [
+            {
+                'label': 'Postage and Courier Services',
+                'name': 'postage_courier_services'
+            },
+            {
+                'label': 'Telephone Expenses',
+                'name': 'telephone_expenses'
+            },
+            {
+                'label': 'Telephone Expenses (Landline)',
+                'name': 'telephone_expenses_landline'
+            },
+            {
+                'label': 'Internet Subscription Expenses',
+                'name': 'internet_subscription_expenses'
+            },
+            {
+                'label': 'Cable, Satellite, Telegraph & Radio Expenses',
+                'name': 'cable_satellite_telegraph_radio_expenses'
+            }
+        ],
+        
+        # Awards/Rewards and Prizes
+        'MOOE_awards_rewards_prizes': [
+            {
+                'label': 'Awards/Rewards Expenses',
+                'name': 'awards_rewards_expenses'
+            },
+            {
+                'label': 'Prizes',
+                'name': 'prizes'
+            },
+            
+        ],
+        
+        # Survey, Research, Exploration, and Development
+        'MOOE_survey_research_exploration_development': [
+            {
+                'label': 'Survey Expenses',
+                'name': 'survey_expenses'
+            },
+            {
+                'label': 'Survey, Research, Exploration, and Development expenses',
+                'name': 'survey_research_exploration_development_expenses'
+            }
+        ],
+        
+        # Professional Services
+        'MOOE_professional_services': [
+            {
+                'label': 'Legal Services',
+                'name': 'legal_services'
+            },
+            {
+                'label': 'Auditing Services',
+                'name': 'auditing_services'
+            },
+            {
+                'label': 'Consultancy Services',
+                'name': 'consultancy_services'
+            },
+            {
+                'label': 'Other Professional Services',
+                'name': 'other_professional_servies'
+            }
+        ],
+        
+        # General Services
+        'MOOE_general_services': [
+            {
+                'label': 'Security Services',
+                'name': 'security_services'
+            }
+        ]
         
     }
     
