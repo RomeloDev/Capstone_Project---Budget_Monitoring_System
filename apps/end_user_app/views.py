@@ -701,7 +701,24 @@ def preview_pre(request, pk: int):
                     'q4': q4,
                     'total': total,
                 })
-        sections.append({'title': spec['title'], 'color_class': spec['color_class'], 'items': items})
+
+        # Compute section totals excluding group rows
+        total_q1 = sum((it['q1'] for it in items if not it.get('is_group')), Decimal('0'))
+        total_q2 = sum((it['q2'] for it in items if not it.get('is_group')), Decimal('0'))
+        total_q3 = sum((it['q3'] for it in items if not it.get('is_group')), Decimal('0'))
+        total_q4 = sum((it['q4'] for it in items if not it.get('is_group')), Decimal('0'))
+        total_overall = sum((it['total'] for it in items if not it.get('is_group')), Decimal('0'))
+
+        sections.append({
+            'title': spec['title'],
+            'color_class': spec['color_class'],
+            'items': items,
+            'total_q1': total_q1,
+            'total_q2': total_q2,
+            'total_q3': total_q3,
+            'total_q4': total_q4,
+            'total_overall': total_overall,
+        })
 
     # Pass the grouped table, raw data and signatories
     context = {
