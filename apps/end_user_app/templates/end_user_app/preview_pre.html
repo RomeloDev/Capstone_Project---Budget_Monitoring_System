@@ -36,23 +36,58 @@
     </div>
   </section>
 
-  <!-- Read-only table-like preview -->
+  <!-- Excel-like grouped table preview -->
   <section class="bg-white rounded-lg border border-gray-200 p-4">
-    <h2 class="text-lg font-semibold mb-4">Line Items</h2>
+    <h2 class="text-lg font-semibold mb-4">Budget by Object of Expenditures</h2>
     <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
+      <table class="min-w-full text-sm border border-gray-300">
         <thead>
-          <tr class="text-left bg-gray-50">
-            <th class="px-3 py-2 border-b">Field</th>
-            <th class="px-3 py-2 border-b">Value</th>
+          <tr class="bg-gray-100 text-gray-700">
+            <th class="px-3 py-2 border border-gray-300 text-left w-2/5">Item Description</th>
+            <th class="px-3 py-2 border border-gray-300 text-right">Q1</th>
+            <th class="px-3 py-2 border border-gray-300 text-right">Q2</th>
+            <th class="px-3 py-2 border border-gray-300 text-right">Q3</th>
+            <th class="px-3 py-2 border border-gray-300 text-right">Q4</th>
+            <th class="px-3 py-2 border border-gray-300 text-right">TOTAL</th>
           </tr>
         </thead>
         <tbody>
-          {% for key, value in data.items %}
-          <tr class="odd:bg-white even:bg-gray-50">
-            <td class="px-3 py-2 border-b font-medium">{{ key }}</td>
-            <td class="px-3 py-2 border-b">{{ value }}</td>
-          </tr>
+          {% for section in sections %}
+            <!-- Section header row with color -->
+            <tr class="font-semibold text-gray-900">
+              <td class="px-3 py-2 border border-gray-300 {{ section.color_class }}" colspan="6">{{ section.title }}</td>
+            </tr>
+
+            {% for row in section.items %}
+              {% if row.is_group %}
+                <tr class="bg-gray-50">
+                  <td class="px-3 py-2 border border-gray-300 font-semibold">{{ row.label }}</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td class="px-3 py-2 border border-gray-300 {% if row.indent %}pl-8{% endif %}">{{ row.label }}</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q1|default:"" }}</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q2|default:"" }}</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q3|default:"" }}</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q4|default:"" }}</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right font-medium">{{ row.total|default:"" }}</td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+            <!-- Section total row -->
+                <tr>
+                  <td class="px-3 py-2 border font-semibold border-gray-300 {% if row.indent %}pl-8{% endif %}">TOTAL {{ section.title }}</td>
+                  <td class="px-3 py-2 border border-gray-300 text-right"></td>
+                  <td class="px-3 py-2 border border-gray-300 text-right"></td>
+                  <td class="px-3 py-2 border border-gray-300 text-right"></td>
+                  <td class="px-3 py-2 border border-gray-300 text-right"></td>
+                  <td class="px-3 py-2 border border-gray-300 text-right"></td>
+                </tr>
           {% endfor %}
         </tbody>
       </table>

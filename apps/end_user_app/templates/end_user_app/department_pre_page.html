@@ -39,47 +39,33 @@
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr class="text-left text-gray-600 font-semibold">
-                        <th class="px-4 py-2">#</th>
+                        <th class="px-4 py-2">ID</th>
+                        <th class="px-4 py-2">Department</th>
                         <th class="px-4 py-2">Submitted Date</th>
-                        <th class="px-4 py-2">Budget Period</th>
                         <th class="px-4 py-2">Status</th>
-                        <th class="px-4 py-2">Action</th>
+                        <th class="px-4 py-2">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100 text-gray-700">
-                    <tr>
-                        <td class="px-4 py-2">1</td>
-                        <td class="px-4 py-2">August 1, 2025</td>
-                        <td class="px-4 py-2">Q3 2025</td>
-                        <td class="px-4 py-2">
-                            <span class="text-green-600 font-medium">Approved</span>
-                        </td>
-                        <td class="px-4 py-2">
-                            <a href="#" class="text-blue-600 hover:underline">View</a>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="px-4 py-2">2</td>
-                        <td class="px-4 py-2">July 10, 2025</td>
-                        <td class="px-4 py-2">Q2 2025</td>
-                        <td class="px-4 py-2">
-                            <span class="text-yellow-600 font-medium">Pending</span>
-                        </td>
-                        <td class="px-4 py-2">
-                            <a href="#" class="text-blue-600 hover:underline">View</a>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="px-4 py-2">3</td>
-                        <td class="px-4 py-2">June 3, 2025</td>
-                        <td class="px-4 py-2">Q1 2025</td>
-                        <td class="px-4 py-2">
-                            <span class="text-red-600 font-medium">Rejected</span>
-                        </td>
-                        <td class="px-4 py-2">
-                            <a href="#" class="text-blue-600 hover:underline">View</a>
-                        </td>
-                    </tr>
+                    {% if pres and pres|length > 0 %}
+                        {% for item in pres %}
+                        <tr>
+                            <td class="px-4 py-2">{{ item.id }}</td>
+                            <td class="px-4 py-2">{{ item.department }}</td>
+                            <td class="px-4 py-2">{{ item.created_at }}</td>
+                            <td class="px-4 py-2">
+                                <span class="font-medium">{{ item.status|default:'—' }}</span>
+                            </td>
+                            <td class="px-4 py-2">
+                                <a href="{% url 'preview_pre' item.id %}" class="text-blue-600 hover:underline">View</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td class="px-4 py-6 text-center text-gray-500" colspan="5">No PRE submissions yet.</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
