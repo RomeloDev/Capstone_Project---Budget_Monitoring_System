@@ -10,12 +10,12 @@
         <p class="text-gray-600">Compile the Program of Receipts and Expenditures (PRE) for your department.</p>
     </header>
 
-    <form method="post" action="">
+    <form id="preForm" method="post" action="">
         {% csrf_token %}
         <section class="mb-10">
             <div>
                 <h2 class="text-xl font-bold mb-4">Personnel Services</h2>
-                <div class="mb-6 border-l-4 border-yellow-400 pl-4">
+                <div class="mb-6 border-l-4 border-yellow-400 pl-4" data-category="personnel">
                         {% for item in personnel_services %}
                         <div class="grid grid-cols-7 gap-4 items-center mb-2">
                                 <label class="col-span-2 font-medium">{{ item.label }}</label>
@@ -40,7 +40,7 @@
             <h2 class="text-xl font-bold mb-4">Maintenance and Other Operating Expenses</h2>
 
             <!-- MOOE Section -->
-            <div class="mb-6 border-l-4 border-blue-500 pl-4">
+            <div class="mb-6 border-l-4 border-blue-500 pl-4" data-category="mooe">
                 <!--Traveling Expenses section-->
                 <h3 class="text-lg font-semibold mb-1">Traveling Expenses</h3>
                         {% for item in MOOE_traveling_expenses %}
@@ -173,388 +173,140 @@
 
                 <!-- General Services Section -->
                 <h3 class="text-lg font-semibold mb-1">General Services</h3>
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Security Services</label>
-                            <input type="number" name="security_services_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="security_services_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="security_services_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="security_services_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="security_services_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                    {% for item in MOOE_general_services %}
+                    <div class="grid grid-cols-7 gap-4 items-center mb-2{% if forloop.last %} mb-4{% endif %}">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Janitorial Services</label>
-                            <input type="number" name="janitorial_services_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="janitorial_services_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="janitorial_services_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="janitorial_services_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="janitorial_services_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Other General Services</label>
-                            <input type="number" name="other_general_services_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="other_general_services_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="other_general_services_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="other_general_services_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="other_general_services_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Other General Services</label>
-                            <input type="number" name="other_general_services_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="other_general_services_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="other_general_services_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="other_general_services_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="other_general_services_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Environment/Sanitary Services</label>
-                            <input type="number" name="environment/sanitary_services_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="other_general_services_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="other_general_services_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="other_general_services_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="other_general_services_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
+                    {% endfor %}
                 
                 <!-- Repair and Maintenance Section -->
                 <h3 class="text-lg font-semibold mb-1">Repair and Maintenance</h3>
+                    {% for item in repair_land_improvements %}
                     <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Repair &amp; Maintenance - Land Improvements</label>
-                            <input type="number" name="repair_maintenance_land_improvements_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_land_improvements_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_land_improvements_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_land_improvements_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_land_improvements_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
+                    {% endfor %}
 
                 <!-- Repair and Maintenance - Buildings and other Structures Section -->
                 <h3 class="text-lg font-semibold mb-1">Repair and Maintenance - Buildings and other Structures</h3>
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Buildings</label>
-                            <input type="number" name="buildings_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="buildings_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="buildings_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="buildings_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="buildings_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                    {% for item in repair_buildings_structures %}
+                    <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">School Buildings</label>
-                            <input type="number" name="school_buildings_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="school_buildings_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="school_buildings_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="school_buildings_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="school_buildings_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Hostels and Dormitories</label>
-                            <input type="number" name="hostel_dormitories_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="hostel_dormitories_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="hostel_dormitories_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="hostel_dormitories_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="hostel_dormitories_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Other Structures</label>
-                            <input type="number" name="other_structures_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="other_structures_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="other_structures_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="other_structures_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="other_structures_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
+                    {% endfor %}
 
                 <!-- Repair and Maintenance - Buildings and other Structures Section -->
                 <h3 class="text-lg font-semibold mb-1">Repair and Maintenance - Machinery and Equipment</h3>
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Machinery</label>
-                            <input type="number" name="repair_maintenance_machinery_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_machinery_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_machinery_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_machinery_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_machinery_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                    {% for item in repair_machinery_equipment %}
+                    <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Office Equipment</label>
-                            <input type="number" name="repair_maintenance_office_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_office_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_office_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_office_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_office_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">ICT Equipment</label>
-                            <input type="number" name="repair_maintenance_ict_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_ict_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_ict_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_ict_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_ict_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Agricultural and Forestry Equipment</label>
-                            <input type="number" name="repair_maintenance_agri_forestry_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_agri_forestry_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_agri_forestry_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_agri_forestry_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_agri_forestry_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Marine and Fishery Equipment</label>
-                            <input type="number" name="repair_maintenance_marine_fishery_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_marine_fishery_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_marine_fishery_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_marine_fishery_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_marine_fishery_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Airport Equipment</label>
-                            <input type="number" name="repair_maintenance_airport_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_airport_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_airport_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_airport_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_airport_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Communication Equipment</label>
-                            <input type="number" name="repair_maintenance_communication_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_communication_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_communication_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_communication_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_communication_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Disaster, Response and Rescue Equipment</label>
-                            <input type="number" name="repair_maintenance_drre_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_drre_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_drre_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_drre_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_drre_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>  
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Medical Equipment</label>
-                            <input type="number" name="repair_maintenance_medical_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_medical_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_medical_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_medical_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_medical_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Printing Equipment</label>
-                            <input type="number" name="repair_maintenance_printing_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_printing_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_printing_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_printing_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_printing_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Sports Equipment</label>
-                            <input type="number" name="repair_maintenance_sports_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_sports_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_sports_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_sports_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_sports_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Technical and Scientific Equipment</label>
-                            <input type="number" name="repair_maintenance_technical_scientific_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_technical_scientific_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_technical_scientific_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_technical_scientific_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_technical_scientific_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Other Machinery and Equipment</label>
-                            <input type="number" name="repair_maintenance_other_machinery_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_other_machinery_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_other_machinery_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_other_machinery_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_other_machinery_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
+                    {% endfor %}
 
                 <!-- Repair and Maintenance - Buildings and other Structures Section -->
                 <h3 class="text-lg font-semibold mb-1">Repairs and Maintenance - Transportation Equipment</h3>
+                    {% for item in repair_transportation_equipment %}
                     <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Motor Vehicles</label>
-                            <input type="number" name="repair_maintenance_motor_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_motor_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_motor_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_motor_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_motor_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
+                    {% endfor %}
 
+                    {% for item in repair_furniture_fixtures %}
                     <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Other Transportation Equipment</label>
-                            <input type="number" name="repair_maintenance_other_transportation_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_other_transportation_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_other_transportation_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_other_transportation_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_other_transportation_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
+                    {% endfor %}
 
+                    {% for item in repair_semi_expendable_me %}
                     <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Repairs and Maintenance - Furniture &amp; Fixtures</label>
-                            <input type="number" name="repair_maintenance_furniture_fixtures_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_furniture_fixtures_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_furniture_fixtures_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_furniture_fixtures_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_furniture_fixtures_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
+                    {% endfor %}
 
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Repairs and Maintenance - Semi-Expendable Machinery and Equipment</label>
-                            <input type="number" name="repair_maintenance_semi_expendable_machinery_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_semi_expendable_machinery_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_semi_expendable_machinery_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_semi_expendable_machinery_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_semi_expendable_machinery_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
+                    {% for item in repair_other_property_plant_equipment %}
                     <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Repairs and Maintenance - Other Property, Plant and Equipment</label>
-                            <input type="number" name="repair_maintenance_other_property_plant_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="repair_maintenance_other_property_plant_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="repair_maintenance_other_property_plant_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="repair_maintenance_other_property_plant_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="repair_maintenance_other_property_plant_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
+                    {% endfor %}
 
                 <!-- Taxes, Insurance Premiums and Other FEES Section -->
                 <h3 class="text-lg font-semibold mb-1">Taxes, Insurance Premiums and Other Fees</h3>
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Taxes, Duties and Licenses</label>
-                            <input type="number" name="taxes_duties_licenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="taxes_duties_licenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="taxes_duties_licenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="taxes_duties_licenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="taxes_duties_licenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                    {% for item in taxes_insurance_fees %}
+                    <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Fidelity Bond Premiums</label>
-                            <input type="number" name="fidelity_bond_premiums_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="fidelity_bond_premiums_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="fidelity_bond_premiums_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="fidelity_bond_premiums_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="fidelity_bond_premiums_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Insurance Expenses</label>
-                            <input type="number" name="insurance_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="insurance_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="insurance_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="insurance_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="insurance_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
+                    {% endfor %}
 
                 <!-- Labor and Wages Section -->
                 <h3 class="text-lg font-semibold mb-1">Labor and Wages</h3>
+                    {% for item in labor_wages_list %}
                     <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Labor and Wages</label>
-                            <input type="number" name="labor_wages_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="labor_wages_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="labor_wages_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="labor_wages_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="labor_wages_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
+                    {% endfor %}
 
                 <!-- Other Maintenance & Operating Expenses Section -->
                 <h3 class="text-lg font-semibold mb-1">Other Maintenance &amp; Operating Expenses</h3>
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Advertising Expenses</label>
-                            <input type="number" name="advertising_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="advertising_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="advertising_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="advertising_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="advertising_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                    {% for item in other_mooe %}
+                    <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                            <label class="col-span-2 font-medium">{{ item.label }}</label>
+                            <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                            <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                            <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                            <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                            <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                     </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Printing and Publication Expenses</label>
-                            <input type="number" name="printing_publication_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="printing_publication_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="printing_publication_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="printing_publication_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="printing_publication_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Representation Expenses</label>
-                            <input type="number" name="representation_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="representation_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="representation_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="representation_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="representation_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Transportation and Delivery Expenses</label>
-                            <input type="number" name="transportation_delivery_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="transportation_delivery_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="transportation_delivery_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="transportation_delivery_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="transportation_delivery_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Rent/Lease Expenses</label>
-                            <input type="number" name="rent/lease_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="rent/lease_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="rent/lease_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="rent/lease_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="rent/lease_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Membership Dues and contributions to organizations</label>
-                            <input type="number" name="membership_dues_contribute_to_org_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="membership_dues_contribute_to_org_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="membership_dues_contribute_to_org_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="membership_dues_contribute_to_org_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="membership_dues_contribute_to_org_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Subscription Expenses</label>
-                            <input type="number" name="subscription_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="subscription_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="subscription_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="subscription_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="subscription_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                            <label class="col-span-2 font-medium">Website Maintenance</label>
-                            <input type="number" name="website_maintenance_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="website_maintenance_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="website_maintenance_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="website_maintenance_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="website_maintenance_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>
-
-                    <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                            <label class="col-span-2 font-medium">Other Maintenance and Operating Expenses</label>
-                            <input type="number" name="other_maintenance_operating_expenses_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                            <input type="number" name="other_maintenance_operating_expenses_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                            <input type="number" name="other_maintenance_operating_expenses_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                            <input type="number" name="other_maintenance_operating_expenses_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                            <input type="number" name="other_maintenance_operating_expenses_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                    </div>  
+                    {% endfor %}
 
                     <div class="grid grid-cols-7 gap-4 items-center mb-4">
                         <label class="col-span-2 font-bold underline">Total Maintenance and Other Operating Expenses</label>
@@ -570,303 +322,123 @@
             <!-- Capital Outplays Section-->
             <div>
                 <h2 class="text-xl font-bold mb-4">Capital Outplays</h2>
-                <div class="mb-6 border-l-4 border-green-600 pl-4">
+                <div class="mb-6 border-l-4 border-green-600 pl-4" data-category="capital">
                     <!-- Land Section -->
                     <h3 class="text-lg font-semibold mb-1">Land</h3>
+                        {% for item in cap_land %}
                         <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Land</label>
-                                <input type="number" name="land_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="land_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="land_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="land_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="land_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
+                        {% endfor %}
 
                     <!-- Land Improvements Section -->
                     <h3 class="text-lg font-semibold mb-1">Land Improvements</h3>
+                        {% for item in cap_land_improvements %}
                         <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Land Improvements, Aquaculture Structure</label>
-                                <input type="number" name="land_improvements_aqua_structure_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="land_improvements_aqua_structure_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="land_improvements_aqua_structure_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="land_improvements_aqua_structure_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="land_improvements_aqua_structure_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
+                        {% endfor %}
 
                     <!-- Infrastructure Assets -->
                     <h3 class="text-lg font-semibold mb-1">Infrastructure Assets</h3>
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Water Supply Systems</label>
-                                <input type="number" name="water_supply_systems_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="water_supply_systems_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="water_supply_systems_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="water_supply_systems_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="water_supply_systems_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        {% for item in cap_infrastructure_assets %}
+                        <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Power Supply Systems</label>
-                                <input type="number" name="power_supply_systems_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="power_supply_systems_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="power_supply_systems_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="power_supply_systems_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="power_supply_systems_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Other Infrastructure Assets</label>
-                                <input type="number" name="other_infra_assets_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="other_infra_assets_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="other_infra_assets_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="other_infra_assets_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="other_infra_assets_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
+                        {% endfor %}
 
                     <!-- Building and Other Structures (BOS) Section -->
                     <h3 class="text-lg font-semibold mb-1">Building and Other Structures</h3>
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Building</label>
-                                <input type="number" name="bos_building_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="bos_building_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="bos_building_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="bos_building_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="bos_building_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        {% for item in cap_bos %}
+                        <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">School Buildings</label>
-                                <input type="number" name="bos_school_buildings_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="bos_school_buildings_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="bos_school_buildings_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="bos_school_buildings_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="bos_school_buildings_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Hostels and Dormitories</label>
-                                <input type="number" name="bos_hostels_dorm_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="bos_hostels_dorm_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="bos_hostels_dorm_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="bos_hostels_dorm_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="bos_hostels_dorm_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Other Structures</label>
-                                <input type="number" name="other_structures_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="other_structures_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="other_structures_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="other_structures_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="other_structures_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
+                        {% endfor %}
 
                     <!-- Machinery and Equipment (ME) Section -->
                     <h3 class="text-lg font-semibold mb-1">Machinery and Equipment</h3>
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Machinery</label>
-                                <input type="number" name="me_machinery_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_machinery_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_machinery_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_machinery_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_machinery_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        {% for item in cap_me %}
+                        <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Office Equipment</label>
-                                <input type="number" name="me_office_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_office_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_office_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_office_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_office_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Information and Communication Technology Equipment</label>
-                                <input type="number" name="me_ict_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_ict_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_ict_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_ict_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_ict_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Communication Equipment</label>
-                                <input type="number" name="me_communication_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_communication_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_communication_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_communication_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_communication_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Disaster Response and Rescue Equipment</label>
-                                <input type="number" name="me_drre_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_drre_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_drre_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_drre_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_drre_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Medical Equipment</label>
-                                <input type="number" name="me_medical_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_medical_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_medical_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_medical_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_medical_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Printing Equipment</label>
-                                <input type="number" name="me_printing_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_printing_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_printing_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_printing_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_printing_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Sports Equipment</label>
-                                <input type="number" name="me_sports_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_sports_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_sports_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_sports_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_sports_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Technical and Scientific Equipment</label>
-                                <input type="number" name="me_technical_scientific_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_technical_scientific_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_technical_scientific_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_technical_scientific_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_technical_scientific_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Other Machinery and Equipment</label>
-                                <input type="number" name="me_other_machinery_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="me_other_machinery_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="me_other_machinery_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="me_other_machinery_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="me_other_machinery_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
+                        {% endfor %}
 
                     <!-- Transportation Equipment (TE) Section -->
                     <h3 class="text-lg font-semibold mb-1">Transportation Equipment</h3>
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Motor Vehicles</label>
-                                <input type="number" name="te_motor_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="te_motor_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="te_motor_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="te_motor_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="te_motor_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        {% for item in cap_te %}
+                        <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Other Transportation Equipment</label>
-                                <input type="number" name="te_other_transpo_equipment_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="te_other_transpo_equipment_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="te_other_transpo_equipment_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="te_other_transpo_equipment_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="te_other_transpo_equipment_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
+                        {% endfor %}
                 
                      <!-- Furniture, Fixtures and Books Section -->
                     <h3 class="text-lg font-semibold mb-1">Furniture, Fixtures and Books</h3>
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Furniture and Fixtures</label>
-                                <input type="number" name="ffb_furniture_fixtures_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="ffb_furniture_fixtures_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="ffb_furniture_fixtures_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="ffb_furniture_fixtures_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="ffb_furniture_fixtures_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        {% for item in cap_ffb %}
+                        <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Books</label>
-                                <input type="number" name="ffb_books_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="ffb_books_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="ffb_books_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="ffb_books_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="ffb_books_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
+                        {% endfor %}
 
                      <!-- Construction in Progress Section -->
                     <h3 class="text-lg font-semibold mb-1">Construction in Progress</h3>
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Construction in Progress - Land Improvements</label>
-                                <input type="number" name="cp_land_improvements_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="cp_land_improvements_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="cp_land_improvements_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="cp_land_improvements_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="cp_land_improvements_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        {% for item in cap_cp %}
+                        <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Construction in Progress - Infrastructure Assets</label>
-                                <input type="number" name="cp_infra_assets_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="cp_infra_assets_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="cp_infra_assets_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="cp_infra_assets_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="cp_infra_assets_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Construction in Progress - Buildings and Other Structures</label>
-                                <input type="number" name="cp_building_other_structures_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="cp_building_other_structures_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="cp_building_other_structures_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="cp_building_other_structures_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="cp_building_other_structures_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Construction in Progress - Leased Assets</label>
-                                <input type="number" name="cp_leased_assets_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="cp_leased_assets_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="cp_leased_assets_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="cp_leased_assets_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="cp_leased_assets_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Construction in Progress - Leased Assets Improvements</label>
-                                <input type="number" name="cp_leased_assets_improvements_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="cp_leased_assets_improvements_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="cp_leased_assets_improvements_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="cp_leased_assets_improvements_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="cp_leased_assets_improvements_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
+                        {% endfor %}
 
                     <!-- Intangible Asset (IA) Section -->
                     <h3 class="text-lg font-semibold mb-1">Intangible Asset</h3>
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Computer Software</label>
-                                <input type="number" name="ia_computer_software_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="ia_computer_software_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="ia_computer_software_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="ia_computer_software_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="ia_computer_software_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
+                        {% for item in cap_ia %}
+                        <div class="grid grid-cols-7 gap-4 items-center {% if not forloop.last %}mb-2{% else %}mb-4{% endif %}">
+                                <label class="col-span-2 font-medium">{{ item.label }}</label>
+                                <input type="number" name="{{ item.name }}_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
+                                <input type="number" name="{{ item.name }}_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
+                                <input type="number" name="{{ item.name }}_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
+                                <input type="number" name="{{ item.name }}_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
+                                <input type="number" name="{{ item.name }}_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
                         </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-2">
-                                <label class="col-span-2 font-medium">Websites</label>
-                                <input type="number" name="ia_websites_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="ia_websites_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="ia_websites_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="ia_websites_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="ia_websites_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
-
-                        <div class="grid grid-cols-7 gap-4 items-center mb-4">
-                                <label class="col-span-2 font-medium">Other Tangible Assets</label>
-                                <input type="number" name="ia_other_tangible_assets_q1" class="form-input" min="0" placeholder="Q1" step="0.01">
-                                <input type="number" name="ia_other_tangible_assets_q2" class="form-input" min="0" placeholder="Q2" step="0.01">
-                                <input type="number" name="ia_other_tangible_assets_q3" class="form-input" min="0" placeholder="Q3" step="0.01">
-                                <input type="number" name="ia_other_tangible_assets_q4" class="form-input" min="0" placeholder="Q4" step="0.01">
-                                <input type="number" name="ia_other_tangible_assets_total" class="form-input" min="0" placeholder="TOTAL" step="0.01">
-                        </div>
+                        {% endfor %}
 
                         <div class="grid grid-cols-7 gap-4 items-center mb-4">
                                 <label class="col-span-2 font-bold underline">Total Capital Outplays</label>
@@ -941,6 +513,9 @@
             </div>
         </div>
 
+        <!-- Hidden summary total for backend -->
+        <input type="hidden" name="summary_grand_total_value" value="">
+
         <!-- Submit -->
         <div class="mt-10">
             <button type="submit" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg">
@@ -948,5 +523,218 @@
             </button>
         </div>
     </form>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h3 class="text-lg font-semibold mb-2">Confirm Submission</h3>
+            <p class="text-sm text-gray-600 mb-6">Are you sure you want to submit this PRE? Please review your totals before proceeding.</p>
+            <div class="flex items-center justify-end gap-3">
+                <button type="button" id="cancelConfirmBtn" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="button" id="proceedSubmitBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Yes, submit</button>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <!-- Messages Modal -->
+    <div id="messageModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h3 class="text-lg font-semibold mb-3">Notice</h3>
+            <div class="space-y-2 text-sm">
+                {% for message in messages %}
+                    <div class="px-3 py-2 rounded {{ message.tags|default:'' }} {% if 'success' in message.tags %}bg-green-50 text-green-700 border border-green-200{% elif 'error' in message.tags %}bg-red-50 text-red-700 border border-red-200{% else %}bg-gray-50 text-gray-700 border border-gray-200{% endif %}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            <div class="mt-6 text-right">
+                <form action="{% url "preview_pre" pre_id %}" method="get">
+                <button type="submit" id="closeMessageBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </main>
+
+<script>
+(function() {
+  const form = document.getElementById('preForm');
+  if (!form) return;
+
+  const confirmModal = document.getElementById('confirmModal');
+  const proceedBtn = document.getElementById('proceedSubmitBtn');
+  const cancelBtn = document.getElementById('cancelConfirmBtn');
+  const messageModal = document.getElementById('messageModal');
+  const closeMessageBtn = document.getElementById('closeMessageBtn');
+
+  // Utility helpers
+  const show = el => { if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } };
+  const hide = el => { if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } };
+  const toNumber = v => {
+    if (v === null || v === undefined) return 0;
+    const n = parseFloat(('' + v).replace(/,/g, ''));
+    return isNaN(n) ? 0 : n;
+  };
+  const fmt = n => {
+    try { return (Math.round(n * 100) / 100).toFixed(2); } catch(e) { return '0.00'; }
+  };
+
+  // Inputs for summary totals
+  const summary = {
+    personnel: form.querySelector('input[name="summary_total_personnel"]'),
+    mooe: form.querySelector('input[name="summary_total_mooe"]'),
+    capital: form.querySelector('input[name="summary_total_capital"]'),
+    grand: form.querySelector('input[name="summary_grand_total"]'),
+    procureable: form.querySelector('input[name="summary_procureable"]'),
+    nonProcureable: form.querySelector('input[name="summary_non_procureable"]'),
+    grandHidden: form.querySelector('input[name="summary_grand_total_value"]'),
+  };
+
+  // Category wrappers
+  const catEls = {
+    personnel: document.querySelector('[data-category="personnel"]'),
+    mooe: document.querySelector('[data-category="mooe"]'),
+    capital: document.querySelector('[data-category="capital"]'),
+  };
+
+  // Category total fields
+  const catTotalFields = {
+    personnel: {
+      q1: form.querySelector('input[name="total_personnel_q1_total"]'),
+      q2: form.querySelector('input[name="total_personnel_q2_total"]'),
+      q3: form.querySelector('input[name="total_personnel_q3_total"]'),
+      q4: form.querySelector('input[name="total_personnel_q4_total"]')
+    },
+    mooe: {
+      q1: form.querySelector('input[name="total_mooe_q1_total"]'),
+      q2: form.querySelector('input[name="total_mooe_q2_total"]'),
+      q3: form.querySelector('input[name="total_mooe_q3_total"]'),
+      q4: form.querySelector('input[name="total_mooe_q4_total"]')
+    },
+    capital: {
+      q1: form.querySelector('input[name="total_capital_outplays_q1_total"]'),
+      q2: form.querySelector('input[name="total_capital_outplays_q2_total"]'),
+      q3: form.querySelector('input[name="total_capital_outplays_q3_total"]'),
+      q4: form.querySelector('input[name="total_capital_outplays_q4_total"]')
+    }
+  };
+
+  // Bottom total row fields
+  const bottomTotals = {
+    q1: form.querySelector('input[name="total_q1"]'),
+    q2: form.querySelector('input[name="total_q2"]'),
+    q3: form.querySelector('input[name="total_q3"]'),
+    q4: form.querySelector('input[name="total_q4"]'),
+  };
+
+  function calcCategorySums(catEl) {
+    const sums = { q1: 0, q2: 0, q3: 0, q4: 0 };
+    if (!catEl) return sums;
+    const inputs = catEl.querySelectorAll('input[type="number"]');
+    inputs.forEach(inp => {
+      const name = inp.name || '';
+      // Skip the category total fields themselves (end with _q{n}_total)
+      if (/_(q1|q2|q3|q4)_total$/.test(name)) return;
+      // Include only the quarter-specific inputs (end with _q{n})
+      const m = name.match(/_(q1|q2|q3|q4)$/);
+      if (!m) return;
+      const key = m[1];
+      sums[key] += toNumber(inp.value);
+    });
+    return sums;
+  }
+
+  function recompute() {
+    // Per-category Q totals
+    const p = calcCategorySums(catEls.personnel);
+    const m = calcCategorySums(catEls.mooe);
+    const c = calcCategorySums(catEls.capital);
+
+    // Fill category total fields
+    if (catTotalFields.personnel.q1) catTotalFields.personnel.q1.value = fmt(p.q1);
+    if (catTotalFields.personnel.q2) catTotalFields.personnel.q2.value = fmt(p.q2);
+    if (catTotalFields.personnel.q3) catTotalFields.personnel.q3.value = fmt(p.q3);
+    if (catTotalFields.personnel.q4) catTotalFields.personnel.q4.value = fmt(p.q4);
+
+    if (catTotalFields.mooe.q1) catTotalFields.mooe.q1.value = fmt(m.q1);
+    if (catTotalFields.mooe.q2) catTotalFields.mooe.q2.value = fmt(m.q2);
+    if (catTotalFields.mooe.q3) catTotalFields.mooe.q3.value = fmt(m.q3);
+    if (catTotalFields.mooe.q4) catTotalFields.mooe.q4.value = fmt(m.q4);
+
+    if (catTotalFields.capital.q1) catTotalFields.capital.q1.value = fmt(c.q1);
+    if (catTotalFields.capital.q2) catTotalFields.capital.q2.value = fmt(c.q2);
+    if (catTotalFields.capital.q3) catTotalFields.capital.q3.value = fmt(c.q3);
+    if (catTotalFields.capital.q4) catTotalFields.capital.q4.value = fmt(c.q4);
+
+    // Bottom total row
+    const total = {
+      q1: p.q1 + m.q1 + c.q1,
+      q2: p.q2 + m.q2 + c.q2,
+      q3: p.q3 + m.q3 + c.q3,
+      q4: p.q4 + m.q4 + c.q4,
+    };
+    if (bottomTotals.q1) bottomTotals.q1.value = fmt(total.q1);
+    if (bottomTotals.q2) bottomTotals.q2.value = fmt(total.q2);
+    if (bottomTotals.q3) bottomTotals.q3.value = fmt(total.q3);
+    if (bottomTotals.q4) bottomTotals.q4.value = fmt(total.q4);
+
+    // Category grand totals
+    const gPersonnel = p.q1 + p.q2 + p.q3 + p.q4;
+    const gMooe = m.q1 + m.q2 + m.q3 + m.q4;
+    const gCapital = c.q1 + c.q2 + c.q3 + c.q4;
+    const gAll = gPersonnel + gMooe + gCapital;
+
+    if (summary.personnel) summary.personnel.value = fmt(gPersonnel);
+    if (summary.mooe) summary.mooe.value = fmt(gMooe);
+    if (summary.capital) summary.capital.value = fmt(gCapital);
+    if (summary.grand) summary.grand.value = fmt(gAll);
+    if (summary.grandHidden) summary.grandHidden.value = fmt(gAll);
+
+    // Procurable / Non-procurable split
+    // Assumption: Procurable = MOOE + Capital; Non-Procureable = Personnel
+    if (summary.procureable) summary.procureable.value = fmt(gMooe + gCapital);
+    if (summary.nonProcureable) summary.nonProcureable.value = fmt(gPersonnel);
+  }
+
+  // Live recompute on any number input changes
+  form.addEventListener('input', function(e) {
+    const t = e.target;
+    if (t && t.tagName === 'INPUT' && t.type === 'number') {
+      recompute();
+    }
+  });
+
+  // Initial compute
+  recompute();
+
+  // Confirmation flow: intercept default submit
+  form.addEventListener('submit', function(e) {
+    // Let htmx-enhanced programmatic submission handle flow
+    e.preventDefault();
+    recompute();
+    show(confirmModal);
+  });
+
+  if (cancelBtn) cancelBtn.addEventListener('click', function() { hide(confirmModal); });
+  if (proceedBtn) proceedBtn.addEventListener('click', function() {
+    hide(confirmModal);
+    // If HTMX is present and used on this form, submit via HTMX; else normal submit
+    if (window.htmx && typeof htmx.submit === 'function' && (form.hasAttribute('hx-post') || form.hasAttribute('hx-put') || form.hasAttribute('hx-patch'))) {
+      htmx.submit(form);
+    } else {
+      // Use native submit without triggering submit handlers again
+      HTMLFormElement.prototype.submit.call(form);
+    }
+    
+  });
+
+  // Auto-open message modal when there are messages
+  if (messageModal) {
+    show(messageModal);
+    if (closeMessageBtn) closeMessageBtn.addEventListener('click', function() { hide(messageModal); });
+    // Close when clicking overlay
+    messageModal.addEventListener('click', function(e) { if (e.target === messageModal) hide(messageModal); });
+  }
+})();
+</script>
 {% endblock %}

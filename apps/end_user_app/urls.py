@@ -13,4 +13,5 @@ urlpatterns = [
     path('re_alignment/', views.re_alignment, name='re_alignment'),
     path('department_pre/', views.department_pre_form, name='department_pre_form'),
     path('department_pre_page/', views.department_pre_page, name='department_pre_page'),
+    path('preview_pre/<int:pk>/', views.preview_pre, name='preview_pre'),
 ]

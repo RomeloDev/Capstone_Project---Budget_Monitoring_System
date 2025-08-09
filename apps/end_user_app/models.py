@@ -75,3 +75,34 @@ class Budget_Realignment(models.Model):
 
     def __str__(self):
         return f"Realignment by {self.requested_by} from {self.source_papp} to {self.target_papp} - ₱{self.amount}"
+
+
+class DepartmentPRE(models.Model):
+    """Stores a submitted Program of Receipts and Expenditures (PRE) per department.
+
+    We intentionally keep the structure flexible using JSON to accommodate the
+    large, dynamic matrix of inputs without creating dozens of columns.
+    """
+
+    submitted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="submitted_department_pres",
+    )
+    department = models.CharField(max_length=255)
+
+    # Full raw payload keyed by the input names (e.g. "basic_salary_q1", etc.)
+    data = models.JSONField()
+
+    # Signatories (free-text names provided by the user on the form)
+    prepared_by_name = models.CharField(max_length=255, blank=True, null=True)
+    certified_by_name = models.CharField(max_length=255, blank=True, null=True)
+    approved_by_name = models.CharField(max_length=255, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        dept = self.department or "Unknown Dept"
+        creator = self.submitted_by.get_full_name() if self.submitted_by else "Unknown User"
+        return f"PRE for {dept} by {creator} on {self.created_at:%Y-%m-%d}"

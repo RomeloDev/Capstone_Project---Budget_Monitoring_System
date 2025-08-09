@@ -1,0 +1,84 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}PRE Preview{% endblock %}
+
+{% block main-content %}
+<main class="content p-6">
+  <header class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="font-semibold text-2xl">Submitted PRE Preview</h1>
+      <p class="text-gray-600 text-sm">Review the details of your submitted Program of Receipts and Expenditures.</p>
+    </div>
+    <button type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      Download as Excel
+    </button>
+  </header>
+
+  <!-- Meta info -->
+  <section class="mb-6 bg-white rounded-lg border border-gray-200 p-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+      <div>
+        <span class="block text-gray-500">Department</span>
+        <span class="font-medium">{{ pre.department }}</span>
+      </div>
+      <div>
+        <span class="block text-gray-500">Submitted by</span>
+        <span class="font-medium">{{ pre.submitted_by.get_full_name|default:pre.submitted_by.username }}</span>
+      </div>
+      <div>
+        <span class="block text-gray-500">Submitted at</span>
+        <span class="font-medium">{{ pre.created_at }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Read-only table-like preview -->
+  <section class="bg-white rounded-lg border border-gray-200 p-4">
+    <h2 class="text-lg font-semibold mb-4">Line Items</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left bg-gray-50">
+            <th class="px-3 py-2 border-b">Field</th>
+            <th class="px-3 py-2 border-b">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key, value in data.items %}
+          <tr class="odd:bg-white even:bg-gray-50">
+            <td class="px-3 py-2 border-b font-medium">{{ key }}</td>
+            <td class="px-3 py-2 border-b">{{ value }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Certification section -->
+  <section class="bg-white rounded-lg border border-gray-200 p-4 mt-6">
+    <h2 class="text-lg font-semibold mb-4">Certification</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <p class="text-sm text-gray-500 mb-1">Prepared by</p>
+        <p class="font-medium">{{ prepared_by|default:'—' }}</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500 mb-1">Certified by</p>
+        <p class="font-medium">{{ certified_by|default:'—' }}</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500 mb-1">Approved by</p>
+        <p class="font-medium">{{ approved_by|default:'—' }}</p>
+      </div>
+    </div>
+  </section>
+</main>
+{% endblock %}
+
+
+
