@@ -720,11 +720,23 @@ def preview_pre(request, pk: int):
             'total_overall': total_overall,
         })
 
+    # Compute grand totals across all sections
+    grand_total_q1 = sum((sec['total_q1'] for sec in sections), Decimal('0'))
+    grand_total_q2 = sum((sec['total_q2'] for sec in sections), Decimal('0'))
+    grand_total_q3 = sum((sec['total_q3'] for sec in sections), Decimal('0'))
+    grand_total_q4 = sum((sec['total_q4'] for sec in sections), Decimal('0'))
+    grand_total_overall = sum((sec['total_overall'] for sec in sections), Decimal('0'))
+
     # Pass the grouped table, raw data and signatories
     context = {
         'pre': pre,
         'data': payload,
         'sections': sections,
+        'grand_total_q1': grand_total_q1,
+        'grand_total_q2': grand_total_q2,
+        'grand_total_q3': grand_total_q3,
+        'grand_total_q4': grand_total_q4,
+        'grand_total_overall': grand_total_overall,
         'prepared_by': pre.prepared_by_name,
         'certified_by': pre.certified_by_name,
         'approved_by': pre.approved_by_name,

@@ -1,24 +1,15 @@
-{% extends "end_user_base_template/dashboard.html" %}
+{% extends "approving_officer_base_template/dashboard.html" %}
 {% load humanize %}
 
 {% block title %}PRE Preview{% endblock %}
 
 {% block main-content %}
 <main class="content p-6">
-  <header class="mb-6 flex items-center justify-between">
-    <div>
-      <h1 class="font-semibold text-2xl">Submitted PRE Preview</h1>
-      <p class="text-gray-600 text-sm">Review the details of your submitted Program of Receipts and Expenditures.</p>
-    </div>
-    <button type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      Download as Excel
-    </button>
+  <header class="mb-6">
+    <h1 class="font-semibold text-2xl">Submitted PRE Preview</h1>
+    <p class="text-gray-600 text-sm">Approving Officer view</p>
   </header>
 
-  <!-- Meta info -->
   <section class="mb-6 bg-white rounded-lg border border-gray-200 p-4">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
       <div>
@@ -36,7 +27,6 @@
     </div>
   </section>
 
-  <!-- Excel-like grouped table preview -->
   <section class="bg-white rounded-lg border border-gray-200 p-4">
     <h2 class="text-lg font-semibold mb-4">Budget by Object of Expenditures</h2>
     <div class="overflow-x-auto">
@@ -53,7 +43,6 @@
         </thead>
         <tbody>
           {% for section in sections %}
-            <!-- Section header row with color -->
             <tr class="font-semibold text-gray-900">
               <td class="px-3 py-2 border border-gray-300 {{ section.color_class }}" colspan="6">{{ section.title }}</td>
             </tr>
@@ -79,17 +68,15 @@
                 </tr>
               {% endif %}
             {% endfor %}
-            <!-- Section total row -->
-                <tr class="bg-gray-50">
-                  <td class="px-3 py-2 border font-semibold border-gray-300">TOTAL {{ section.title }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q1|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q2|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q3|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q4|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ section.total_overall|intcomma }}</td>
-                </tr>
+            <tr class="bg-gray-50">
+              <td class="px-3 py-2 border font-semibold border-gray-300">TOTAL {{ section.title }}</td>
+              <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q1|intcomma }}</td>
+              <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q2|intcomma }}</td>
+              <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q3|intcomma }}</td>
+              <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q4|intcomma }}</td>
+              <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ section.total_overall|intcomma }}</td>
+            </tr>
           {% endfor %}
-          <!-- Grand totals row across all sections -->
           <tr class="bg-emerald-50">
             <td class="px-3 py-2 border font-bold border-gray-300">GRAND TOTAL</td>
             <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ grand_total_q1|intcomma }}</td>
@@ -103,7 +90,6 @@
     </div>
   </section>
 
-  <!-- Certification section -->
   <section class="bg-white rounded-lg border border-gray-200 p-4 mt-6">
     <h2 class="text-lg font-semibold mb-4">Certification</h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -121,6 +107,15 @@
       </div>
     </div>
   </section>
+
+  <div class="mt-6 flex gap-3">
+    <form method="post" action="{% url 'ao_handle_pre_action' pre.id %}">
+      {% csrf_token %}
+      <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Approve</button>
+      <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 ml-2">Reject</button>
+    </form>
+    <a href="{% url 'ao_department_pre_list' %}" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Back to list</a>
+  </div>
 </main>
 {% endblock %}
 

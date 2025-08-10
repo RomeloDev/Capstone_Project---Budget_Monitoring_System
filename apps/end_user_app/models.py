@@ -102,6 +102,15 @@ class DepartmentPRE(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    approved_by_approving_officer = models.BooleanField(default=False)
+    approved_by_admin = models.BooleanField(default=False)
+
     def __str__(self) -> str:
         dept = self.department or "Unknown Dept"
         creator = self.submitted_by.get_full_name() if self.submitted_by else "Unknown User"
