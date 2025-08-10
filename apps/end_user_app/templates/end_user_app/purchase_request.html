@@ -7,8 +7,8 @@
 {% block main-content %}
     <main class="content">
         <header>
-            <h1 class="font-semibold text-[2rem]">Purchase Requests</h1>
-            <p>Track and manage your department's purchase requests.</p>
+            <h1 class="font-semibold text-[2rem]">Purchase Request and Activity Design Page</h1>
+            <p>Compile and manage your department's purchase requests and activity design.</p>
         </header>
 
         <!-- New Purchase Request Button -->
@@ -47,15 +47,18 @@
                             <td>{{ purchase.office_section }}</td>
                             <td>{{ purchase.created_at }}</td>
                             <td class="py-2 px-4 border-b">
-                                {% if purchase.submitted_status == 'Pending' %}
+                                {% if purchase.submitted_status == 'pending' %}
                                     <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-md">Pending</span>
-                                {% elif purchase.submitted_status == 'Approved' %}
+                                {% elif purchase.submitted_status == 'approved' %}
                                     <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-md">Approved</span>
                                 {% else %}
                                     <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-md">Rejected</span>
                                 {% endif %}
                             </td>
-                            <td><button class="view-btn">View Details</button></td>
+                            <td>
+                                <button class="view-btn">
+                                    <a href="{% url "preview_purchase_request" purchase.id %}">View Details</a></button>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>

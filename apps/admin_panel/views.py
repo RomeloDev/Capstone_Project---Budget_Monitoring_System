@@ -22,8 +22,8 @@ def admin_dashboard(request):
     try:
         end_users_total = User.objects.filter(is_staff=False, is_approving_officer=True).count()
         total_budget = Budget.objects.aggregate(Sum('total_fund'))['total_fund__sum']
-        total_pending_realignment_request = Budget_Realignment.objects.filter(status='Pending').count()
-        total_approved_realignment_request = Budget_Realignment.objects.filter(status='Approved').count()
+        total_pending_realignment_request = Budget_Realignment.objects.filter(status='pending').count()
+        total_approved_realignment_request = Budget_Realignment.objects.filter(status='approved').count()
         budget_allocated = BudgetAllocation.objects.all()
     except:
         end_users_total = 0
@@ -93,22 +93,33 @@ def departments_request(request):
 
 @login_required
 def handle_departments_request(request, request_id):
+    """
+    Optional admin handler for PRs. Aligns with model fields and updates allocation.
+    Note: Approving Officer flow is canonical; consider removing this view if redundant.
+    """
     purchase_request = get_object_or_404(PurchaseRequest, id=request_id)
-    
+
     if request.method == 'POST':
         action = request.POST.get('action')
-        
-        budget_allocated = BudgetAllocation.objects.get(assigned_user=purchase_request.user)
-        
-        if action == "approve":
-            purchase_request.status = "Approved"
-        elif action == "reject":
-            budget_allocated.remaining_budget += purchase_request.amount
-            budget_allocated.save()
-            purchase_request.status = "Rejected"
-        
-        purchase_request.save()
-        
+
+        allocation = purchase_request.budget_allocation
+        if action == 'approve':
+            if allocation is None:
+                messages.error(request, 'No budget allocation linked to this request.')
+                return redirect('department_request')
+            if allocation.remaining_budget < (purchase_request.total_amount or 0):
+                messages.error(request, 'Insufficient remaining budget to approve this request.')
+                return redirect('department_request')
+            allocation.spent = (allocation.spent or 0) + (purchase_request.total_amount or 0)
+            allocation.save(update_fields=['spent', 'updated_at'])
+            purchase_request.pr_status = 'submitted'
+            purchase_request.submitted_status = 'approved'
+        elif action == 'reject':
+            purchase_request.pr_status = 'submitted'
+            purchase_request.submitted_status = 'rejected'
+
+        purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at'])
+
     return redirect('department_request')
 
 @login_required
@@ -275,7 +286,13 @@ def handle_re_alignment_request_action(request, pk):
 @login_required
 def pre_request_page(request):
     # Filter only PREs that were approved by the approving officer
-    pres = DepartmentPRE.objects.filter(approved_by_approving_officer=True).select_related('submitted_by', 'budget_allocation__approved_budget').order_by('-created_at')
+    """
+    View for the Admin to view all approved PREs from different departments.
+
+    This view shows a table of all approved PREs, with the ability to filter by department.
+    The table shows the department, submitted by, submitted on, budget allocation, and status of each PRE.
+    """
+    pres = DepartmentPRE.objects.filter(approved_by_approving_officer=True, approved_by_admin=False, status='Approved').select_related('submitted_by', 'budget_allocation__approved_budget').order_by('-created_at')
 
     # Department filter
     dept = request.GET.get('department')

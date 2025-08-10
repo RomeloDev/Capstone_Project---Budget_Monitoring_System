@@ -22,8 +22,8 @@ def user_dashboard(request):
         total_budget = sum(a.total_allocated for a in budget)
         total_spent = sum(a.spent for a in budget)
         remaining_balance = total_budget - total_spent
-        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="Submitted")
-        approved_requests_count = PurchaseRequest.objects.filter(requested_by=request.user, submitted_status="Approved").count()
+        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status='submitted')
+        approved_requests_count = PurchaseRequest.objects.filter(requested_by=request.user, submitted_status='approved').count()
     except BudgetAllocation.DoesNotExist or PurchaseRequest.DoesNotExist:
         budget = None
         total_budget = None
@@ -60,7 +60,7 @@ def view_budget(request):
 @login_required
 def purchase_request(request):
     try:
-        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="Submitted")
+        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="submitted").select_related('source_pre')
     except PurchaseRequest.DoesNotExist:
         purchase_requests = None
     return render(request, 'end_user_app/purchase_request.html', {'purchase_requests': purchase_requests})
@@ -76,8 +76,200 @@ def end_user_logout(request):
 
 @login_required 
 def purchase_request_form(request):
-    
-    return render(request, "end_user_app/purchase_request_form.html")
+    # Ensure a draft PR exists for the user to accumulate items prior to submission
+    purchase_request_obj, _created = PurchaseRequest.objects.get_or_create(
+        requested_by=request.user,
+        pr_status='draft',
+        defaults={
+            'entity_name': 'Draft Entity',
+            'pr_no': 'TEMP',
+        }
+    )
+
+    # Budget Allocation options (limit to user's department)
+    budget_allocations = BudgetAllocation.objects.select_related('approved_budget').filter(
+        department=getattr(request.user, 'department', '')
+    )
+
+    # Build Source-of-Fund options from approved PRE entries with positive amounts
+    def build_pre_source_options(user):
+        options = []
+        approved_pres = DepartmentPRE.objects.filter(
+            submitted_by=user,
+            approved_by_approving_officer=True,
+            approved_by_admin=True,
+        )
+
+        # Friendly labels for known PRE item keys (fallback to humanized key)
+        friendly_labels = {
+            'travel_local': 'Traveling Expenses - Local',
+            'travel_foreign': 'Traveling Expenses - Foreign',
+            'training_expenses': 'Training Expenses',
+            'office_supplies_expenses': 'Office Supplies Expenses',
+            'accountable_form_expenses': 'Accountable Form Expenses',
+            'agri_marine_supplies_expenses': 'Agricultural and Marine Supplies Expenses',
+            'drugs_medicines': 'Drugs and Medicines',
+            'med_dental_lab_supplies_expenses': 'Medical, Dental & Laboratory Supplies Expenses',
+            'food_supplies_expenses': 'Food Supplies Expenses',
+            'fuel_oil_lubricants_expenses': 'Fuel, Oil and Lubricants Expenses',
+            'textbooks_instructional_materials_expenses': 'Textbooks and Instructional Materials Expenses',
+            'construction_material_expenses': 'Construction Materials Expenses',
+            'other_supplies_materials_expenses': 'Other Supplies & Materials Expenses',
+            'semee_machinery': 'Semi-expendable - Machinery',
+            'semee_office_equipment': 'Semi-expendable - Office Equipment',
+            'semee_information_communication': 'Semi-expendable - ICT Equipment',
+            'semee_communications_equipment': 'Semi-expendable - Communications Equipment',
+            'semee_drr_equipment': 'Semi-expendable - Disaster Response and Rescue Equipment',
+            'semee_medical_equipment': 'Semi-expendable - Medical Equipment',
+            'semee_printing_equipment': 'Semi-expendable - Printing Equipment',
+            'semee_sports_equipment': 'Semi-expendable - Sports Equipment',
+            'semee_technical_scientific_equipment': 'Semi-expendable - Technical and Scientific Equipment',
+            'semee_ict_equipment': 'Semi-expendable - ICT Equipment',
+            'semee_other_machinery_equipment': 'Semi-expendable - Other Machinery and Equipment',
+            'furniture_fixtures': 'Furniture and Fixtures',
+            'books': 'Books',
+            'water_expenses': 'Water Expenses',
+            'electricity_expenses': 'Electricity Expenses',
+            'postage_courier_services': 'Postage and Courier Services',
+            'telephone_expenses': 'Telephone Expenses',
+            'telephone_expenses_landline': 'Telephone Expenses (Landline)',
+            'internet_subscription_expenses': 'Internet Subscription Expenses',
+            'cable_satellite_telegraph_radio_expenses': 'Cable, Satellite, Telegraph & Radio Expenses',
+            'awards_rewards_expenses': 'Awards/Rewards Expenses',
+            'prizes': 'Prizes',
+            'survey_expenses': 'Survey Expenses',
+            'survey_research_exploration_development_expenses': 'Survey, Research, Exploration, and Development expenses',
+            'legal_services': 'Legal Services',
+            'auditing_services': 'Auditing Services',
+            'consultancy_services': 'Consultancy Services',
+            'other_professional_servies': 'Other Professional Services',
+            'security_services': 'Security Services',
+            'janitorial_services': 'Janitorial Services',
+            'other_general_services': 'Other General Services',
+            'environment/sanitary_services': 'Environment/Sanitary Services',
+            'repair_maintenance_land_improvements': 'Repair & Maintenance - Land Improvements',
+            'buildings': 'Buildings',
+            'school_buildings': 'School Buildings',
+            'hostel_dormitories': 'Hostels and Dormitories',
+            'other_structures': 'Other Structures',
+            'repair_maintenance_machinery': 'Repair & Maintenance - Machinery',
+            'repair_maintenance_office_equipment': 'Repair & Maintenance - Office Equipment',
+            'repair_maintenance_ict_equipment': 'Repair & Maintenance - ICT Equipment',
+            'repair_maintenance_agri_forestry_equipment': 'Repair & Maintenance - Agricultural and Forestry Equipment',
+            'repair_maintenance_marine_fishery_equipment': 'Repair & Maintenance - Marine and Fishery Equipment',
+            'repair_maintenance_airport_equipment': 'Repair & Maintenance - Airport Equipment',
+            'repair_maintenance_communication_equipment': 'Repair & Maintenance - Communication Equipment',
+            'repair_maintenance_drre_equipment': 'Repair & Maintenance - Disaster, Response and Rescue Equipment',
+            'repair_maintenance_medical_equipment': 'Repair & Maintenance - Medical Equipment',
+            'repair_maintenance_printing_equipment': 'Repair & Maintenance - Printing Equipment',
+            'repair_maintenance_sports_equipment': 'Repair & Maintenance - Sports Equipment',
+            'repair_maintenance_technical_scientific_equipment': 'Repair & Maintenance - Technical and Scientific Equipment',
+            'repair_maintenance_other_machinery_equipment': 'Repair & Maintenance - Other Machinery and Equipment',
+            'repair_maintenance_motor': 'Repair & Maintenance - Motor Vehicles',
+            'repair_maintenance_other_transportation_equipment': 'Repair & Maintenance - Other Transportation Equipment',
+            'repair_maintenance_furniture_fixtures': 'Repair & Maintenance - Furniture & Fixtures',
+            'repair_maintenance_semi_expendable_machinery_equipment': 'Repair & Maintenance - Semi-Expendable Machinery and Equipment',
+            'repair_maintenance_other_property_plant_equipment': 'Repair & Maintenance - Other Property, Plant and Equipment',
+            'taxes_duties_licenses': 'Taxes, Duties and Licenses',
+            'fidelity_bond_premiums': 'Fidelity Bond Premiums',
+            'insurance_expenses': 'Insurance Expenses',
+            'labor_wages': 'Labor and Wages',
+            'advertising_expenses': 'Advertising Expenses',
+            'printing_publication_expenses': 'Printing and Publication Expenses',
+            'representation_expenses': 'Representation Expenses',
+            'transportation_delivery_expenses': 'Transportation and Delivery Expenses',
+            'rent/lease_expenses': 'Rent/Lease Expenses',
+            'membership_dues_contribute_to_org': 'Membership Dues and contributions to organizations',
+            'subscription_expenses': 'Subscription Expenses',
+            'website_maintenance': 'Website Maintenance',
+            'other_maintenance_operating_expenses': 'Other Maintenance and Operating Expenses',
+        }
+
+        for pre in approved_pres:
+            payload = pre.data or {}
+            for key, value in payload.items():
+                if not isinstance(value, (int, float, Decimal)):
+                    try:
+                        value = Decimal(str(value))
+                    except Exception:
+                        continue
+                if value and value > 0 and (key.endswith('_q1') or key.endswith('_q2') or key.endswith('_q3') or key.endswith('_q4')):
+                    base_key, quarter = key.rsplit('_', 1)
+                    quarter = quarter.upper()
+                    label_base = friendly_labels.get(base_key, base_key.replace('_', ' ').title())
+                    display_amount = f"{intcomma(value)}"
+                    display = f"{label_base} {quarter} - {display_amount}"
+                    # Encode value for round-trip on submit
+                    encoded = f"{pre.id}|{base_key}|{quarter}|{value}"
+                    options.append({'value': encoded, 'label': display})
+        return options
+
+    source_of_fund_options = build_pre_source_options(request.user)
+
+    if request.method == 'POST':
+        # Parse and save header fields
+        purchase_request_obj.entity_name = request.POST.get('entity_name') or purchase_request_obj.entity_name
+        purchase_request_obj.fund_cluster = request.POST.get('fund_cluster') or purchase_request_obj.fund_cluster
+        purchase_request_obj.office_section = request.POST.get('office_section') or purchase_request_obj.office_section
+        pr_no_input = request.POST.get('pr_no')
+        if pr_no_input and purchase_request_obj.pr_no == 'TEMP':
+            purchase_request_obj.pr_no = pr_no_input
+        purchase_request_obj.responsibility_center_code = request.POST.get('responsibility_code') or purchase_request_obj.responsibility_center_code
+        purchase_request_obj.purpose = request.POST.get('purpose') or purchase_request_obj.purpose
+
+        # Budget Allocation linkage
+        ba_id = request.POST.get('budget_allocation')
+        if ba_id:
+            try:
+                purchase_request_obj.budget_allocation = BudgetAllocation.objects.select_related('approved_budget').get(id=ba_id)
+            except BudgetAllocation.DoesNotExist:
+                purchase_request_obj.budget_allocation = None
+
+        # Source of fund linkage (encoded as preId|itemKey|QUARTER|amount)
+        sof_encoded = request.POST.get('source_of_fund')
+        if sof_encoded:
+            try:
+                pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
+                pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
+                purchase_request_obj.source_pre = pre_obj
+                purchase_request_obj.source_item_key = item_key
+                purchase_request_obj.source_quarter = quarter
+                purchase_request_obj.source_amount = Decimal(amount_str)
+            except Exception:
+                pass
+
+        # Mark as submitted
+        purchase_request_obj.pr_status = 'submitted'
+        purchase_request_obj.submitted_status = 'pending'
+        purchase_request_obj.save()
+
+        from django.urls import reverse
+        preview_url = reverse('preview_purchase_request', args=[purchase_request_obj.id])
+        return JsonResponse({'success': True, 'redirect_url': preview_url})
+
+    # GET request
+    # Items to render in the table
+    items = purchase_request_obj.items.all()
+
+    return render(
+        request,
+        "end_user_app/purchase_request_form.html",
+        {
+            'purchase_request': purchase_request_obj,
+            'purchase_items': items,
+            'budget_allocations': budget_allocations,
+            'source_of_fund_options': source_of_fund_options,
+        }
+    )
+
+@login_required
+def preview_purchase_request(request, pk: int):
+    pr = get_object_or_404(
+        PurchaseRequest.objects.select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre'),
+        pk=pk,
+        requested_by=request.user,
+    )
+    return render(request, 'end_user_app/preview_purchase_request.html', {'pr': pr})
 
 def papp_list(request, papp):
     try:
@@ -408,9 +600,9 @@ def department_pre_form(request):
             submitted_by=request.user,
             department=getattr(request.user, 'department', ''),
             data=payload,
-            prepared_by_name=request.POST.get('prepared_by') or None,
-            certified_by_name=request.POST.get('certified_by') or None,
-            approved_by_name=request.POST.get('approved_by') or None,
+            prepared_by_name=request.user.username,
+            certified_by_name= None,
+            approved_by_name= None,
             budget_allocation=dept_alloc,
         )
 

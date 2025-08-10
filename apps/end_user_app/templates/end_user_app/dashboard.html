@@ -83,9 +83,9 @@
                         <td class="px-4 py-2">{{ purchase.office_section }}</td>
                         <td class="px-4 py-2">{{ purchase.created_at|date:"M d, Y" }}</td>
                         <td class="px-4 py-2">
-                            {% if purchase.submitted_status == 'Pending' %}
+                            {% if purchase.submitted_status == 'pending' %}
                                 <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs">Pending</span>
-                            {% elif purchase.submitted_status == 'Approved' %}
+                            {% elif purchase.submitted_status == 'approved' %}
                                 <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs">Approved</span>
                             {% else %}
                                 <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs">Rejected</span>

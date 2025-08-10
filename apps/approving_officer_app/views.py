@@ -11,9 +11,9 @@ from decimal import Decimal
 @login_required
 def dashboard(request):
     try:
-        pending_request = PurchaseRequest.objects.filter(pr_status='Submitted', submitted_status='Pending').count()
-        approved_request = PurchaseRequest.objects.filter(pr_status='Submitted', submitted_status='Approved').count()
-        rejected_request = PurchaseRequest.objects.filter(pr_status='Submitted', submitted_status='Rejected').count()
+        pending_request = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='pending').count()
+        approved_request = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='approved').count()
+        rejected_request = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='rejected').count()
     except PurchaseRequest.DoesNotExist:
         pending_request = 0
         approved_request = 0
@@ -28,7 +28,7 @@ def dashboard(request):
 def department_request(request):
     request_type = request.GET.get('request_type')
     try:
-        purchase_requests = PurchaseRequest.objects.filter(pr_status='Submitted')
+        purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted')
     except PurchaseRequest.DoesNotExist:
         purchase_requests = None
     
@@ -60,20 +60,168 @@ def preview_pre(request, pk: int):
     from apps.end_user_app.views import preview_pre as _eu_preview
     # Import to reuse the sections_spec definition, but since it's inside function, duplicate minimal spec for AO
     sections_spec = [
-        {'title': 'Personnel Services', 'color_class': 'bg-yellow-100', 'items': [
-            {'label': 'Basic Salary', 'name': 'basic_salary'},
-            {'label': 'Honoraria', 'name': 'honoraria'},
-            {'label': 'Overtime Pay', 'name': 'overtime_pay'},
-        ]},
-        {'title': 'Maintenance and Other Operating Expenses', 'color_class': 'bg-blue-100', 'items': [
-            {'label': 'Travelling Expenses', 'is_group': True},
-            {'label': 'Travelling expenses-local', 'name': 'travel_local', 'indent': True},
-            {'label': 'Travelling Expenses-foreign', 'name': 'travel_foreign', 'indent': True},
-        ]},
-        {'title': 'Capital Outlays', 'color_class': 'bg-green-100', 'items': [
-            {'label': 'Land', 'is_group': True},
-            {'label': 'Land', 'name': 'land', 'indent': True},
-        ]},
+        {
+            'title': 'Personnel Services',
+            'color_class': 'bg-yellow-100',
+            'items': [
+                {'label': 'Basic Salary', 'name': 'basic_salary'},
+                {'label': 'Honoraria', 'name': 'honoraria'},
+                {'label': 'Overtime Pay', 'name': 'overtime_pay'},
+            ]
+        },
+        {
+            'title': 'Maintenance and Other Operating Expenses',
+            'color_class': 'bg-blue-100',
+            'items': [
+                {'label': 'Travelling Expenses', 'is_group': True},
+                {'label': 'Travelling expenses-local', 'name': 'travel_local', 'indent': True},
+                {'label': 'Travelling Expenses-foreign', 'name': 'travel_foreign', 'indent': True},
+                {'label': 'Training and Scholarship expenses', 'is_group': True},
+                {'label': 'Training Expenses', 'name': 'training_expenses', 'indent': True},
+                {'label': 'Supplies and materials expenses', 'is_group': True},
+                {'label': 'Office Supplies Expenses', 'name': 'office_supplies_expenses', 'indent': True},
+                {'label': 'Accountable Form Expenses', 'name': 'accountable_form_expenses', 'indent': True},
+                {'label': 'Agricultural and Marine Supplies Expenses', 'name': 'agri_marine_supplies_expenses', 'indent': True},
+                {'label': 'Drugs and Medicines', 'name': 'drugs_medicines', 'indent': True},
+                {'label': 'Medical, Dental & Laboratory Supplies Expenses', 'name': 'med_dental_lab_supplies_expenses', 'indent': True},
+                {'label': 'Food Supplies Expenses', 'name': 'food_supplies_expenses', 'indent': True},
+                {'label': 'Fuel, Oil and Lubricants Expenses', 'name': 'fuel_oil_lubricants_expenses', 'indent': True},
+                {'label': 'Textbooks and Instructional Materials Expenses', 'name': 'textbooks_instructional_materials_expenses', 'indent': True},
+                {'label': 'Construction Materials Expenses', 'name': 'construction_material_expenses', 'indent': True},
+                {'label': 'Other Supplies & Materials Expenses', 'name': 'other_supplies_materials_expenses', 'indent': True},
+                {'label': 'Semi-expendable Machinery Equipment', 'is_group': True},
+                {'label': 'Machinery', 'name': 'semee_machinery', 'indent': True},
+                {'label': 'Office Equipment', 'name': 'semee_office_equipment', 'indent': True},
+                {'label': 'Information and Communications Technology Equipment', 'name': 'semee_information_communication', 'indent': True},
+                {'label': 'Communications Equipment', 'name': 'semee_communications_equipment', 'indent': True},
+                {'label': 'Disaster Response and Rescue Equipment', 'name': 'semee_drr_equipment', 'indent': True},
+                {'label': 'Medical Equipment', 'name': 'semee_medical_equipment', 'indent': True},
+                {'label': 'Printing Equipment', 'name': 'semee_printing_equipment', 'indent': True},
+                {'label': 'Sports Equipment', 'name': 'semee_sports_equipment', 'indent': True},
+                {'label': 'Technical and Scientific Equipment', 'name': 'semee_technical_scientific_equipment', 'indent': True},
+                {'label': 'ICT Equipment', 'name': 'semee_ict_equipment', 'indent': True},
+                {'label': 'Other Machinery and Equipment', 'name': 'semee_other_machinery_equipment', 'indent': True},
+                {'label': 'Semi-expendable Furnitures and Fixtures', 'is_group': True},
+                {'label': 'Furniture and Fixtures', 'name': 'furniture_fixtures', 'indent': True},
+                {'label': 'Books', 'name': 'books', 'indent': True},
+                {'label': 'Utility Expenses', 'is_group': True},
+                {'label': 'Water Expenses', 'name': 'water_expenses', 'indent': True},
+                {'label': 'Electricity Expenses', 'name': 'electricity_expenses', 'indent': True},
+                {'label': 'Communication Expenses', 'is_group': True},
+                {'label': 'Postage and Courier Services', 'name': 'postage_courier_services', 'indent': True},
+                {'label': 'Telephone Expenses', 'name': 'telephone_expenses', 'indent': True},
+                {'label': 'Telephone Expenses (Landline)', 'name': 'telephone_expenses_landline', 'indent': True},
+                {'label': 'Internet Subscription Expenses', 'name': 'internet_subscription_expenses', 'indent': True},
+                {'label': 'Cable, Satellite, Telegraph & Radio Expenses', 'name': 'cable_satellite_telegraph_radio_expenses', 'indent': True},
+                {'label': 'Awards/Rewards and Prizes', 'is_group': True},
+                {'label': 'Awards/Rewards Expenses', 'name': 'awards_rewards_expenses', 'indent': True},
+                {'label': 'Prizes', 'name': 'prizes', 'indent': True},
+                {'label': 'Survey, Research, Exploration, and Development Expenses', 'is_group': True},
+                {'label': 'Survey Expenses', 'name': 'survey_expenses', 'indent': True},
+                {'label': 'Survey, Research, Exploration, and Development expenses', 'name': 'survey_research_exploration_development_expenses', 'indent': True},
+                {'label': 'Professional Services', 'is_group': True},
+                {'label': 'Legal Services', 'name': 'legal_services', 'indent': True},
+                {'label': 'Auditing Services', 'name': 'auditing_services', 'indent': True},
+                {'label': 'Consultancy Services', 'name': 'consultancy_services', 'indent': True},
+                {'label': 'Other Professional Services', 'name': 'other_professional_servies', 'indent': True},
+                {'label': 'General Services', 'is_group': True},
+                {'label': 'Security Services', 'name': 'security_services', 'indent': True},
+                {'label': 'Janitorial Services', 'name': 'janitorial_services', 'indent': True},
+                {'label': 'Other General Services', 'name': 'other_general_services', 'indent': True},
+                {'label': 'Environment/Sanitary Services', 'name': 'environment/sanitary_services', 'indent': True},
+                {'label': 'Repair and Maintenance', 'is_group': True},
+                {'label': 'Repair & Maintenance - Land Improvements', 'name': 'repair_maintenance_land_improvements', 'indent': True},
+                {'label': 'Repair & Maintenance - Buildings and Structures', 'is_group': True},
+                {'label': 'Buildings', 'name': 'buildings', 'indent': True},
+                {'label': 'School Buildings', 'name': 'school_buildings', 'indent': True},
+                {'label': 'Hostels and Dormitories', 'name': 'hostel_dormitories', 'indent': True},
+                {'label': 'Other Structures', 'name': 'other_structures', 'indent': True},
+                {'label': 'Repairs and Maintenance - Machinery and Equipment', 'is_group': True},
+                {'label': 'Machinery', 'name': 'repair_maintenance_machinery', 'indent': True},
+                {'label': 'Office Equipment', 'name': 'repair_maintenance_office_equipment', 'indent': True},
+                {'label': 'ICT Equipment', 'name': 'repair_maintenance_ict_equipment', 'indent': True},
+                {'label': 'Agricultural and Forestry Equipment', 'name': 'repair_maintenance_agri_forestry_equipment', 'indent': True},
+                {'label': 'Marine and Fishery Equipment', 'name': 'repair_maintenance_marine_fishery_equipment', 'indent': True},
+                {'label': 'Airport Equipment', 'name': 'repair_maintenance_airport_equipment', 'indent': True},
+                {'label': 'Communication Equipment', 'name': 'repair_maintenance_communication_equipment', 'indent': True},
+                {'label': 'Disaster, Response and Rescue Equipment', 'name': 'repair_maintenance_drre_equipment', 'indent': True},
+                {'label': 'Medical Equipment', 'name': 'repair_maintenance_medical_equipment', 'indent': True},
+                {'label': 'Printing Equipment', 'name': 'repair_maintenance_printing_equipment', 'indent': True},
+                {'label': 'Sports Equipment', 'name': 'repair_maintenance_sports_equipment', 'indent': True},
+                {'label': 'Technical and Scientific Equipment', 'name': 'repair_maintenance_technical_scientific_equipment', 'indent': True},
+                {'label': 'Other Machinery and Equipment', 'name': 'repair_maintenance_other_machinery_equipment', 'indent': True},
+                {'label': 'Repairs and Maintenance - Transportation Equipment', 'is_group': True},
+                {'label': 'Motor Vehicles', 'name': 'repair_maintenance_motor', 'indent': True},
+                {'label': 'Other Transportation Equipment', 'name': 'repair_maintenance_other_transportation_equipment', 'indent': True},
+                {'label': 'Repairs and Maintenance - Furniture & Fixtures', 'name': 'repair_maintenance_furniture_fixtures'},
+                {'label': 'Repairs and Maintenance - Semi-Expendable Machinery and Equipment', 'name': 'repair_maintenance_semi_expendable_machinery_equipment'},
+                {'label': 'Repairs and Maintenance - Other Property, Plant and Equipment', 'name': 'repair_maintenance_other_property_plant_equipment'},
+                {'label': 'Taxes, Insurance Premiums and Other Fees', 'is_group': True},
+                {'label': 'Taxes, Duties and Licenses', 'name': 'taxes_duties_licenses', 'indent': True},
+                {'label': 'Fidelity Bond Premiums', 'name': 'fidelity_bond_premiums', 'indent': True},
+                {'label': 'Insurance Expenses', 'name': 'insurance_expenses', 'indent': True},
+                {'label': 'Labor and Wages', 'is_group': True},
+                {'label': 'Labor and Wages', 'name': 'labor_wages', 'indent': True},
+                {'label': 'Other Maintenance and Operating Expenses', 'is_group': True},
+                {'label': 'Advertising Expenses', 'name': 'advertising_expenses', 'indent': True},
+                {'label': 'Printing and Publication Expenses', 'name': 'printing_publication_expenses', 'indent': True},
+                {'label': 'Representation Expenses', 'name': 'representation_expenses', 'indent': True},
+                {'label': 'Transportation and Delivery Expenses', 'name': 'transportation_delivery_expenses', 'indent': True},
+                {'label': 'Rent/Lease Expenses', 'name': 'rent/lease_expenses', 'indent': True},
+                {'label': 'Membership Dues and contributions to organizations', 'name': 'membership_dues_contribute_to_org', 'indent': True},
+                {'label': 'Subscription Expenses', 'name': 'subscription_expenses', 'indent': True},
+                {'label': 'Website Maintenance', 'name': 'website_maintenance', 'indent': True},
+                {'label': 'Other Maintenance and Operating Expenses', 'name': 'other_maintenance_operating_expenses', 'indent': True},
+            ]
+        },
+        {
+            'title': 'Capital Outlays',
+            'color_class': 'bg-green-100',
+            'items': [
+                # Placeholder; extend as needed
+                {'label': 'Land', 'is_group': True},
+                {'label': 'Land', 'name': 'land', 'indent': True},
+                {'label': 'Land Improvements', 'is_group': True},
+                {'label': 'Land Improvements, Aquaculture Structure', 'name': 'land_improvements_aqua_structure', 'indent': True},
+                {'label': 'Infrastructure Assets', 'is_group': True},
+                {'label': 'Water Supply Systems', 'name': 'water_supply_systems', 'indent': True},
+                {'label': 'Power Supply Systems', 'name': 'power_supply_systems', 'indent': True},
+                {'label': 'Other Infrastructure Assets', 'name': 'other_infra_assets', 'indent': True},
+                {'label': 'Building and Other Structures', 'is_group': True},
+                {'label': 'Building', 'name': 'bos_building', 'indent': True},
+                {'label': 'School Buildings', 'name': 'bos_school_buildings', 'indent': True},
+                {'label': 'Hostels and Dormitories', 'name': 'bos_hostels_dorm', 'indent': True},
+                {'label': 'Other Structures', 'name': 'other_structures', 'indent': True},
+                {'label': 'Machinery and Equipment', 'is_group': True},
+                {'label': 'Machinery', 'name': 'me_machinery', 'indent': True},
+                {'label': 'Office Equipment', 'name': 'me_office_equipment', 'indent': True},
+                {'label': 'Information and Communication Technology Equipment', 'name': 'me_ict_equipment', 'indent': True},
+                {'label': 'Communication Equipment', 'name': 'me_communication_equipment', 'indent': True},
+                {'label': 'Disaster Response and Rescue Equipment', 'name': 'me_drre', 'indent': True},
+                {'label': 'Medical Equipment', 'name': 'me_medical_equipment', 'indent': True},
+                {'label': 'Printing Equipment', 'name': 'me_printing_equipment', 'indent': True},
+                {'label': 'Sports Equipment', 'name': 'me_sports_equipment', 'indent': True},
+                {'label': 'Technical and Scientific Equipment', 'name': 'me_technical_scientific_equipment', 'indent': True},
+                {'label': 'Other Machinery and Equipment', 'name': 'me_other_machinery_equipment', 'indent': True},
+                {'label': 'Transportation Equipment', 'is_group': True},
+                {'label': 'Motor Vehicles', 'name': 'te_motor', 'indent': True},
+                {'label': 'Other Transportation Equipment', 'name': 'te_other_transpo_equipment', 'indent': True},
+                {'label': 'Furniture, Fixtures and Books', 'is_group': True},
+                {'label': 'Furniture and Fixtures', 'name': 'ffb_furniture_fixtures', 'indent': True},
+                {'label': 'Books', 'name': 'ffb_books', 'indent': True},
+                {'label': 'Construction in Progress', 'is_group': True},
+                {'label': 'Construction in Progress - Land Improvements', 'name': 'cp_land_improvements', 'indent': True},
+                {'label': 'Construction in Progress - Infrastructure Assets', 'name': 'cp_infra_assets', 'indent': True},
+                {'label': 'Construction in Progress - Buildings and Other Structures', 'name': 'cp_building_other_structures', 'indent': True},
+                {'label': 'Construction in Progress - Leased Assets', 'name': 'cp_leased_assets', 'indent': True},
+                {'label': 'Construction in Progress - Leased Assets Improvements', 'name': 'cp_leased_assets_improvements', 'indent': True},
+                {'label': 'Intangible Assets', 'is_group': True},
+                {'label': 'Computer Software', 'name': 'ia_computer_software', 'indent': True},
+                {'label': 'Websites', 'name': 'ia_websites', 'indent': True},
+                {'label': 'Other Tangible Assets', 'name': 'ia_other_tangible_assets', 'indent': True},
+                
+            ]
+        },
     ]
 
     sections = []
@@ -147,12 +295,28 @@ def handle_request_action(request, pk):
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'approve':
-            req.submitted_status = 'Approved'
+            # Ensure there is an associated budget allocation
+            allocation = req.budget_allocation
+            if allocation is None:
+                messages.error(request, 'No budget allocation linked to this request.')
+                return redirect('cd_department_request')
+
+            # Check remaining budget before approval
+            remaining_budget = allocation.remaining_budget
+            if remaining_budget is not None and remaining_budget < (req.total_amount or 0):
+                messages.error(request, 'Insufficient remaining budget to approve this request.')
+                return redirect('cd_department_request')
+
+            # Apply spend
+            allocation.spent = (allocation.spent or 0) + (req.total_amount or 0)
+            allocation.save(update_fields=['spent', 'updated_at'])
+
+            req.submitted_status = 'approved'
             messages.success(request, f'Request PR-{req.pr_no} has been approved successfully.')
         elif action == 'reject':
-            req.submitted_status = 'Rejected'
+            req.submitted_status = 'rejected'
             messages.error(request, f'Request PR-{req.pr_no} has been rejected.')
         req.approved_by = request.user
-        req.save()
-        
+        req.save(update_fields=['submitted_status', 'approved_by', 'updated_at'])
+
     return redirect('cd_department_request')  # Redirect to the department request page after handling the action

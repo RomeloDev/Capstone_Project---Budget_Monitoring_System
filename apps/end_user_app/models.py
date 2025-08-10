@@ -32,6 +32,26 @@ class PurchaseRequest(models.Model):
 
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="requested_purchases")
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_purchases")
+
+    # New links for Budget Allocation and Source of Fund (PRE)
+    budget_allocation = models.ForeignKey(
+        'admin_panel.BudgetAllocation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_requests'
+    )
+    # Link to the PRE that is the source-of-fund, plus which item/quarter and amount
+    source_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='linked_purchase_requests'
+    )
+    source_item_key = models.CharField(max_length=255, null=True, blank=True)
+    source_quarter = models.CharField(max_length=10, null=True, blank=True)
+    source_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     
     def __str__(self):
         return f"PR-{self.pr_no} ({self.entity_name})"
@@ -69,7 +89,7 @@ class Budget_Realignment(models.Model):
     target_papp = models.CharField(max_length=100)
     source_papp = models.CharField(max_length=100)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=100, choices=SUBMITTED_STATUS_CHOICES, default='Pending')
+    status = models.CharField(max_length=100, choices=SUBMITTED_STATUS_CHOICES, default='pending')
     reason = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
