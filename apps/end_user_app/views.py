@@ -76,73 +76,8 @@ def end_user_logout(request):
 
 @login_required 
 def purchase_request_form(request):
-    try:
-        papps = BudgetAllocation.objects.filter(assigned_user=request.user).values_list('papp', flat=True)
-    except BudgetAllocation.DoesNotExist:
-        papps = None
     
-    # Get or create draft purchase request
-    purchase_request, created = PurchaseRequest.objects.get_or_create(
-        requested_by=request.user,
-        pr_status='draft',
-        defaults={
-            'entity_name': 'Draft Entity',
-            'pr_no': 'TEMP',
-            'pr_status': 'draft'
-        }
-    )
-    
-    if request.method == 'POST' and 'submit_pr' in request.POST:
-        try:
-            remaining_budget = BudgetAllocation.objects.filter(assigned_user=request.user, papp=request.POST.get('papp')).values_list('remaining_budget', flat=True)
-        except BudgetAllocation.DoesNotExist:
-            remaining_budget = None
-            
-        if remaining_budget is None:
-            messages.error(request, "No Remaining Budget Found.")
-            return redirect('purchase_request_form')
-        
-        if purchase_request.total_amount > remaining_budget[0]:
-            messages.error(request, "Insufficient Remaining Budget.")
-            return redirect('purchase_request_form')
-        
-        # Handle final form submission
-        # Update purchase request details
-        # Generate proper PR number here
-        purchase_request.pr_status = 'Submitted'
-        purchase_request.submitted_status = 'Pending'
-        purchase_request.entity_name = request.POST.get('entity_name')
-        purchase_request.fund_cluster = request.POST.get('fund_cluster')
-        purchase_request.office_section = request.POST.get('office_section')
-        purchase_request.pr_no = request.POST.get('pr_no')
-        purchase_request.responsibility_center_code = request.POST.get('responsibility_code')
-        purchase_request.purpose = request.POST.get('purpose')
-        purchase_request.papp = request.POST.get('papp')
-        purchase_request.save()
-        
-        # Update Remaining Budget
-        try:
-            budget = BudgetAllocation.objects.get(assigned_user=request.user, papp=purchase_request.papp)
-            print("Remaining Budget Before: ", budget.remaining_budget) # Debugging line
-            budget.remaining_budget -= purchase_request.total_amount
-            budget.spent += purchase_request.total_amount
-            print("Remaining Budget After: ", budget.remaining_budget) # Debugging line
-            budget.save()
-        except BudgetAllocation.DoesNotExist:
-            messages.error(request, "Budget allocation not found.")
-            return redirect('purchase_request_form')
-        
-        print("Purchase Request Submitted Sucessfully")
-        messages.success(request, f"Purchase Request Submitted Sucessfully.")
-        return redirect('purchase_request_form')
-    
-    context = {
-        'purchase_request': purchase_request,
-        'purchase_items': purchase_request.items.all(),
-        'papps': papps,
-    }
-    
-    return render(request, "end_user_app/purchase_request_form.html", context)
+    return render(request, "end_user_app/purchase_request_form.html")
 
 def papp_list(request, papp):
     try:
@@ -466,6 +401,9 @@ def department_pre_form(request):
 
         payload = {k: v for k, v in request.POST.items() if k not in ['csrfmiddlewaretoken', 'prepared_by', 'certified_by', 'approved_by']}
 
+        # Link to the latest Budget Allocation for this department, if any
+        dept_alloc = BudgetAllocation.objects.filter(department=getattr(request.user, 'department', '')).order_by('-allocated_at').first()
+
         pre = DepartmentPRE.objects.create(
             submitted_by=request.user,
             department=getattr(request.user, 'department', ''),
@@ -473,6 +411,7 @@ def department_pre_form(request):
             prepared_by_name=request.POST.get('prepared_by') or None,
             certified_by_name=request.POST.get('certified_by') or None,
             approved_by_name=request.POST.get('approved_by') or None,
+            budget_allocation=dept_alloc,
         )
 
         messages.success(request, "PRE submitted successfully.")

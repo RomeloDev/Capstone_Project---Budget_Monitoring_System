@@ -14,4 +14,6 @@ urlpatterns = [
     path('budget_realignment', views.budget_re_alignment, name='budget_realignment'),
     path('handle_re_alignment_request/<int:pk>/', views.handle_re_alignment_request_action, name='handle_re_alignment_request_action'),
     path('pre_request_page', views.pre_request_page, name='pre_request_page'),
+    path('pre/<int:pk>/', views.admin_preview_pre, name='admin_preview_pre'),
+    path('pre/<int:pk>/action/', views.admin_handle_pre_action, name='admin_handle_pre_action'),
 ]

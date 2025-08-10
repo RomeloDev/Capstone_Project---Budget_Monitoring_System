@@ -102,6 +102,15 @@ class DepartmentPRE(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Link to department's budget allocation so approved PREs can be tracked against budgets
+    budget_allocation = models.ForeignKey(
+        'admin_panel.BudgetAllocation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='department_pres'
+    )
+
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Approved', 'Approved'),

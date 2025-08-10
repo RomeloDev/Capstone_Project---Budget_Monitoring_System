@@ -6,7 +6,7 @@ from .models import BudgetAllocation, Budget, ApprovedBudget
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
-from apps.end_user_app.models import PurchaseRequest, Budget_Realignment
+from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE
 from apps.users.models import User
 from django.db import transaction
 from django.db.models import Sum
@@ -274,4 +274,108 @@ def handle_re_alignment_request_action(request, pk):
 
 @login_required
 def pre_request_page(request):
-    return render(request, "admin_panel/pre_request.html")
+    # Filter only PREs that were approved by the approving officer
+    pres = DepartmentPRE.objects.filter(approved_by_approving_officer=True).select_related('submitted_by', 'budget_allocation__approved_budget').order_by('-created_at')
+
+    # Department filter
+    dept = request.GET.get('department')
+    if dept:
+        pres = pres.filter(department=dept)
+
+    # Distinct department list for filter select
+    departments = DepartmentPRE.objects.filter(approved_by_approving_officer=True).values_list('department', flat=True).distinct()
+
+    return render(request, "admin_panel/pre_request.html", {
+        'pres': pres,
+        'departments': departments,
+    })
+
+
+@login_required
+def admin_preview_pre(request, pk: int):
+    pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by', 'budget_allocation__approved_budget'), pk=pk)
+
+    # Reuse the same simple aggregation scheme as AO preview
+    from decimal import Decimal
+
+    def to_decimal(value):
+        try:
+            return Decimal(str(value)) if value not in (None, "") else Decimal('0')
+        except Exception:
+            return Decimal('0')
+
+    payload = pre.data or {}
+
+    sections_spec = [
+        {'title': 'Personnel Services', 'color_class': 'bg-yellow-100', 'items': [
+            {'label': 'Basic Salary', 'name': 'basic_salary'},
+            {'label': 'Honoraria', 'name': 'honoraria'},
+            {'label': 'Overtime Pay', 'name': 'overtime_pay'},
+        ]},
+        {'title': 'Maintenance and Other Operating Expenses', 'color_class': 'bg-blue-100', 'items': [
+            {'label': 'Travelling Expenses', 'is_group': True},
+            {'label': 'Travelling expenses-local', 'name': 'travel_local', 'indent': True},
+            {'label': 'Travelling Expenses-foreign', 'name': 'travel_foreign', 'indent': True},
+        ]},
+        {'title': 'Capital Outlays', 'color_class': 'bg-green-100', 'items': [
+            {'label': 'Land', 'is_group': True},
+            {'label': 'Land', 'name': 'land', 'indent': True},
+        ]},
+    ]
+
+    sections = []
+    for spec in sections_spec:
+        items = []
+        for row in spec['items']:
+            if row.get('is_group'):
+                items.append({'is_group': True, 'label': row['label']})
+            else:
+                name = row['name']
+                q1 = to_decimal(payload.get(f"{name}_q1"))
+                q2 = to_decimal(payload.get(f"{name}_q2"))
+                q3 = to_decimal(payload.get(f"{name}_q3"))
+                q4 = to_decimal(payload.get(f"{name}_q4"))
+                total = q1 + q2 + q3 + q4
+                items.append({'label': row['label'], 'indent': row.get('indent', False), 'q1': q1, 'q2': q2, 'q3': q3, 'q4': q4, 'total': total})
+        from decimal import Decimal as _D
+        total_q1 = sum((it['q1'] for it in items if not it.get('is_group')), _D('0'))
+        total_q2 = sum((it['q2'] for it in items if not it.get('is_group')), _D('0'))
+        total_q3 = sum((it['q3'] for it in items if not it.get('is_group')), _D('0'))
+        total_q4 = sum((it['q4'] for it in items if not it.get('is_group')), _D('0'))
+        total_overall = sum((it['total'] for it in items if not it.get('is_group')), _D('0'))
+        sections.append({'title': spec['title'], 'color_class': spec['color_class'], 'items': items, 'total_q1': total_q1, 'total_q2': total_q2, 'total_q3': total_q3, 'total_q4': total_q4, 'total_overall': total_overall})
+
+    from decimal import Decimal as _DD
+    grand_total_q1 = sum((sec['total_q1'] for sec in sections), _DD('0'))
+    grand_total_q2 = sum((sec['total_q2'] for sec in sections), _DD('0'))
+    grand_total_q3 = sum((sec['total_q3'] for sec in sections), _DD('0'))
+    grand_total_q4 = sum((sec['total_q4'] for sec in sections), _DD('0'))
+    grand_total_overall = sum((sec['total_overall'] for sec in sections), _DD('0'))
+
+    return render(request, 'admin_panel/preview_pre.html', {
+        'pre': pre,
+        'sections': sections,
+        'grand_total_q1': grand_total_q1,
+        'grand_total_q2': grand_total_q2,
+        'grand_total_q3': grand_total_q3,
+        'grand_total_q4': grand_total_q4,
+        'grand_total_overall': grand_total_overall,
+        'prepared_by': pre.prepared_by_name,
+        'certified_by': pre.certified_by_name,
+        'approved_by': pre.approved_by_name,
+    })
+
+
+@login_required
+def admin_handle_pre_action(request, pk: int):
+    pre = get_object_or_404(DepartmentPRE, pk=pk)
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'approve':
+            pre.status = 'Approved'
+            pre.approved_by_admin = True
+        elif action == 'reject':
+            pre.status = 'Rejected'
+            pre.approved_by_admin = False
+        pre.save()
+    return redirect('pre_request_page')

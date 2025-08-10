@@ -547,9 +547,13 @@
                 {% endfor %}
             </div>
             <div class="mt-6 text-right">
+                {% if success %}
                 <form action="{% url "preview_pre" pre_id %}" method="get">
                 <button type="submit" id="closeMessageBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
                 </form>
+                {% else %}
+                <button type="button" id="closeMessageBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
+                {% endif %}
             </div>
         </div>
     </div>

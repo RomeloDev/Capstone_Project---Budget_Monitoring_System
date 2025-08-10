@@ -1,4 +1,4 @@
-{% extends "approving_officer_base_template/dashboard.html" %}
+{% extends "admin_base_template/dashboard.html" %}
 {% load humanize %}
 
 {% block title %}PRE Preview{% endblock %}
@@ -7,7 +7,7 @@
 <main class="content p-6">
   <header class="mb-6">
     <h1 class="font-semibold text-2xl">Submitted PRE Preview</h1>
-    <p class="text-gray-600 text-sm">Approving Officer view</p>
+    <p class="text-gray-600 text-sm">Administrator view</p>
   </header>
 
   <section class="mb-6 bg-white rounded-lg border border-gray-200 p-4">
@@ -109,16 +109,15 @@
   </section>
 
   <div class="mt-6 flex gap-3">
-    <form method="post" action="{% url 'ao_handle_pre_action' pre.id %}">
+    <form method="post" action="{% url 'admin_handle_pre_action' pre.id %}">
       {% csrf_token %}
       <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Approve</button>
       <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 ml-2">Reject</button>
     </form>
-    <a href="{% url 'ao_department_pre_list' %}" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Back to list</a>
+    <a href="{% url 'pre_request_page' %}" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Back to list</a>
   </div>
 </main>
 {% endblock %}
-
 
 
 
