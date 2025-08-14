@@ -7,43 +7,81 @@
 {% endblock title %}
 
 {% block main-content %}
-    <main class="content">
-        <h1 class="text-center font-semibold text-3xl">Procurable Purchase Request Form</h1>
-        
-        <!-- Purchase Request Items Table -->
-        <section class="purchase-requests">
-            
-            <h2 class="font-semibold text-[1.3rem]">Headings Details</h2>
-            <form id="main-pr-form" action="{% url "purchase_request_form" %}" method="post" hx-post="{% url 'purchase_request_form' %}" hx-swap="none" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-                {% csrf_token %}  
-                
-                <div class="headings">
-                    <div>
-                        <label for="entity_name">Entity Name:</label>
-                        <input type="text" id="entity_name" name="entity_name" required>  
+    <main class="mx-auto max-w-5xl p-4 md:p-8">
+        <!-- Header / Masthead -->
+        <section class="mb-6 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+            <div class="flex flex-col items-center justify-between gap-4 text-center md:flex-row md:text-left">
+                <div class="flex items-center gap-4">
+                    <div class="h-14 w-14 rounded-full bg-gray-100 ring-1 ring-gray-200">
+                        <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" 
+                             alt="Bisu Logo" 
+                             class="h-full w-full object-cover rounded-full">
                     </div>
                     <div>
-                        <label for="fund_cluster">Fund Cluster:</label>
-                        <input type="text" id="fund_cluster" name="fund_cluster" required> 
-                    </div>
-                    <div>
-                        <label for="office_section">Office/Section:</label>
-                        <input type="text" id="office_section" name="office_section" required> 
-                    </div>
-                    <div>
-                        <label for="pr_no">PR No.:</label>
-                        <input type="text" id="pr_no" name="pr_no" required> 
-                    </div>
-                    <div>
-                        <label for="responsibility_code">Responsibility Center Code:</label>
-                        <input type="text" id="responsibility_code" name="responsibility_code" required> 
+                        <p class="text-xs uppercase tracking-wider text-gray-500">Republic of the Philippines</p>
+                        <h1 class="text-lg font-semibold">Bohol Island State University</h1>
+                        <p class="text-xs text-gray-500">[Address, Zip Code, Bohol, Philippines]</p>
+                        <p class="text-[11px] text-gray-500">Office of the __________</p>
                     </div>
                 </div>
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded bg-gray-100 ring-1 ring-gray-200">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b1/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo">
+                    </div>
+                    <div class="h-10 w-20 rounded bg-gray-100 ring-1 ring-gray-200">
+                        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyAcSvFonC-PFbOnMUYYjRlVgb9fNbgt_lFw&s" alt="ISO Logo">
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 border-t pt-3 text-center">
+                <h2 class="text-xl font-bold tracking-wide">PURCHASE REQUEST</h2>
+            </div>
+        </section>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <!-- Actions -->
+        <div class="no-print mb-4 flex flex-wrap items-center gap-2">
+            <button type="reset" form="main-pr-form" class="rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200">Reset</button>
+            <button type="button" onclick="openConfirmModal()" class="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700">Submit</button>
+        </div>
+
+        <!-- Form -->
+        <form id="main-pr-form" action="{% url "purchase_request_form" %}" method="post" class="space-y-4" hx-post="{% url 'purchase_request_form' %}" hx-swap="none" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+            {% csrf_token %}
+
+            <!-- Request Details -->
+            <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+                <h3 class="mb-3 text-base font-semibold">Request Details</h3>
+                <div class="grid gap-4 md:grid-cols-2">
                     <div>
-                        <label for="budget_allocation" class="block text-sm font-medium text-gray-700">Budget Allocation</label>
-                        <select id="budget_allocation" name="budget_allocation" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <label for="entity_name" class="mb-1 block text-sm font-medium">Entity Name</label>
+                        <input type="text" id="entity_name" name="entity_name" required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="fund_cluster" class="mb-1 block text-sm font-medium">Fund Cluster</label>
+                        <input type="text" id="fund_cluster" name="fund_cluster" required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="office_section" class="mb-1 block text-sm font-medium">Office/Section</label>
+                        <input type="text" id="office_section" name="office_section" required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="pr_no" class="mb-1 block text-sm font-medium">PR No.</label>
+                        <input type="text" id="pr_no" name="pr_no" required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="responsibility_code" class="mb-1 block text-sm font-medium">Responsibility Center Code</label>
+                        <input type="text" id="responsibility_code" name="responsibility_code" required class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Funding Details -->
+            <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+                <h3 class="mb-3 text-base font-semibold">Funding Details</h3>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label for="budget_allocation" class="mb-1 block text-sm font-medium">Budget Allocation</label>
+                        <select id="budget_allocation" name="budget_allocation" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                             <option disabled selected>Select Budget Allocation</option>
                             {% for alloc in budget_allocations %}
                                 <option value="{{ alloc.id }}">{{ alloc.approved_budget.title }} - {{ alloc.approved_budget.period }} - {{ alloc.total_allocated|intcomma }}</option>
@@ -52,12 +90,11 @@
                             {% endfor %}
                         </select>
                     </div>
-
                     <div>
-                        <label for="source_of_fund" class="block text-sm font-medium text-gray-700">Source of Fund</label>
+                        <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
                         <div class="relative">
-                            <input type="text" id="sof_search" placeholder="Search..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pr-10" oninput="filterSofOptions()" />
-                            <select id="source_of_fund" name="source_of_fund" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <input type="text" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
+                            <select id="source_of_fund" name="source_of_fund" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                                 <option disabled selected>Select Source of Fund</option>
                                 {% for opt in source_of_fund_options %}
                                     <option value="{{ opt.value }}">{{ opt.label }}</option>
@@ -68,32 +105,36 @@
                         </div>
                     </div>
                 </div>
+            </section>
 
-                <div class="add-items">
-                    <h2 class="font-semibold text-[1.3rem]">Items Requested</h2>
-                    <table>
-                        <thead>
+            <!-- Items Requested -->
+            <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+                <div class="mb-3 flex items-center justify-between">
+                    <h3 class="text-base font-semibold">Items Requested</h3>
+                </div>
+                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                    <table class="min-w-full text-left text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-600 border-b border-gray-200">
                             <tr>
-                                <th>Stock/Property No</th>
-                                <th>Unit</th>
-                                <th>Item Description</th>
-                                <th>Quantity</th>
-                                <th>Unit Cost</th>
-                                <th>Total Cost</th>
-                                <th>Action</th>
+                                <th class="px-3 py-2">Stock/Property No</th>
+                                <th class="px-3 py-2">Unit</th>
+                                <th class="px-3 py-2">Item Description</th>
+                                <th class="px-3 py-2">Quantity</th>
+                                <th class="px-3 py-2">Unit Cost</th>
+                                <th class="px-3 py-2">Total Cost</th>
+                                <th class="px-3 py-2">Action</th>
                             </tr>
                         </thead>
-                        <tbody id="items-table-body">
-                            {% comment %} Fetch the items data from server {% endcomment %}
+                        <tbody id="items-table-body" class="divide-y divide-gray-200">
                             {% for item in purchase_items %}
-                                <tr id="item-{{ item.id }}" >
-                                    <td>{{ item.stock_property_no }}</td>
-                                    <td>{{ item.unit }}</td>
-                                    <td>{{ item.item_description }}</td>
-                                    <td>{{ item.quantity }}</td>
-                                    <td>&#8369; {{ item.unit_cost|intcomma }}</td>
-                                    <td>&#8369; {{ item.total_cost|intcomma }}</td>
-                                    <td>
+                                <tr id="item-{{ item.id }}">
+                                    <td class="px-3 py-2">{{ item.stock_property_no }}</td>
+                                    <td class="px-3 py-2">{{ item.unit }}</td>
+                                    <td class="px-3 py-2">{{ item.item_description }}</td>
+                                    <td class="px-3 py-2">{{ item.quantity }}</td>
+                                    <td class="px-3 py-2">&#8369; {{ item.unit_cost|intcomma }}</td>
+                                    <td class="px-3 py-2">&#8369; {{ item.total_cost|intcomma }}</td>
+                                    <td class="px-3 py-2">
                                         <button 
                                             type="button" 
                                             class="focus:outline-none text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-[12px] px-3 py-1 me-2 mb-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-900"
@@ -107,55 +148,51 @@
                                 </tr>
                             {% endfor %}
                         </tbody>
-
-                            {% comment %} Add Purchase request items {% endcomment %}
-                            <tr id="input-row">
-                                <td class="table-inputs"><input type="text" name="stock_no" id="stock_no" ></td>
-                                <td class="table-inputs"><input type="text" name="unit" id="unit" ></td>
-                                <td class="table-inputs"><input type="text" name="item_desc" id="item_desc" ></td>
-                                <td class="table-inputs"><input type="number" name="quantity" id="quantity" min="0" ></td>
-                                <td class="table-inputs"><input type="number" name="unit_cost" id="unit_cost" min="0" ></td>
-                                <td>Auto Calculated</td>
-                            </tr>  
-
-                            <tr id="total-amount-row" class="font-bold">
-                                <td colspan="5" style="text-align: right">Total Amount</td>
-                                <td>&#8369; {{ purchase_request.total_amount|intcomma }}</td>
+                            <!-- Input Row -->
+                            <tr id="input-row" class="bg-gray-50">
+                                <td class="px-3 py-2"><input type="text" name="stock_no" id="stock_no" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></td>
+                                <td class="px-3 py-2"><input type="text" name="unit" id="unit" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></td>
+                                <td class="px-3 py-2"><input type="text" name="item_desc" id="item_desc" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></td>
+                                <td class="px-3 py-2"><input type="number" name="quantity" id="quantity" min="0" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></td>
+                                <td class="px-3 py-2"><input type="number" name="unit_cost" id="unit_cost" min="0" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></td>
+                                <td class="px-3 py-2 text-gray-500">Auto Calculated</td>
+                                <td class="px-3 py-2"></td>
                             </tr>
-
+                            <!-- Total Row -->
+                            <tr id="total-amount-row" class="font-semibold">
+                                <td colspan="5" class="px-3 py-2 text-right">Total Amount</td>
+                                <td class="px-3 py-2">&#8369; {{ purchase_request.total_amount|intcomma }}</td>
+                                <td></td>
+                            </tr>
+                        
                     </table>
-                    <div class="add-item-btn">
-                        <button 
-                            type="button" 
-                            id="add-item"
-                            hx-post="{% url "add_purchase_item" %}"
-                            hx-target="#items-table-body"
-                            hx-swap="beforeend"
-                            hx-include="tr#input-row input"
-                            hx-trigger="click"
-                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                            hx-on::after-request="document.querySelectorAll('#input-row input').forEach(input => input.value = '')">
-                            Add Item
-                        </button>
-                    </div>
                 </div>
-
-                <div class="purpose-div">
-                    <label for="purpose">Purpose:</label>
-                    <textarea id="purpose" name="purpose" rows="3"></textarea>
+                <div class="no-print mt-3">
+                    <button 
+                        type="button" 
+                        id="add-item"
+                        class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-gray-50 ring-1 ring-gray-300 hover:bg-blue-800"
+                        hx-post="{% url "add_purchase_item" %}"
+                        hx-target="#items-table-body"
+                        hx-swap="beforeend"
+                        hx-include="tr#input-row input"
+                        hx-trigger="click"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-on::after-request="document.querySelectorAll('#input-row input').forEach(input => input.value = '')">
+                        + Add Item
+                    </button>
                 </div>
+            </section>
 
-                <!--<div class="mt-5"> 
-                    <label for="source">Select Source of Fund:</label>
-                    <select name="fund" id="source" class="block w-[20rem] px-3 py-2 bg-white border border-gray-500 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="" disabled selected required>Select Here</option>
-                        {% for fund in pre_list %}
-                            <option value="{{ fund }}">{{ fund }}</option>
-                        {% endfor %}
-                    </select>
-                </div> -->
+            <!-- Purpose -->
+            <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+                <h3 class="mb-3 text-base font-semibold">Purpose</h3>
+                <label for="purpose" class="mb-1 block text-sm font-medium">State purpose of the purchase</label>
+                <textarea id="purpose" name="purpose" rows="3" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+            </section>
 
-                {% if messages %}
+            {% if messages %}
+                <section class="rounded-lg bg-white p-3 shadow-sm ring-1 ring-gray-200">
                     {% for message in messages %}
                         <p class="text-center text-[1.2rem] mt-2 font-medium 
                             {% if message.tags == 'success' %}
@@ -169,14 +206,9 @@
                             {{ message }}
                         </p>
                     {% endfor %}
-                {% endif %}
-
-
-                <div class="submit_pr_button mt-6">
-                    <button type="button" onclick="openConfirmModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Submit Purchase Request</button>
-                </div>
-            </form>
-        </section>
+                </section>
+            {% endif %}
+        </form>
     </main>
 
     <!-- Confirmation Modal -->
@@ -195,6 +227,7 @@
     <div id="submit-success-modal" class="hidden"></div>
 
     <script>
+        // Confirm modal helpers
         function openConfirmModal() {
             document.getElementById('submit-confirm-modal').classList.remove('hidden');
             document.getElementById('submit-confirm-modal').classList.add('flex');
@@ -208,6 +241,18 @@
             // Trigger htmx submission on the form
             document.getElementById('main-pr-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         }
+
+        // Auto-resize textareas (match activity_design_form style)
+        const autoResize = (el) => {
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
+        };
+        document.querySelectorAll('.auto-resize').forEach(t => {
+            autoResize(t);
+            t.addEventListener('input', () => autoResize(t));
+        });
+
+        // Source of Fund search filter
         function filterSofOptions() {
             const query = document.getElementById('sof_search').value.toLowerCase();
             const select = document.getElementById('source_of_fund');

@@ -1,0 +1,356 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Activity Design Form{% endblock %}
+
+{% block main-content %}
+  <main class="mx-auto max-w-5xl p-4 md:p-8">
+    <!-- Header / Masthead -->
+    <section class="mb-6 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+      <div class="flex flex-col items-center justify-between gap-4 text-center md:flex-row md:text-left">
+        <div class="flex items-center gap-4">
+          <div class="h-14 w-14 rounded-full bg-gray-100 ring-1 ring-gray-200">
+            <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" 
+                 alt="Bisu Logo" 
+                 class="h-full w-full object-cover rounded-full">
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wider text-gray-500">Republic of the Philippines</p>
+            <h1 class="text-lg font-semibold">Bohol Island State University</h1>
+            <p class="text-xs text-gray-500">[Address, Zip Code, Bohol, Philippines]</p>
+            <p class="text-[11px] text-gray-500">Office of the __________</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded bg-gray-100 ring-1 ring-gray-200">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b1/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo">
+          </div>
+          <div class="h-10 w-20 rounded bg-gray-100 ring-1 ring-gray-200">
+            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyAcSvFonC-PFbOnMUYYjRlVgb9fNbgt_lFw&s" alt="ISO Logo">
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 border-t pt-3 text-center">
+        <h2 class="text-xl font-bold tracking-wide">TRAINING ACTIVITY DESIGN</h2>
+      </div>
+    </section>
+
+    <!-- Actions -->
+    <div class="no-print mb-4 flex flex-wrap items-center gap-2">
+      <button id="expandAll" class="rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700">Expand all</button>
+      <button id="collapseAll" class="rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-200">Collapse all</button>
+      <div class="ml-auto"></div>
+      {% comment %} <button onclick="window.print()" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Print</button> {% endcomment %}
+      <button type="reset" form="activityForm" class="rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50">Reset</button>
+      <button type="submit" form="activityForm" class="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700">Submit</button>
+    </div>
+
+    <!-- Form -->
+    <form id="activityForm" class="space-y-4" method="post">
+      {% csrf_token %}
+
+      <!-- SECTION I: Title of Activity + Schedule / Venue -->
+      <!-- Corresponds to Section I in the document -->
+      <details open class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>I. Title of Activity &nbsp; | &nbsp; <span class="font-normal">Schedule / Venue</span></span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="grid gap-4 border-t p-4 md:grid-cols-2">
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium">Title of Activity:</label>
+            <input type="text" name="title_of_activity" placeholder="Enter the exact title of the activity" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium">Schedule / Venue:</label>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input type="date" name="schedule_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              <input type="text" name="venue" placeholder="Venue (e.g., Campus, Room, Online)" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- SECTION II: Rationale -->
+      <!-- Corresponds to Section II in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>II. Rationale</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Rationale:</label>
+          <textarea name="rationale" placeholder="State the rationale or background of the activity" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SECTION III: Objectives -->
+      <!-- Corresponds to Section III in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>III. Objectives</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Objectives:</label>
+          <textarea name="objectives" placeholder="List the objectives of the activity" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SECTION IV: Contents / Subject Matter + Sessions -->
+      <!-- Corresponds to Section IV in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>IV. Contents / Subject Matter</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="space-y-4 border-t p-4">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium">Contents / Subject Matter:</label>
+            <button type="button" id="addSessionBtn" class="no-print inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200">
+              <span>+ Add Session</span>
+            </button>
+          </div>
+
+          <div id="sessions" class="space-y-4">
+            <!-- Session 1 -->
+            <div class="rounded-md border border-gray-200 p-3">
+              <label class="mb-1 block text-sm font-medium">Session 1:</label>
+              <textarea name="session_1" placeholder="Describe the content/subject matter for Session 1" rows="4" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+            </div>
+            <!-- Session 2 -->
+            <div class="rounded-md border border-gray-200 p-3">
+              <label class="mb-1 block text-sm font-medium">Session 2:</label>
+              <textarea name="session_2" placeholder="Describe the content/subject matter for Session 2" rows="4" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- SECTION V: Methodology / Process -->
+      <!-- Corresponds to Section V in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>V. Methodology / Process</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Methodology / Process:</label>
+          <textarea name="methodology" placeholder="Describe the methodology or process to be used" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SECTION VI: Participants -->
+      <!-- Corresponds to Section VI in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>VI. Participants</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Participants:</label>
+          <textarea name="participants" placeholder="Identify target participants (e.g., students, faculty, units) and expected number" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SECTION VII: Resource Persons and Facilitators -->
+      <!-- Corresponds to Section VII in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>VII. Resource Persons and Facilitators</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Resource Persons and Facilitators:</label>
+          <textarea name="resource_persons" placeholder="List resource persons and facilitators" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SECTION VIII: Materials Needed -->
+      <!-- Corresponds to Section VIII in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>VIII. Materials Needed</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Materials Needed:</label>
+          <textarea name="materials_needed" placeholder="List materials, supplies, equipment and other requirements" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SECTION IX: Budget Allocation -->
+      <!-- Corresponds to Section IX in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>IX. Budget Allocation</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Budget Allocation:</label>
+          <textarea name="budget_allocation" placeholder="Provide itemized budget allocation or funding details" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SECTION X: Training Evaluation and Final Outcomes -->
+      <!-- Corresponds to Section X in the document -->
+      <details class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+        <summary class="flex cursor-pointer items-center justify-between gap-4 p-4 font-semibold">
+          <span>X. Training Evaluation and Final Outcomes</span>
+          <span class="text-sm text-gray-500">Click to toggle</span>
+        </summary>
+        <div class="border-t p-4">
+          <label class="mb-1 block text-sm font-medium">Training Evaluation and Final Outcomes:</label>
+          <textarea name="evaluation_outcomes" placeholder="Describe the evaluation plan, tools, and expected final outcomes" rows="6" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        </div>
+      </details>
+
+      <!-- SIGNATORIES (Top row - three columns) -->
+      <!-- Corresponds to the three signatory boxes at the top of page 2 -->
+      <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+        <h3 class="mb-3 text-base font-semibold">Signatories</h3>
+        <div id="topSignatories" class="grid gap-4 md:grid-cols-3">
+          <!-- Signatory card template repeated -->
+          <div class="rounded-md border border-gray-200 p-3">
+            <label class="block text-sm font-semibold">Name &amp; Signature</label>
+            <input type="text" name="signatory_1_name" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <input type="text" name="signatory_1_position" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              <input type="date" name="signatory_1_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+          </div>
+          <div class="rounded-md border border-gray-200 p-3">
+            <label class="block text-sm font-semibold">Name &amp; Signature</label>
+            <input type="text" name="signatory_2_name" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <input type="text" name="signatory_2_position" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              <input type="date" name="signatory_2_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+          </div>
+          <div class="rounded-md border border-gray-200 p-3">
+            <label class="block text-sm font-semibold">Name &amp; Signature</label>
+            <input type="text" name="signatory_3_name" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <input type="text" name="signatory_3_position" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              <input type="date" name="signatory_3_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            </div>
+          </div>
+        </div>
+        <div class="no-print mt-3">
+          <button id="addTopSignatoryBtn" type="button" class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200">+ Add Signatory</button>
+        </div>
+      </section>
+
+      <!-- APPROVALS: Approved by + Campus Level + University Level -->
+      <!-- Corresponds to 'Approved by' and remarks blocks in the document -->
+      <section class="space-y-4">
+        <div class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+          <p class="text-sm font-semibold">Approved by:</p>
+        </div>
+
+        <!-- Campus Level -->
+        <div class="card grid gap-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 md:grid-cols-3">
+          <div class="space-y-2 md:col-span-1">
+            <p class="text-sm font-semibold">Campus Level:</p>
+            <div class="rounded-md border border-gray-200 p-3">
+              <label class="block text-sm font-semibold">Name &amp; Signature</label>
+              <input type="text" name="campus_name" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <input type="text" name="campus_position" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+                <input type="date" name="campus_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              </div>
+            </div>
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-semibold">Remarks:</label>
+            <textarea name="campus_remarks" placeholder="Enter remarks for Campus Level" rows="6" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+          </div>
+        </div>
+
+        <!-- University Level -->
+        <div class="card grid gap-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 md:grid-cols-3">
+          <div class="space-y-2 md:col-span-1">
+            <p class="text-sm font-semibold">University Level:</p>
+            <div class="rounded-md border border-gray-200 p-3">
+              <label class="block text-sm font-semibold">Name &amp; Signature</label>
+              <input type="text" name="univ_name" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <input type="text" name="univ_position" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+                <input type="date" name="univ_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              </div>
+            </div>
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-semibold">Remarks:</label>
+            <textarea name="univ_remarks" placeholder="Enter remarks for University Level" rows="6" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+          </div>
+        </div>
+      </section>
+    </form>
+
+    <!-- Footer -->
+    {% comment %} <p class="mt-8 text-center text-xs text-gray-500">This is a prototype template. Replace placeholders with official content and branding as needed.</p> {% endcomment %}
+  </main>
+
+  <!-- Lightweight interactivity -->
+  <script>
+    // Expand/Collapse all
+    document.getElementById('expandAll')?.addEventListener('click', () => {
+      document.querySelectorAll('details').forEach(d => d.open = true);
+    });
+    document.getElementById('collapseAll')?.addEventListener('click', () => {
+      document.querySelectorAll('details').forEach(d => d.open = false);
+    });
+
+    // Auto-resize textareas
+    const autoResize = (el) => {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    };
+    document.querySelectorAll('.auto-resize').forEach(t => {
+      autoResize(t);
+      t.addEventListener('input', () => autoResize(t));
+    });
+
+    // Add Session blocks dynamically
+    const sessionsContainer = document.getElementById('sessions');
+    const addSessionBtn = document.getElementById('addSessionBtn');
+    addSessionBtn?.addEventListener('click', () => {
+      const count = sessionsContainer.querySelectorAll('.rounded-md.border').length + 1;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'rounded-md border border-gray-200 p-3';
+      wrapper.innerHTML = `
+        <div class="flex items-center justify-between">
+          <label class="mb-1 block text-sm font-medium">Session ${count}:</label>
+          <button type="button" class="no-print remove-session text-xs text-red-600 hover:underline">Remove</button>
+        </div>
+        <textarea placeholder="Describe the content/subject matter for Session ${count}" rows="4" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+      `;
+      sessionsContainer.appendChild(wrapper);
+      wrapper.querySelector('.remove-session').addEventListener('click', () => wrapper.remove());
+      const ta = wrapper.querySelector('textarea'); autoResize(ta); ta.addEventListener('input', () => autoResize(ta));
+    });
+
+    // Add extra signatory (top row)
+    const topSignatories = document.getElementById('topSignatories');
+    document.getElementById('addTopSignatoryBtn')?.addEventListener('click', () => {
+      const card = document.createElement('div');
+      card.className = 'rounded-md border border-gray-200 p-3';
+      card.innerHTML = `
+        <div class="flex items-center justify-between">
+          <label class="block text-sm font-semibold">Name &amp; Signature</label>
+          <button type="button" class="no-print text-xs text-red-600 hover:underline remove-top-signatory">Remove</button>
+        </div>
+        <input type="text" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <input type="text" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+          <input type="date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+        </div>
+      `;
+      topSignatories.appendChild(card);
+      card.querySelector('.remove-top-signatory').addEventListener('click', () => card.remove());
+    });
+  </script>
+  {% endblock %}
+
+

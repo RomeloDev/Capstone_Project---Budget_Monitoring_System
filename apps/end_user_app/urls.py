@@ -15,4 +15,5 @@ urlpatterns = [
     path('department_pre/', views.department_pre_form, name='department_pre_form'),
     path('department_pre_page/', views.department_pre_page, name='department_pre_page'),
     path('preview_pre/<int:pk>/', views.preview_pre, name='preview_pre'),
+    path('activity_design_form/', views.activity_design_form, name='activity_design_form'),
 ]

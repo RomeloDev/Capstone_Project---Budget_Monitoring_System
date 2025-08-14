@@ -280,6 +280,7 @@ def papp_list(request, papp):
 
 @login_required
 def re_alignment(request):
+    """
     target_papp = papp_list(request, papp="target_papp")
     source_papp = papp_list(request, papp="source_papp")
     
@@ -302,7 +303,7 @@ def re_alignment(request):
         
         # Check if the user has sufficient budget in the source PAPP
         try:
-            source_budget = BudgetAllocation.objects.get(assigned_user=request.user, papp=get_source_papp)
+            source_budget = BudgetAllocation.objects.get(department=request.user, papp=get_source_papp)
             if source_budget.remaining_budget < Decimal(amount):
                 messages.error(request, "Insufficient budget in the source PAPP.")
                 return redirect('re_alignment')
@@ -320,8 +321,9 @@ def re_alignment(request):
         
         messages.success(request, "Budget for Realignment has been requested successfully")
         return redirect('re_alignment')
+        """
             
-    return render(request, "end_user_app/re_alignment.html", {"target_papp": target_papp, "source_papp": source_papp})
+    return render(request, "end_user_app/re_alignment.html")
     
 @require_http_methods(["POST"])
 @login_required
@@ -874,3 +876,5 @@ def preview_pre(request, pk: int):
     }
     return render(request, "end_user_app/preview_pre.html", context)
     
+def activity_design_form(request):
+    return render(request, "end_user_app/activity_design_form.html")
