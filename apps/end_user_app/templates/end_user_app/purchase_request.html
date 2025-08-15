@@ -68,5 +68,51 @@
                 </tbody>
             </table>
         </section>
+
+        <!-- Activity Design Table -->
+        {% comment %} <section class="purchase-requests">
+            <h2 class="font-semibold text-[1.4rem]">Recent Activity Design Requests</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>PR No.</th>
+                        <th>Entity Name</th>
+                        <th>Fund Cluster</th>
+                        <th>Office/Section</th>
+                        <th>Date Requested</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for purchase in purchase_requests %}
+                        <tr>
+                            <td>{{ purchase.pr_no }}</td>
+                            <td>{{ purchase.entity_name }}</td>
+                            <td>{{ purchase.fund_cluster }}</td>
+                            <td>{{ purchase.office_section }}</td>
+                            <td>{{ purchase.created_at }}</td>
+                            <td class="py-2 px-4 border-b">
+                                {% if purchase.submitted_status == 'pending' %}
+                                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-md">Pending</span>
+                                {% elif purchase.submitted_status == 'approved' %}
+                                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-md">Approved</span>
+                                {% else %}
+                                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-md">Rejected</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="view-btn">
+                                    <a href="{% url "preview_purchase_request" purchase.id %}">View Details</a></button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6">No purchase requests found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section> {% endcomment %}
     </main>
 {% endblock main-content %}

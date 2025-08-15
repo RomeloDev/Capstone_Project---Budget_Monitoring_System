@@ -337,7 +337,7 @@
           <label class="mb-1 block text-sm font-medium">Session ${count}:</label>
           <button type="button" class="no-print remove-session text-xs text-red-600 hover:underline">Remove</button>
         </div>
-        <textarea placeholder="Describe the content/subject matter for Session ${count}" rows="4" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+        <textarea name="sessions[]" placeholder="Describe the content/subject matter for Session ${count}" rows="4" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
       `;
       sessionsContainer.appendChild(wrapper);
       wrapper.querySelector('.remove-session').addEventListener('click', () => wrapper.remove());
@@ -354,10 +354,10 @@
           <label class="block text-sm font-semibold">Name &amp; Signature</label>
           <button type="button" class="no-print text-xs text-red-600 hover:underline remove-top-signatory">Remove</button>
         </div>
-        <input type="text" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+        <input type="text" name="signatory_name[]" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
         <div class="mt-2 grid grid-cols-2 gap-2">
-          <input type="text" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-          <input type="date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+          <input type="text" name="signatory_position[]" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+          <input type="date" name="signatory_date[]" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
         </div>
       `;
       topSignatories.appendChild(card);

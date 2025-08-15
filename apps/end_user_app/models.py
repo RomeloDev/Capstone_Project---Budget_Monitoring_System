@@ -157,6 +157,9 @@ class ActivityDesign(models.Model):
     materials_needed = models.TextField()
     budget_allocation = models.TextField()
     evaluation_plan = models.TextField()
+    status = models.CharField(max_length=50, default='Pending')
+    approved_by_approving_officer = models.BooleanField(default=False)
+    approved_by_admin = models.BooleanField(default=False)
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
