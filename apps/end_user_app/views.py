@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval
 from decimal import Decimal
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 from decimal import Decimal
 from django.db.models import Sum
 from django.contrib.humanize.templatetags.humanize import intcomma
+from datetime import datetime
 
 # Create your views here.
 @login_required
@@ -877,4 +878,65 @@ def preview_pre(request, pk: int):
     return render(request, "end_user_app/preview_pre.html", context)
     
 def activity_design_form(request):
+    if request.method == 'POST':
+        # Save the main acitivity design data
+        activity = ActivityDesign.objects.create(
+            title_of_activity=request.POST.get('title_of_activity'),
+            schedule_date=request.POST.get('schedule_date'),
+            venue=request.POST.get('venue'),
+            rationale=request.POST.get('rationale'),
+            objectives=request.POST.get('objectives'),
+            methodology=request.POST.get('methodology'),
+            participants=request.POST.get('participants'),
+            resource_persons=request.POST.get('resource_persons'),
+            materials_needed=request.POST.get('materials_needed'),
+            budget_allocation=request.POST.get('budget_allocation'),
+            evaluation_plan=request.POST.get('evaluation_outcomes'),
+        )
+        
+        # Save sessions (many-to-one)
+        session_contents = request.POST.getlist('sessions[]')
+        for order, content in enumerate(session_contents, start=1):
+            if content.strip():
+                Session.objects.create(
+                    activity=activity,
+                    content=content,
+                    order=order
+                )
+                
+        # Save signatories (many-to-many)
+        names = request.POST.getlist('signatory_name[]')
+        positions = request.POST.getlist('signatory_position[]')
+        dates = request.POST.getlist('signatory_date[]')
+        
+        for name, position, date_str in zip(names, positions, dates):
+            if name.strip():
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else None
+                Signatory.objects.create(
+                    activity=activity,
+                    name=name,
+                    position=position,
+                    date=date_obj
+                )
+                
+        # Save campus approval (one-to-one)
+        campus_approval = CampusApproval.objects.create(
+            activity=activity,
+            name=request.POST.get('campus_name'),
+            position=request.POST.get('campus_position'),
+            date=datetime.strptime(request.POST.get('campus_date'), "%Y-%m-%d").date() if request.POST.get('campus_date') else None,
+            remarks=request.POST.get('campus_remarks')
+        )
+        
+        # Save University Approval (one-to-one)
+        university_approval = UniversityApproval.objects.create(
+            activity=activity,
+            name=request.POST.get('univ_name'),
+            position=request.POST.get('univ_position'),
+            date=datetime.strptime(request.POST.get('univ_date'), "%Y-%m-%d").date() if request.POST.get('univ_date') else None,
+            remarks=request.POST.get('univ_remarks')
+        )
+        messages.success(request, "Activity Design submitted successfully.")
+        return redirect('activity_design_form')  # Redirect to the same form or a success page
+        
     return render(request, "end_user_app/activity_design_form.html")

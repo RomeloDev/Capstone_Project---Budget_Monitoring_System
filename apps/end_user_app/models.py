@@ -144,3 +144,44 @@ class DepartmentPRE(models.Model):
         dept = self.department or "Unknown Dept"
         creator = self.submitted_by.get_full_name() if self.submitted_by else "Unknown User"
         return f"PRE for {dept} by {creator} on {self.created_at:%Y-%m-%d}"
+    
+class ActivityDesign(models.Model):
+    title_of_activity = models.CharField(max_length=255)
+    schedule_date = models.DateField()
+    venue = models.CharField(max_length=255)
+    rationale = models.TextField()
+    objectives = models.TextField()
+    methodology = models.TextField()
+    participants = models.TextField()
+    resource_persons = models.TextField()
+    materials_needed = models.TextField()
+    budget_allocation = models.TextField()
+    evaluation_plan = models.TextField()
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+class Session(models.Model):
+    activity = models.ForeignKey(ActivityDesign, related_name='sessions', on_delete=models.CASCADE)
+    content = models.TextField()
+    order = models.PositiveIntegerField()
+    
+class Signatory(models.Model):
+    activity = models.ForeignKey(ActivityDesign, related_name='signatories', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    position = models.CharField(max_length=255)
+    date = models.DateField(null=True, blank=True)
+    
+class CampusApproval(models.Model):
+    activity = models.OneToOneField(ActivityDesign, related_name='campus_approval', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    position = models.CharField(max_length=255)
+    date = models.DateField(null=True, blank=True)
+    remarks = models.TextField(blank=True, null=True)
+    
+class UniversityApproval(models.Model):
+    activity = models.OneToOneField(ActivityDesign, related_name='university_approval', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    position = models.CharField(max_length=255)
+    date = models.DateField(null=True, blank=True)
+    remarks = models.TextField(blank=True, null=True)
