@@ -940,3 +940,10 @@ def activity_design_form(request):
         return redirect('activity_design_form')  # Redirect to the same form or a success page
         
     return render(request, "end_user_app/activity_design_form.html")
+
+def preview_activity_design(request, pk):
+    activity = get_object_or_404(ActivityDesign.objects.prefetch_related('sessions', 'signatories').select_related('campus_approval', 'university_approval'), pk=pk)
+    context = {
+        "activity": activity,
+    }
+    return render(request, "end_user_app/preview_activity_design.html", context)

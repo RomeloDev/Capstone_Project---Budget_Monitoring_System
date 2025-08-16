@@ -93,7 +93,7 @@
                     <div>
                         <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
                         <div class="relative">
-                            <input type="text" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
+                            <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
                             <select id="source_of_fund" name="source_of_fund" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                                 <option disabled selected>Select Source of Fund</option>
                                 {% for opt in source_of_fund_options %}
