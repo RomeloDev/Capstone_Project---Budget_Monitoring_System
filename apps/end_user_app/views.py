@@ -287,6 +287,7 @@ def preview_purchase_request(request, pk: int):
     )
     return render(request, 'end_user_app/preview_purchase_request.html', {'pr': pr})
 
+@login_required
 def papp_list(request, papp):
     try:
         papp = BudgetAllocation.objects.filter(assigned_user=request.user).values_list('papp', flat=True)
@@ -381,7 +382,8 @@ def add_purchase_request_items(request):
     #     }
     # })
     
-    
+
+@login_required
 @require_http_methods(["DELETE"])
 def remove_purchase_item(request, item_id):
     remove_item = get_object_or_404(PurchaseRequestItems, id=item_id)
@@ -408,6 +410,7 @@ def remove_purchase_item(request, item_id):
     
 @login_required
 def department_pre_form(request):
+    budget_allocations = BudgetAllocation.objects.filter(department=request.user.department)
     context = {
         'personnel_services': [
             {'label': 'Basic Salary', 'name': 'basic_salary'},
@@ -586,6 +589,8 @@ def department_pre_form(request):
             {'label': 'Websites', 'name': 'ia_websites'},
             {'label': 'Other Tangible Assets', 'name': 'ia_other_tangible_assets'},
         ],
+        
+        'budget_allocations': budget_allocations,
     }
 
     if request.method == 'POST':
@@ -897,6 +902,7 @@ def preview_pre(request, pk: int):
     }
     return render(request, "end_user_app/preview_pre.html", context)
     
+@login_required
 def activity_design_form(request):
     if request.method == 'POST':
         # Save the main acitivity design data
@@ -961,6 +967,7 @@ def activity_design_form(request):
         
     return render(request, "end_user_app/activity_design_form.html")
 
+@login_required
 def preview_activity_design(request, pk):
     activity = get_object_or_404(ActivityDesign.objects.prefetch_related('sessions', 'signatories').select_related('campus_approval', 'university_approval'), pk=pk)
     context = {

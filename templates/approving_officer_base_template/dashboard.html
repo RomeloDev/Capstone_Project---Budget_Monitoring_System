@@ -21,7 +21,12 @@
             
             <!-- Menu Items -->
             <nav class="p-4 space-y-2">
-                <a href="{% url "approving_officer_dashboard" %}" class="flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors duration-200">
+                <a href="{% url "approving_officer_dashboard" %}" class="flex items-center space-x-2 p-2 
+                {% if request.resolver_match.url_name == 'approving_officer_dashboard' %}
+                    bg-gray-700
+                    {% else %}
+                        hover:bg-gray-100 dark:hover:bg-gray-700 
+                    {% endif %} rounded-md transition-colors duration-200">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                     </svg>
@@ -35,21 +40,38 @@
                     <span>Profile</span>
                 </a> {% endcomment %}
 
-                <a href="{% url "cd_department_request" %}" class="flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors duration-200">
+                <a href="{% url "cd_department_request" %}" class="flex items-center space-x-2 p-2 
+                {% if request.resolver_match.url_name == 'cd_department_request' %}
+                    bg-gray-700
+                    {% else %}
+                        hover:bg-gray-100 dark:hover:bg-gray-700 
+                    {% endif %} rounded-md transition-colors duration-200">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                     </svg>
-                    <span>Department's Request</span>
+                    <span>PR &amp; AD Request</span>
                 </a>
 
-                <a href="{% url "ao_department_pre_list" %}" class="flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors duration-200">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <a href="{% url "ao_department_pre_list" %}" class="flex items-center space-x-2 p-2 
+                    {% if request.resolver_match.url_name == 'ao_department_pre_list' %}
+                    bg-gray-700
+                    {% else %}
+                        hover:bg-gray-100 dark:hover:bg-gray-700 
+                    {% endif %} rounded-md transition-colors duration-200">
+                    {% comment %} <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                    </svg>
-                    <span>Department's PRE</span>
+                    </svg> {% endcomment %}
+                    <svg class="shrink-0 w-5 h-5 text-gray-500 transition duration-75 
+                        dark:text-white group-hover:text-gray-900 dark:group-hover:text-white" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M93.01 39.4h46.12C141.84 17.18 159.77 0 181.52 0c21.61 0 39.45 16.95 42.34 38.94l46.76.46c2.61 0 4.7 2.1 4.7 4.71v51.84c0 2.61-2.09 4.7-4.7 4.7H93.06c-2.57 0-4.71-2.09-4.71-4.7V44.11a4.632 4.632 0 0 1 4.66-4.71zm221.96 264.22c57.47 0 104.03 46.58 104.03 104.02 0 57.47-46.59 104.03-104.03 104.03-57.47 0-104.02-46.59-104.02-104.03 0-57.47 46.58-104.02 104.02-104.02zm-24.95 82.62a5.268 5.268 0 0 1 3.53-4.77c-.24-4.12-.75-10.33.38-14.3a17.49 17.49 0 0 1 7.8-9.92c1.33-.81 2.76-1.49 4.24-2.02 2.69-.98 1.36-5.49 4.3-5.55 6.87-.17 18.17 6.11 22.57 10.88 2.81 3.11 4.41 7.12 4.5 11.31l-.28 10.07c1.33.27 2.41 1.2 2.89 2.46 1.47 5.93-12.98 19.93-12.98 21.44.03.51.24 1 .58 1.39 10.02 13.78 37.03 7.63 37.03 35.03l-99.22.01c0-27.42 27.02-21.25 37.04-35.03.49-.72.72-1.12.71-1.44 0-1.33-13.09-14.72-13.09-19.56zM41.73 59.28h23.93v24.37H41.73c-4.77 0-9.12 1.97-12.25 5.1-3.14 3.14-5.1 7.48-5.1 12.24v315.52c0 4.75 1.96 9.1 5.1 12.24 3.15 3.15 7.51 5.12 12.25 5.12h142.61c1.69 8.44 4.17 16.6 7.37 24.38H41.73c-11.45 0-21.9-4.71-29.47-12.28C4.72 438.43 0 427.98 0 416.51V100.99c0-11.48 4.7-21.91 12.25-29.46 7.55-7.55 17.99-12.25 29.48-12.25zm297.54 217.35V100.99c0-4.77-1.96-9.11-5.09-12.26a17.36 17.36 0 0 0-12.26-5.08H298V59.28h23.92c11.44 0 21.86 4.71 29.41 12.25 7.61 7.61 12.32 18.04 12.32 29.46V283.6c-7.79-3.07-15.95-5.42-24.38-6.97zm-206.74-8.06c-7.13 0-12.92-5.79-12.92-12.92s5.79-12.93 12.92-12.93h142.82c7.13 0 12.92 5.8 12.92 12.93s-5.79 12.92-12.92 12.92H132.53zM89.5 241.21c7.98 0 14.44 6.47 14.44 14.44 0 7.98-6.46 14.44-14.44 14.44-7.97 0-14.43-6.46-14.43-14.44 0-7.97 6.46-14.44 14.43-14.44zm0 78.62c7.98 0 14.44 6.47 14.44 14.44 0 7.98-6.46 14.44-14.44 14.44-7.97 0-14.43-6.46-14.43-14.44 0-7.97 6.46-14.44 14.43-14.44zm43.04 27.36c-7.13 0-12.93-5.79-12.93-12.92s5.8-12.93 12.93-12.93h80.96a133.913 133.913 0 0 0-17.26 25.85h-63.7zM89.5 162.61c7.98 0 14.44 6.46 14.44 14.43 0 7.98-6.46 14.44-14.44 14.44-7.97 0-14.43-6.46-14.43-14.44 0-7.97 6.46-14.43 14.43-14.43zm43.03 27.35c-7.13 0-12.92-5.79-12.92-12.92 0-7.14 5.79-12.93 12.92-12.93h142.82c7.13 0 12.92 5.79 12.92 12.93 0 7.13-5.79 12.92-12.92 12.92H132.53zm48.5-169.8c12.3 0 22.26 9.96 22.26 22.27 0 12.29-9.96 22.25-22.26 22.25s-22.26-9.96-22.26-22.25c0-12.31 9.96-22.27 22.26-22.27z"/></svg>
+                    <span>PRE Request</span>
                 </a>
 
-                <a href="{% url "cd_settings" %}" class="flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors duration-200">
+                <a href="{% url "cd_settings" %}" class="flex items-center space-x-2 p-2 
+                {% if request.resolver_match.url_name == 'cd_settings' %}
+                    bg-gray-700
+                    {% else %}
+                        hover:bg-gray-100 dark:hover:bg-gray-700 
+                    {% endif %} rounded-md transition-colors duration-200">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
