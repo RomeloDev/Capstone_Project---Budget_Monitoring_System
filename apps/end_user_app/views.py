@@ -13,6 +13,7 @@ from decimal import Decimal
 from django.db.models import Sum
 from django.contrib.humanize.templatetags.humanize import intcomma
 from datetime import datetime
+from apps.admin_panel.utils import log_audit_trail
 
 # Create your views here.
 @login_required
@@ -72,6 +73,12 @@ def settings(request):
 
 @login_required
 def end_user_logout(request):
+    log_audit_trail(
+        request=request,
+        action='LOGOUT',
+        model_name='User',
+        detail=f'User {request.user} logged out',
+    )
     logout(request)
     return redirect('end_user_login') # redirect to the login page
 
@@ -243,6 +250,14 @@ def purchase_request_form(request):
         purchase_request_obj.pr_status = 'submitted'
         purchase_request_obj.submitted_status = 'pending'
         purchase_request_obj.save()
+        
+        log_audit_trail(
+            request=request,
+            action='CREATE',
+            model_name='PurchaseRequest',
+            record_id=purchase_request_obj.id,
+            detail=f'Created a new purchase request {purchase_request_obj.pr_no}',
+        )
 
         from django.urls import reverse
         preview_url = reverse('preview_purchase_request', args=[purchase_request_obj.id])
@@ -620,6 +635,11 @@ def department_pre_page(request):
     user = request.user
     user_dept = user.department
     has_budget = BudgetAllocation.objects.filter(department=user_dept).exists()
+    
+    count_submitted = DepartmentPRE.objects.filter(submitted_by=user, approved_by_admin=True).select_related('submitted_department_pres').count()
+    
+    if count_submitted >= 1:
+        has_budget = None
 
     # Load submitted PREs for this user/department
     pres = DepartmentPRE.objects.filter(submitted_by=user).order_by('-created_at')

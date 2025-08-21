@@ -43,16 +43,17 @@ class AuditTrailAdmin(ModelAdmin):
     list_display = (
         "id",
         "user",
-        "department",
         "action",
-        "description",
+        "model_name",
+        "record_id",
+        "detail",
+        "ip_address",
         "timestamp",
     )
-    search_fields = ("user__username", "department", "action", "description")
-    list_filter = ("action", "department", "timestamp")
+    search_fields = ("user__username", "model_name", "action")
+    list_filter = ("action", "timestamp")
     date_hierarchy = "timestamp"
     ordering = ("-timestamp",)
-    list_per_page = 50
 
 # Register your models here.
 # admin.site.register(BudgetAllocation)

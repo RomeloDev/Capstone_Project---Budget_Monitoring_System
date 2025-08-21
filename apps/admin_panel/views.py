@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
-from .models import BudgetAllocation, Budget, ApprovedBudget
+from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
@@ -13,6 +13,8 @@ from django.db.models import Sum
 from django.template.defaultfilters import floatformat
 from django.contrib.humanize.templatetags.humanize import intcomma
 from django.utils import timezone
+from django.core.paginator import Paginator
+from .utils import log_audit_trail
 
 
 
@@ -168,7 +170,15 @@ def budget_allocation(request):
         approved_budget.updated_at = timezone.now()
         approved_budget.save(update_fields=['updated_at'])
         
+        
         messages.success(request, "Budget successfully allocated.")
+        log_audit_trail(
+            request=request,
+            action='CREATE',
+            model_name='BudgetAllocation',
+            record_id=None,  # No specific record ID for creation
+            detail=f"Allocated {intcomma(amount)} to {department} from approved budget: {approved_budget.title}."
+        )
         return redirect('budget_allocation')
     
     # --- 📊 Load existing allocations for table view ---
@@ -206,6 +216,13 @@ def institutional_funds(request):
                 amount=amount
             )
             messages.success(request, "Approved budget successfully added.")
+            log_audit_trail(
+                request=request,
+                action='CREATE',
+                model_name='ApprovedBudget',
+                record_id=None,  # No specific record ID for creation
+                detail=f"Created approved budget: {title} for period {period} with amount {intcomma(amount)}."
+            )
             return redirect("institutional_funds")
         
     approved_budgets = ApprovedBudget.objects.order_by('-created_at')
@@ -213,12 +230,44 @@ def institutional_funds(request):
 
 @login_required
 def admin_logout(request):
+    log_audit_trail(
+        request=request,
+        action='LOGOUT',
+        model_name='User',
+        record_id=request.user.id,
+        detail=f"User {request.user.username} logged out."
+    )
     logout(request)
     return redirect('admin_login')
 
 @login_required
 def audit_trail(request):
-    return render(request, 'admin_panel/audit_trail.html')
+    # Get all audit records
+    audit_records = AuditTrail.objects.select_related('user').all()
+    
+    # Filter by action if specified
+    action_filter = request.GET.get('action')
+    if action_filter:
+        audit_records = audit_records.filter(action=action_filter)
+        
+    # Filter by date range if specified
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date and end_date:
+        audit_records = audit_records.filter(
+            timestamp__date__range=[start_date, end_date]
+        )
+        
+    # Pagination
+    paginator = Paginator(audit_records, 8)  # 25 records per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'page_obj': page_obj,
+        'action_choices': AuditTrail.ACTION_CHOICES,
+    }
+    return render(request, 'admin_panel/audit_trail.html', context)
 
 @login_required
 def budget_re_alignment(request):
@@ -391,8 +440,17 @@ def admin_handle_pre_action(request, pk: int):
         if action == 'approve':
             pre.status = 'Approved'
             pre.approved_by_admin = True
+            audit_trail_action = 'APPROVE'
         elif action == 'reject':
             pre.status = 'Rejected'
             pre.approved_by_admin = False
+            audit_trail_action = 'REJECT'
         pre.save()
+        log_audit_trail(
+            request=request,
+            action=audit_trail_action,
+            model_name='DepartmentPRE',
+            record_id=pre.id,
+            detail=f"Admin {action} a PRE with ID {pre.id} from department {pre.department}."
+        )
     return redirect('pre_request_page')

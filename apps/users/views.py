@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from .models import User
+from apps.admin_panel.utils import log_audit_trail
 
 # Create your views here.
 def admin_login(request):
@@ -13,6 +14,12 @@ def admin_login(request):
         
         if admin is not None and admin.is_admin:
             login(request, admin)
+            log_audit_trail(
+                request=request,
+                action='LOGIN',
+                model_name='User',
+                detail=f'User {admin.username} logged in as admin',
+            )
             return redirect('admin_dashboard')
         else:
             messages.error(request, "Invalid credentials or not admin")
@@ -34,9 +41,21 @@ def end_user_login(request):
         
         if user is not None and not user.is_staff and not user.is_approving_officer:
             login(request, user)
+            log_audit_trail(
+                request=request,
+                action='LOGIN',
+                model_name='User',
+                detail=f'User {user.username} logged in as end user',
+            )
             return redirect('user_dashboard')
         elif user is not None and user.is_approving_officer:
             login(request, user)
+            log_audit_trail(
+                request=request,
+                action='LOGIN',
+                model_name='User',
+                detail=f'User {user.username} logged in as approving officer',
+            )
             return redirect('approving_officer_dashboard')
         else:
             return render(request, 'users/end_user_login.html', {'error': 'Invalid Credentials'})

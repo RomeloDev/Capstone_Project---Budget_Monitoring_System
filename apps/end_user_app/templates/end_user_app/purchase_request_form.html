@@ -93,6 +93,17 @@
                     <div>
                         <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
                         <div class="relative">
+                            <input type="text" id="sof_search" name="sof_search" autocomplete="off"
+                                placeholder="Search Source of Fund..." 
+                                class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                oninput="showSofSuggestions(this.value)">
+                            <input type="hidden" id="source_of_fund" name="source_of_fund">
+                            <ul id="sof_suggestions" class="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-auto hidden"></ul>
+                        </div>
+                    </div>
+                    {% comment %} <div>
+                        <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
+                        <div class="relative">
                             <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
                             <select id="source_of_fund" name="source_of_fund" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                                 <option disabled selected>Select Source of Fund</option>
@@ -103,7 +114,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                    </div>
+                    </div> {% endcomment %}
                 </div>
             </section>
 
@@ -281,6 +292,50 @@
                 }
             } catch (e) {
                 // not JSON, ignore
+            }
+        });
+
+        // Example: Replace this with your actual options from Django context
+        const sofOptions = [
+            {% for opt in source_of_fund_options %}
+                { value: "{{ opt.value }}", label: "{{ opt.label }}" },
+            {% endfor %}
+        ];
+
+        function showSofSuggestions(query) {
+            const suggestions = document.getElementById('sof_suggestions');
+            const input = document.getElementById('sof_search');
+            const hiddenInput = document.getElementById('source_of_fund');
+            suggestions.innerHTML = '';
+            if (!query) {
+                suggestions.classList.add('hidden');
+                hiddenInput.value = '';
+                return;
+            }
+            const matches = sofOptions.filter(opt => opt.label.toLowerCase().includes(query.toLowerCase()));
+            if (matches.length === 0) {
+                suggestions.classList.add('hidden');
+                hiddenInput.value = '';
+                return;
+            }
+            matches.forEach(opt => {
+                const li = document.createElement('li');
+                li.className = 'px-3 py-2 hover:bg-blue-100 cursor-pointer';
+                li.textContent = opt.label;
+                li.onclick = () => {
+                    input.value = opt.label;
+                    hiddenInput.value = opt.value;
+                    suggestions.classList.add('hidden');
+                };
+                suggestions.appendChild(li);
+            });
+            suggestions.classList.remove('hidden');
+        }
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('sof_search').contains(e.target)) {
+                document.getElementById('sof_suggestions').classList.add('hidden');
             }
         });
     </script>

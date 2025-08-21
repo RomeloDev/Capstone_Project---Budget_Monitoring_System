@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from apps.users.models import User  # Assuming you have a custom User model
+from django.contrib.auth import get_user_model
 
 # Create your models here.    
 class Budget(models.Model):
@@ -14,28 +15,26 @@ class Budget(models.Model):
 
 
 class AuditTrail(models.Model):
-    ACTION_TYPES = [
-        ("LOGIN", "Login"),
-        ("LOGOUT", "Logout"),
-        ("APPROVED", "Approved Request"),
-        ("DENIED", "Denied Request"),
-        ("REALIGN", "Realignment Submitted"),
-        ("ALLOCATE", "Budget Allocated"),
-        ("ADD_FUNDS", "Institutional Fund Added"),
-        # Add more as needed
-    ]
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    department = models.CharField(max_length=100)
-    action = models.CharField(max_length=20, choices=ACTION_TYPES)
-    description = models.TextField()
+    ACTION_CHOICES = (
+        ('CREATE', 'Created'),
+        ('UPDATE', 'Updated'),
+        ('DELETE', 'Deleted'),
+        ('LOGIN', 'Logged In'),
+        ('LOGOUT', 'Logged Out'),
+        ('APPROVE', 'Approved'),
+        ('REJECT', 'Rejected'),
+    )
+
+    user = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    model_name = models.CharField(max_length=100)  # Which model was affected
+    record_id = models.CharField(max_length=100, null=True)  # ID of the affected record
+    detail = models.TextField()  # Description of what happened
+    ip_address = models.GenericIPAddressField(null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-timestamp']  # Most recent first
-
-    def __str__(self):
-        return f"{self.user.username} - {self.action} at {self.timestamp}"
+        ordering = ['-timestamp']
     
 class ApprovedBudget(models.Model):
     PERIOD_CHOICES = [
