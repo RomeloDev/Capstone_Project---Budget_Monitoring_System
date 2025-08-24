@@ -11,15 +11,62 @@
 
     {% if has_budget %}
     <!-- ✅ PRE Available Box -->
-    <div class="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-md shadow-sm flex items-center justify-between">
+    <div class="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-md shadow-sm">
+        <div class="mb-4">
+            <p class="text-sm">Your department has been allocated a budget.</p>
+            <p class="font-semibold">You may now compile your PRE.</p>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full border border-green-300 bg-white rounded-md shadow-sm">
+                <thead class="bg-green-200 text-green-900">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-sm font-semibold">Approved Budget</th>
+                        <th class="px-4 py-2 text-left text-sm font-semibold">Period</th>
+                        <th class="px-4 py-2 text-left text-sm font-semibold">Allocated At</th>
+                        <th class="px-4 py-2 text-center text-sm font-semibold">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-green-200">
+                    {% for budget in budget_allocations %}
+                    <tr>
+                        <td class="px-4 py-2 text-sm">{{ budget.approved_budget.title }}</td>
+                        <td class="px-4 py-2 text-sm">{{ budget.approved_budget.period }}</td>
+                        <td class="px-4 py-2 text-sm">{{ budget.allocated_at|date:"M d, Y" }}</td>
+                        <td class="px-4 py-2 text-center">
+                            <a href="{% url 'department_pre_form' budget.id %}"
+                            class="bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 transition">
+                                Compile PRE
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-4 py-2 text-center text-sm text-gray-500">
+                            No budget allocations available.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+    {% comment %} <div class="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-md shadow-sm flex items-center justify-between">
         <div>
             <p class="text-sm">Your department has been allocated a budget.</p>
             <p class="font-semibold">You may now compile your PRE.</p>
         </div>
-        <a href="{% url "department_pre_form" %}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
-            Compile PRE
-        </a>
-    </div>
+        {% for budget in budget_allocations %}
+        <div class="flex justify-center items-center space-x-4 flex-col">
+            <p>{{ budget.approved_budget.title }} - {{ budget.approved_budget.period }}</p>
+            <a href="{% url "department_pre_form" %}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+                Compile PRE
+            </a>
+        </div>
+        {% endfor %}
+    </div> {% endcomment %}
 
     {% else %}
     <!-- ❌ Uncomment below if budget is not allocated -->

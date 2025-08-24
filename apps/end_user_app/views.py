@@ -409,9 +409,11 @@ def remove_purchase_item(request, item_id):
     #return JsonResponse({"success": True})
     
 @login_required
-def department_pre_form(request):
-    budget_allocations = BudgetAllocation.objects.filter(department=request.user.department)
+def department_pre_form(request, pk:int):
+    budget_allocation = BudgetAllocation.objects.filter(department=request.user.department, id=pk).first()
     context = {
+        'budget': budget_allocation,
+        
         'personnel_services': [
             {'label': 'Basic Salary', 'name': 'basic_salary'},
             {'label': 'Honoraria', 'name': 'honoraria'},
@@ -590,7 +592,6 @@ def department_pre_form(request):
             {'label': 'Other Tangible Assets', 'name': 'ia_other_tangible_assets'},
         ],
         
-        'budget_allocations': budget_allocations,
     }
 
     if request.method == 'POST':
@@ -617,7 +618,18 @@ def department_pre_form(request):
         payload = {k: v for k, v in request.POST.items() if k not in ['csrfmiddlewaretoken', 'prepared_by', 'certified_by', 'approved_by']}
 
         # Link to the latest Budget Allocation for this department, if any
-        dept_alloc = BudgetAllocation.objects.filter(department=getattr(request.user, 'department', '')).order_by('-allocated_at').first()
+        # dept_alloc = BudgetAllocation.objects.filter(department=getattr(request.user, 'department', '')).order_by('-allocated_at').first()
+        
+        dept_alloc = BudgetAllocation.objects.filter(
+            department=getattr(request.user, 'department', ''),
+            id=pk
+        ).first()
+
+        if not dept_alloc:
+            messages.error(request, "No budget allocation found for this department.")
+            return render(request, "end_user_app/department_pre_form.html", context)
+
+        print(dept_alloc)
 
         pre = DepartmentPRE.objects.create(
             submitted_by=request.user,
@@ -639,7 +651,8 @@ def department_pre_form(request):
 def department_pre_page(request):
     user = request.user
     user_dept = user.department
-    has_budget = BudgetAllocation.objects.filter(department=user_dept).exists()
+    budget_allocations = BudgetAllocation.objects.filter(department=request.user.department)
+    has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
     
     count_submitted = DepartmentPRE.objects.filter(submitted_by=user, approved_by_admin=True).select_related('submitted_department_pres').count()
     
@@ -652,6 +665,7 @@ def department_pre_page(request):
     return render(request, "end_user_app/department_pre_page.html", {
         'has_budget': has_budget,
         'pres': pres,
+        'budget_allocations': budget_allocations,
     })
 
 

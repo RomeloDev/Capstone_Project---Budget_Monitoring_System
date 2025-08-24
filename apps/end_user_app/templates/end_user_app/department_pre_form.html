@@ -11,6 +11,10 @@
     </header>
 
     <div class="mb-6 bg-gray-100 px-5 py-5 rounded-md shadow-md border border-gray-200">
+        <p class="font-semibold">Budget Allocation: {{budget.approved_budget.title}} - {{budget.approved_budget.period}} - &#8369;{{budget.total_allocated|intcomma}}</p>
+    </div>
+
+    {% comment %} <div class="mb-6 bg-gray-100 px-5 py-5 rounded-md shadow-md border border-gray-200">
         <label for="budget_allocation">Choose Budget Allocation:</label>
         <select name="budget_allocation" id="budget_allocation" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required>
         {% for allocation in budget_allocations %}
@@ -19,7 +23,7 @@
             </option>
         {% endfor %}
         </select>
-    </div>
+    </div> {% endcomment %}
 
 
     <form id="preForm" method="post" action="">
