@@ -17,4 +17,5 @@ urlpatterns = [
     path('preview_pre/<int:pk>/', views.preview_pre, name='preview_pre'),
     path('activity_design_form/', views.activity_design_form, name='activity_design_form'),
     path('preview_activity_design/<int:pk>', views.preview_activity_design, name='preview_activity_design'),
+    path('load_source_of_fund/', views.load_source_of_fund, name='load_source_of_fund'),
 ]

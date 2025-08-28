@@ -6,6 +6,7 @@ from apps.admin_panel.models import BudgetAllocation
 from django.contrib import messages
 from django.contrib.humanize.templatetags.humanize import intcomma
 from decimal import Decimal
+from apps.users.models import User
 
 # Create your views here.
 @login_required
@@ -26,14 +27,21 @@ def dashboard(request):
 
 @login_required
 def department_request(request):
-    request_type = request.GET.get('request_type')
+    departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
+    
     try:
-        purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted')
+        purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='pending')
     except PurchaseRequest.DoesNotExist:
         purchase_requests = None
     
+    filter_department = request.GET.get('department')
+    if filter_department:
+        purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='submitted', submitted_status='pending')
+    # else:
+    #     purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted')
+    
     print(purchase_requests)
-    return render(request, 'approving_officer_app/department_request.html', {'purchase_requests': purchase_requests})
+    return render(request, 'approving_officer_app/department_request.html', {'purchase_requests': purchase_requests, 'departments': departments})
 
 
 @login_required
@@ -320,3 +328,13 @@ def handle_request_action(request, pk):
         req.save(update_fields=['submitted_status', 'approved_by', 'updated_at'])
 
     return redirect('cd_department_request')  # Redirect to the department request page after handling the action
+
+@login_required
+def preview_purchase_request(request, pk:int):
+    pr = get_object_or_404(PurchaseRequest.objects.select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre'),
+        pk=pk,
+    )
+    
+    return render(request, 'approving_officer_app/preview_purchase_request.html', {
+        'pr': pr,
+    })

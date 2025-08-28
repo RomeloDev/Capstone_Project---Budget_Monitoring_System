@@ -10,4 +10,5 @@ urlpatterns = [
     path('settings/', views.settings, name='cd_settings'),
     path('logout/', views.approving_officer_logout, name='approving_officer_logout'),
     path('handle_request_action/<int:pk>/', views.handle_request_action, name='handle_request_action'),
+    path('preview-purchase-request/<int:pk>/', views.preview_purchase_request, name='preview_purchase_request'),
 ]

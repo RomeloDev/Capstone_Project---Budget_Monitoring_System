@@ -80,7 +80,32 @@
                 <h3 class="mb-3 text-base font-semibold">Funding Details</h3>
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
+                        <!-- Budget Allocation -->
                         <label for="budget_allocation" class="mb-1 block text-sm font-medium">Budget Allocation</label>
+                        <select 
+                            name="budget_allocation" 
+                            id="budget_allocation"
+                            class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            hx-get="{% url 'load_source_of_fund' %}" 
+                            hx-target="#source_of_fund_container"
+                            hx-trigger="change"
+                            hx-include="[name=csrfmiddlewaretoken]"  
+                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                            hx-swap="innerHTML"
+                            required
+                        >
+                            <option value="">Select Budget Allocation</option>
+                            {% for alloc in budget_allocations %}
+                                <option value="{{ alloc.id }}">
+                                    {{ alloc.approved_budget.title }} - {{ alloc.approved_budget.period }} - {{ alloc.total_allocated|intcomma }}
+                                </option>
+                            {% empty %}
+                                <option disabled>No allocations found</option>
+                            {% endfor %}
+                        </select>
+
+
+                        {% comment %} <label for="budget_allocation" class="mb-1 block text-sm font-medium">Budget Allocation</label>
                         <select id="budget_allocation" name="budget_allocation" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
                             <option disabled selected>Select Budget Allocation</option>
                             {% for alloc in budget_allocations %}
@@ -88,7 +113,7 @@
                             {% empty %}
                                 <option disabled>No allocations found</option>
                             {% endfor %}
-                        </select>
+                        </select> {% endcomment %}
                     </div>
                     {% comment %} <div>
                         <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
@@ -102,7 +127,21 @@
                         </div>
                     </div> {% endcomment %}
                     <div>
+                        <!-- Source of Fund -->
                         <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
+                        <div id="source_of_fund_container">
+                            <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
+                            <select name="source_of_fund" id="source_of_fund" class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                                <option value="">Select Source of Fund</option>
+                                {% for opt in source_of_fund_options %}
+                                    <option value="{{ opt.value }}">{{ opt.label }}</option>
+                                {% empty %}
+                                    <option disabled>No approved PRE funds available</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        {% comment %} <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
                         <div class="relative">
                             <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
                             <select id="source_of_fund" name="source_of_fund" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
@@ -113,7 +152,7 @@
                                     <option disabled>No approved PRE funds available</option>
                                 {% endfor %}
                             </select>
-                        </div>
+                        </div> {% endcomment %}
                     </div> 
                 </div>
             </section>

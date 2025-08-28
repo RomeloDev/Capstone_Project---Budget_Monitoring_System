@@ -53,6 +53,7 @@ def client_accounts(request):
 
 @login_required
 def register_account(request):
+    
     if request.method == "POST":
          # Retrieval of value in input fields
         username = request.POST.get('username')
@@ -82,7 +83,12 @@ def register_account(request):
         else:
             # Create and save the user
             user = User.objects.create_user(username=username, fullname=fullname, email=email, password=password, department=department)
-            return render(request, "admin_panel/client_accounts.html", {'success': "Account registered successfully!"})
+            
+            try:
+                end_users = User.objects.filter(is_staff=False)
+            except User.DoesNotExist:
+                end_users = None
+            return render(request, "admin_panel/client_accounts.html", {'success': "Account registered successfully!", 'end_users': end_users})
 
 @login_required
 def departments_request(request):
@@ -242,8 +248,14 @@ def admin_logout(request):
 
 @login_required
 def audit_trail(request):
-    # Get all audit records
+    # Get all audit records and users
     audit_records = AuditTrail.objects.select_related('user').all()
+    departments = User.objects.all().values_list('department', flat=True).distinct()
+    
+    # Filter by department
+    department = request.GET.get('department')
+    if department:
+        audit_records = audit_records.filter(user__department=department)
     
     # Filter by action if specified
     action_filter = request.GET.get('action')
@@ -266,6 +278,7 @@ def audit_trail(request):
     context = {
         'page_obj': page_obj,
         'action_choices': AuditTrail.ACTION_CHOICES,
+        'departments': departments
     }
     return render(request, 'admin_panel/audit_trail.html', context)
 
@@ -583,15 +596,21 @@ def admin_preview_pre(request, pk: int):
 @login_required
 def admin_handle_pre_action(request, pk: int):
     pre = get_object_or_404(DepartmentPRE, pk=pk)
+    budget_allocation = get_object_or_404(BudgetAllocation, id=pre.budget_allocation_id)
+    # budget_allocation = BudgetAllocation.objects.filter(department=pre.department, id=pre.budget_allocation_id).first
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'approve':
             pre.status = 'Approved'
             pre.approved_by_admin = True
+            budget_allocation.is_compiled = True
+            budget_allocation.save(update_fields=['is_compiled'])
             audit_trail_action = 'APPROVE'
         elif action == 'reject':
             pre.status = 'Rejected'
             pre.approved_by_admin = False
+            budget_allocation.is_compiled = False
+            budget_allocation.save(update_fields=['is_compiled'])
             audit_trail_action = 'REJECT'
         pre.save()
         log_audit_trail(

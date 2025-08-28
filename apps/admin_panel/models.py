@@ -67,6 +67,7 @@ class BudgetAllocation(models.Model):
     spent = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     allocated_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_compiled = models.BooleanField(default=False)
     
     @property
     def remaining_budget(self):

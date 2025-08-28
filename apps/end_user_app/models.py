@@ -18,17 +18,16 @@ class PurchaseRequest(models.Model):
     entity_name = models.CharField(max_length=255)
     fund_cluster = models.CharField(max_length=255, blank=True, null=True)
     office_section = models.CharField(max_length=255, blank=True, null=True)
-    pr_no = models.CharField(max_length=100, unique=True)
+    pr_no = models.CharField(max_length=100, unique=False, blank=True, null=True)  # Purchase Request Number
     responsibility_center_code = models.CharField(max_length=100, blank=True, null=True)
     purpose = models.TextField(blank=True, null=True)  # Program Allocation for Projects and Programs
-    papp = models.CharField(max_length=100, default='N/A')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     pr_status = models.CharField(max_length=20, choices=PR_STATUS_CHOICES, default='draft')
-    submitted_status = models.CharField(max_length=20, choices=SUBMITTED_STATUS_CHOICES, default='pending')
+    submitted_status = models.CharField(max_length=20, choices=SUBMITTED_STATUS_CHOICES, default='Pending')
 
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="requested_purchases")
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_purchases")

@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils import timezone
 
 # Custom User Manager
@@ -54,7 +54,7 @@ class UserManager(BaseUserManager):
         return self.create_user(username, fullname, email, password, department, is_approving_officer=True)
     
 # Custom User Model
-class User(AbstractBaseUser):
+class User(AbstractBaseUser, PermissionsMixin):
     id = models.AutoField(primary_key=True)
     username = models.CharField(max_length=50, unique=True)
     fullname = models.CharField(max_length=100)

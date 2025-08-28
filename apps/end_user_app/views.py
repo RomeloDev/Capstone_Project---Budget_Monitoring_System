@@ -231,6 +231,7 @@ def purchase_request_form(request):
             try:
                 purchase_request_obj.budget_allocation = BudgetAllocation.objects.select_related('approved_budget').get(id=ba_id)
             except BudgetAllocation.DoesNotExist:
+                print("No such budget allocation for this user.")
                 purchase_request_obj.budget_allocation = None
 
         # Source of fund linkage (encoded as preId|itemKey|QUARTER|amount)
@@ -651,12 +652,13 @@ def department_pre_form(request, pk:int):
 def department_pre_page(request):
     user = request.user
     user_dept = user.department
-    budget_allocations = BudgetAllocation.objects.filter(department=request.user.department)
+    budget_allocations = BudgetAllocation.objects.filter(department=request.user.department, is_compiled=False).select_related('approved_budget').order_by('-allocated_at')
     has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
     
     count_submitted = DepartmentPRE.objects.filter(submitted_by=user, approved_by_admin=True).select_related('submitted_department_pres').count()
+    count_has_budget = BudgetAllocation.objects.filter(department=user_dept).count()
     
-    if count_submitted >= 1:
+    if count_submitted >= count_has_budget:
         has_budget = None
 
     # Load submitted PREs for this user/department
@@ -988,3 +990,152 @@ def preview_activity_design(request, pk):
         "activity": activity,
     }
     return render(request, "end_user_app/preview_activity_design.html", context)
+
+def build_pre_source_options(pres_queryset):
+        options = []
+        # approved_pres = DepartmentPRE.objects.filter(
+        #     submitted_by=request,
+        #     approved_by_approving_officer=True,
+        #     approved_by_admin=True,
+        # )
+
+        # Friendly labels for known PRE item keys (fallback to humanized key)
+        friendly_labels = {
+            'travel_local': 'Traveling Expenses - Local',
+            'travel_foreign': 'Traveling Expenses - Foreign',
+            'training_expenses': 'Training Expenses',
+            'office_supplies_expenses': 'Office Supplies Expenses',
+            'accountable_form_expenses': 'Accountable Form Expenses',
+            'agri_marine_supplies_expenses': 'Agricultural and Marine Supplies Expenses',
+            'drugs_medicines': 'Drugs and Medicines',
+            'med_dental_lab_supplies_expenses': 'Medical, Dental & Laboratory Supplies Expenses',
+            'food_supplies_expenses': 'Food Supplies Expenses',
+            'fuel_oil_lubricants_expenses': 'Fuel, Oil and Lubricants Expenses',
+            'textbooks_instructional_materials_expenses': 'Textbooks and Instructional Materials Expenses',
+            'construction_material_expenses': 'Construction Materials Expenses',
+            'other_supplies_materials_expenses': 'Other Supplies & Materials Expenses',
+            'semee_machinery': 'Semi-expendable - Machinery',
+            'semee_office_equipment': 'Semi-expendable - Office Equipment',
+            'semee_information_communication': 'Semi-expendable - ICT Equipment',
+            'semee_communications_equipment': 'Semi-expendable - Communications Equipment',
+            'semee_drr_equipment': 'Semi-expendable - Disaster Response and Rescue Equipment',
+            'semee_medical_equipment': 'Semi-expendable - Medical Equipment',
+            'semee_printing_equipment': 'Semi-expendable - Printing Equipment',
+            'semee_sports_equipment': 'Semi-expendable - Sports Equipment',
+            'semee_technical_scientific_equipment': 'Semi-expendable - Technical and Scientific Equipment',
+            'semee_ict_equipment': 'Semi-expendable - ICT Equipment',
+            'semee_other_machinery_equipment': 'Semi-expendable - Other Machinery and Equipment',
+            'furniture_fixtures': 'Furniture and Fixtures',
+            'books': 'Books',
+            'water_expenses': 'Water Expenses',
+            'electricity_expenses': 'Electricity Expenses',
+            'postage_courier_services': 'Postage and Courier Services',
+            'telephone_expenses': 'Telephone Expenses',
+            'telephone_expenses_landline': 'Telephone Expenses (Landline)',
+            'internet_subscription_expenses': 'Internet Subscription Expenses',
+            'cable_satellite_telegraph_radio_expenses': 'Cable, Satellite, Telegraph & Radio Expenses',
+            'awards_rewards_expenses': 'Awards/Rewards Expenses',
+            'prizes': 'Prizes',
+            'survey_expenses': 'Survey Expenses',
+            'survey_research_exploration_development_expenses': 'Survey, Research, Exploration, and Development expenses',
+            'legal_services': 'Legal Services',
+            'auditing_services': 'Auditing Services',
+            'consultancy_services': 'Consultancy Services',
+            'other_professional_servies': 'Other Professional Services',
+            'security_services': 'Security Services',
+            'janitorial_services': 'Janitorial Services',
+            'other_general_services': 'Other General Services',
+            'environment/sanitary_services': 'Environment/Sanitary Services',
+            'repair_maintenance_land_improvements': 'Repair & Maintenance - Land Improvements',
+            'buildings': 'Buildings',
+            'school_buildings': 'School Buildings',
+            'hostel_dormitories': 'Hostels and Dormitories',
+            'other_structures': 'Other Structures',
+            'repair_maintenance_machinery': 'Repair & Maintenance - Machinery',
+            'repair_maintenance_office_equipment': 'Repair & Maintenance - Office Equipment',
+            'repair_maintenance_ict_equipment': 'Repair & Maintenance - ICT Equipment',
+            'repair_maintenance_agri_forestry_equipment': 'Repair & Maintenance - Agricultural and Forestry Equipment',
+            'repair_maintenance_marine_fishery_equipment': 'Repair & Maintenance - Marine and Fishery Equipment',
+            'repair_maintenance_airport_equipment': 'Repair & Maintenance - Airport Equipment',
+            'repair_maintenance_communication_equipment': 'Repair & Maintenance - Communication Equipment',
+            'repair_maintenance_drre_equipment': 'Repair & Maintenance - Disaster, Response and Rescue Equipment',
+            'repair_maintenance_medical_equipment': 'Repair & Maintenance - Medical Equipment',
+            'repair_maintenance_printing_equipment': 'Repair & Maintenance - Printing Equipment',
+            'repair_maintenance_sports_equipment': 'Repair & Maintenance - Sports Equipment',
+            'repair_maintenance_technical_scientific_equipment': 'Repair & Maintenance - Technical and Scientific Equipment',
+            'repair_maintenance_other_machinery_equipment': 'Repair & Maintenance - Other Machinery and Equipment',
+            'repair_maintenance_motor': 'Repair & Maintenance - Motor Vehicles',
+            'repair_maintenance_other_transportation_equipment': 'Repair & Maintenance - Other Transportation Equipment',
+            'repair_maintenance_furniture_fixtures': 'Repair & Maintenance - Furniture & Fixtures',
+            'repair_maintenance_semi_expendable_machinery_equipment': 'Repair & Maintenance - Semi-Expendable Machinery and Equipment',
+            'repair_maintenance_other_property_plant_equipment': 'Repair & Maintenance - Other Property, Plant and Equipment',
+            'taxes_duties_licenses': 'Taxes, Duties and Licenses',
+            'fidelity_bond_premiums': 'Fidelity Bond Premiums',
+            'insurance_expenses': 'Insurance Expenses',
+            'labor_wages': 'Labor and Wages',
+            'advertising_expenses': 'Advertising Expenses',
+            'printing_publication_expenses': 'Printing and Publication Expenses',
+            'representation_expenses': 'Representation Expenses',
+            'transportation_delivery_expenses': 'Transportation and Delivery Expenses',
+            'rent/lease_expenses': 'Rent/Lease Expenses',
+            'membership_dues_contribute_to_org': 'Membership Dues and contributions to organizations',
+            'subscription_expenses': 'Subscription Expenses',
+            'website_maintenance': 'Website Maintenance',
+            'other_maintenance_operating_expenses': 'Other Maintenance and Operating Expenses',
+        }
+
+        for pre in pres_queryset:
+            payload = pre.data or {}
+            for key, value in payload.items():
+                if not isinstance(value, (int, float, Decimal)):
+                    try:
+                        value = Decimal(str(value))
+                    except Exception:
+                        continue
+                if value and value > 0 and (key.endswith('_q1') or key.endswith('_q2') or key.endswith('_q3') or key.endswith('_q4')):
+                    base_key, quarter = key.rsplit('_', 1)
+                    quarter = quarter.upper()
+                    label_base = friendly_labels.get(base_key, base_key.replace('_', ' ').title())
+                    display_amount = f"{intcomma(value)}"
+                    display = f"{label_base} {quarter} - {display_amount}"
+                    # Encode value for round-trip on submit
+                    encoded = f"{pre.id}|{base_key}|{quarter}|{value}"
+                    options.append({'value': encoded, 'label': display})
+        return options
+    
+@login_required
+def load_source_of_fund(request):
+    ba_id = request.GET.get("budget_allocation")
+    source_of_fund_options = []
+
+    if ba_id:
+        print("budget allocation ID:", ba_id)
+        try:
+            allocation = BudgetAllocation.objects.get(
+                id=ba_id,
+                department=getattr(request.user, 'department', '')
+            )
+
+            # ✅ filter PREs linked to that allocation
+            approved_pres = DepartmentPRE.objects.filter(
+                budget_allocation=allocation,
+                submitted_by=request.user.id,
+                approved_by_approving_officer=True,
+                approved_by_admin=True,
+            )
+
+            # ✅ reuse your builder
+            source_of_fund_options = build_pre_source_options(approved_pres)
+
+        except BudgetAllocation.DoesNotExist:
+            print("No such budget allocation for this user.")
+            source_of_fund_options = []
+        
+    else:
+        print("No budget allocation ID provided.")
+
+    return render(
+        request,
+        "end_user_app/partials/source_of_fund_options.html",
+        {"source_of_fund_options": source_of_fund_options}
+    )
