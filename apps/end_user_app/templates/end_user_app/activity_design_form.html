@@ -72,13 +72,13 @@
         <div class="grid gap-4 border-t p-4 md:grid-cols-2">
           <div class="md:col-span-2">
             <label class="mb-1 block text-sm font-medium">Title of Activity:</label>
-            <input type="text" name="title_of_activity" placeholder="Enter the exact title of the activity" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+            <input type="text" name="title_of_activity" placeholder="Enter the exact title of the activity" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required />
           </div>
           <div>
             <label class="mb-1 block text-sm font-medium">Schedule / Venue:</label>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <input type="date" name="schedule_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-              <input type="text" name="venue" placeholder="Venue (e.g., Campus, Room, Online)" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
+              <input type="date" name="schedule_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required />
+              <input type="text" name="venue" placeholder="Venue (e.g., Campus, Room, Online)" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required />
             </div>
           </div>
         </div>
@@ -200,8 +200,49 @@
           <span class="text-sm text-gray-500">Click to toggle</span>
         </summary>
         <div class="border-t p-4">
-          <label class="mb-1 block text-sm font-medium">Budget Allocation:</label>
-          <textarea name="budget_allocation" placeholder="Provide itemized budget allocation or funding details" rows="5" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
+          <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                  <!-- Budget Allocation -->
+                  <label for="budget_allocation" class="mb-1 block text-sm font-medium">Budget Allocation</label>
+                  <select 
+                      name="budget_allocation" 
+                      id="budget_allocation"
+                      class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                      hx-get="{% url 'load_source_of_fund' %}" 
+                      hx-target="#source_of_fund_container"
+                      hx-trigger="change"
+                      hx-include="[name=csrfmiddlewaretoken]"  
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-swap="innerHTML"
+                      required
+                  >
+                      <option value="">Select Budget Allocation</option>
+                      {% for alloc in budget_allocations %}
+                          <option value="{{ alloc.id }}">
+                              {{ alloc.approved_budget.title }} - {{ alloc.approved_budget.period }} - {{ alloc.total_allocated|intcomma }}
+                          </option>
+                      {% empty %}
+                          <option disabled>No allocations found</option>
+                      {% endfor %}
+                  </select>
+                </div>
+
+                <div>
+                  <!-- Source of Fund -->
+                  <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
+                  <div id="source_of_fund_container">
+                      <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
+                      <select name="source_of_fund" id="source_of_fund" class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required>
+                          <option value="">Select Source of Fund</option>
+                          {% for opt in source_of_fund_options %}
+                              <option value="{{ opt.value }}">{{ opt.label }}</option>
+                          {% empty %}
+                              <option disabled>No approved PRE funds available</option>
+                          {% endfor %}
+                      </select>
+                  </div>
+                </div> 
+              </div>
         </div>
       </details>
 
@@ -220,7 +261,7 @@
 
       <!-- SIGNATORIES (Top row - three columns) -->
       <!-- Corresponds to the three signatory boxes at the top of page 2 -->
-      <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+      {% comment %} <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
         <h3 class="mb-3 text-base font-semibold">Signatories</h3>
         <div id="topSignatories" class="grid gap-4 md:grid-cols-3">
           <!-- Signatory card template repeated -->
@@ -232,31 +273,15 @@
               <input type="date" name="signatory_date[]" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
             </div>
           </div>
-          {% comment %} <div class="rounded-md border border-gray-200 p-3">
-            <label class="block text-sm font-semibold">Name &amp; Signature</label>
-            <input type="text" name="signatory_2_name" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-            <div class="mt-2 grid grid-cols-2 gap-2">
-              <input type="text" name="signatory_2_position" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-              <input type="date" name="signatory_2_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-            </div>
-          </div> 
-          <div class="rounded-md border border-gray-200 p-3">
-            <label class="block text-sm font-semibold">Name &amp; Signature</label>
-            <input type="text" name="signatory_3_name" placeholder="Enter name" class="mt-1 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-            <div class="mt-2 grid grid-cols-2 gap-2">
-              <input type="text" name="signatory_3_position" placeholder="Position" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-              <input type="date" name="signatory_3_date" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" />
-            </div>
-          </div> {% endcomment %}
         </div>
         <div class="no-print mt-3">
           <button id="addTopSignatoryBtn" type="button" class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200">+ Add Signatory</button>
         </div>
-      </section>
+      </section> {% endcomment %}
 
       <!-- APPROVALS: Approved by + Campus Level + University Level -->
       <!-- Corresponds to 'Approved by' and remarks blocks in the document -->
-      <section class="space-y-4">
+      {% comment %} <section class="space-y-4">
         <div class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
           <p class="text-sm font-semibold">Approved by:</p>
         </div>
@@ -298,8 +323,31 @@
             <textarea name="univ_remarks" placeholder="Enter remarks for University Level" rows="6" class="auto-resize w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"></textarea>
           </div>
         </div>
-      </section>
+      </section> {% endcomment %}
     </form>
+
+    {% if messages %}
+    <!-- Messages Modal -->
+    <div id="messageModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h3 class="text-lg font-semibold mb-3">Notice</h3>
+            <div class="space-y-2 text-sm">
+                {% for message in messages %}
+                    <div class="px-3 py-2 rounded {{ message.tags|default:'' }} {% if 'success' in message.tags %}bg-green-50 text-green-700 border border-green-200{% elif 'error' in message.tags %}bg-red-50 text-red-700 border border-red-200{% else %}bg-gray-50 text-gray-700 border border-gray-200{% endif %}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            <div class="mt-6 text-right">
+                {% if success %}
+                <form action="{% url "preview_activity_design" ad_id %}" method="get">
+                <button type="submit" id="closeMessageBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
+                </form>
+                {% else %}
+                <button type="button" id="closeMessageBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">OK</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Footer -->
     {% comment %} <p class="mt-8 text-center text-xs text-gray-500">This is a prototype template. Replace placeholders with official content and branding as needed.</p> {% endcomment %}
@@ -314,6 +362,8 @@
     document.getElementById('collapseAll')?.addEventListener('click', () => {
       document.querySelectorAll('details').forEach(d => d.open = false);
     });
+
+    const messageModal = document.getElementById('messageModal');
 
     // Auto-resize textareas
     const autoResize = (el) => {
@@ -363,6 +413,17 @@
       topSignatories.appendChild(card);
       card.querySelector('.remove-top-signatory').addEventListener('click', () => card.remove());
     });
+
+    // Utility helpers
+  const show = el => { if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } };
+  const hide = el => { if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } };
+
+  if (messageModal) {
+  show(messageModal);
+  if (closeMessageBtn) closeMessageBtn.addEventListener('click', function() { hide(messageModal); });
+  // Close when clicking overlay
+  messageModal.addEventListener('click', function(e) { if (e.target === messageModal) hide(messageModal); });
+  }
   </script>
   {% endblock %}
 

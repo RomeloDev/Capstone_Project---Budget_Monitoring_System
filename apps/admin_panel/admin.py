@@ -3,6 +3,5 @@ from apps.admin_panel.models import Budget, BudgetAllocation, AuditTrail, Approv
 
 # Register your models here.
 admin.site.register(BudgetAllocation)
-admin.site.register(Budget)
 admin.site.register(AuditTrail)
 admin.site.register(ApprovedBudget)

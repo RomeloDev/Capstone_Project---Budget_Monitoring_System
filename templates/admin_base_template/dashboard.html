@@ -94,6 +94,19 @@
             </li>
 
             <li>
+              <a href="{% url 'department_pr_request' %}" 
+                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 {% if request.resolver_match.url_name == 'department_pr_request' %}
+                   bg-blue-50 text-blue-600 font-medium
+                 {% else %}
+                   text-gray-700 hover:bg-gray-100
+                 {% endif %}">
+                <i class="fa-solid fa-cart-shopping w-5 text-center"></i>
+                <span>Department's Purchase Request</span>
+              </a>
+            </li>
+
+            <li>
               <a href="{% url 'pre_request_page' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'pre_request_page' %}

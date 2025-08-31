@@ -25,7 +25,7 @@
         <tr class="border-b">
           <td class="py-2 px-4">{{ pre.id }}</td>
           <td class="py-2 px-4">{{ pre.department }}</td>
-          <td class="py-2 px-4">{{ pre.submitted_by.get_full_name|default:pre.submitted_by.username }}</td>
+          <td class="py-2 px-4">{{ pre.submitted_by.get_fullname|default:pre.submitted_by.fullname }}</td>
           <td class="py-2 px-4">{{ pre.created_at }}</td>
           <td class="py-2 px-4">
             {% if pre.status == 'Pending' %}

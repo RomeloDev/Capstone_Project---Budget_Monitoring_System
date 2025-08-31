@@ -62,6 +62,7 @@ def register_account(request):
         department = request.POST.get('department')
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm-password')
+        position = request.POST.get('position')
         
         # Validate password confirmation
         if password != confirm_password:
@@ -82,7 +83,7 @@ def register_account(request):
             return render(request, "admin_panel/client_accounts.html", {'success': "Approving Officer Account registered successfully!"})
         else:
             # Create and save the user
-            user = User.objects.create_user(username=username, fullname=fullname, email=email, password=password, department=department)
+            user = User.objects.create_user(username=username, fullname=fullname, email=email, password=password, department=department, position=position)
             
             try:
                 end_users = User.objects.filter(is_staff=False)
@@ -91,13 +92,19 @@ def register_account(request):
             return render(request, "admin_panel/client_accounts.html", {'success': "Account registered successfully!", 'end_users': end_users})
 
 @login_required
-def departments_request(request):
+def departments_pr_request(request):
+    departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
+    
+    filter_department = request.GET.get('department')
+    if filter_department:
+        users_purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='submitted', submitted_status='Partially Approved', approved_by_approving_officer=True).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+    
     try:
-        users_purchase_requests = PurchaseRequest.objects.all()
+        users_purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted', approved_by_admin=False, approved_by_approving_officer=True).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
     except PurchaseRequest.DoesNotExist:
         users_purchase_requests = None
         
-    return render(request, 'admin_panel/department_request.html', {'users_purchase_requests': users_purchase_requests})
+    return render(request, 'admin_panel/departments_pr_request.html', {'users_purchase_requests': users_purchase_requests,                'departments': departments})
 
 @login_required
 def handle_departments_request(request, request_id):
@@ -114,21 +121,22 @@ def handle_departments_request(request, request_id):
         if action == 'approve':
             if allocation is None:
                 messages.error(request, 'No budget allocation linked to this request.')
-                return redirect('department_request')
+                return redirect('department_pr_request')
             if allocation.remaining_budget < (purchase_request.total_amount or 0):
                 messages.error(request, 'Insufficient remaining budget to approve this request.')
-                return redirect('department_request')
+                return redirect('department_pr_request')
             allocation.spent = (allocation.spent or 0) + (purchase_request.total_amount or 0)
             allocation.save(update_fields=['spent', 'updated_at'])
             purchase_request.pr_status = 'submitted'
-            purchase_request.submitted_status = 'approved'
+            purchase_request.submitted_status = 'Approved'
+            purchase_request.approved_by_admin = True
         elif action == 'reject':
             purchase_request.pr_status = 'submitted'
             purchase_request.submitted_status = 'rejected'
 
-        purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at'])
+        purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at', 'approved_by_admin'])
 
-    return redirect('department_request')
+    return redirect('department_pr_request')
 
 @login_required
 def budget_allocation(request):
@@ -271,7 +279,7 @@ def audit_trail(request):
         )
         
     # Pagination
-    paginator = Paginator(audit_records, 8)  # 25 records per page
+    paginator = Paginator(audit_records, 15)  # 15 records per page
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
@@ -587,7 +595,7 @@ def admin_preview_pre(request, pk: int):
         'grand_total_q3': grand_total_q3,
         'grand_total_q4': grand_total_q4,
         'grand_total_overall': grand_total_overall,
-        'prepared_by': pre.prepared_by_name,
+        'prepared_by': pre.submitted_by.fullname,
         'certified_by': pre.certified_by_name,
         'approved_by': pre.approved_by_name,
     })
@@ -621,3 +629,13 @@ def admin_handle_pre_action(request, pk: int):
             detail=f"Admin {action} a PRE with ID {pre.id} from department {pre.department}."
         )
     return redirect('pre_request_page')
+
+@login_required
+def preview_purchase_request(request, pk:int):
+    pr = get_object_or_404(PurchaseRequest.objects.select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre'),
+        pk=pk,
+    )
+    
+    return render(request, 'admin_panel/preview_purchase_request.html', {
+        'pr': pr,
+    })

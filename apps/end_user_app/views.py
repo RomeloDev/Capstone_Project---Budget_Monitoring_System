@@ -918,10 +918,44 @@ def preview_pre(request, pk: int):
     }
     return render(request, "end_user_app/preview_pre.html", context)
     
+# Activity Design Form Logic
 @login_required
 def activity_design_form(request):
+    budget_allocations = BudgetAllocation.objects.select_related('approved_budget').filter(department=getattr(request.user, 'department', ''))
+    
     if request.method == 'POST':
         # Save the main acitivity design data
+        
+        # Initialize variable to avoid scope issues
+        item_key = None
+        quarter = None
+        source_amount_decimal = None
+        source_pre_instance = None
+        
+        ba_id = request.POST.get('budget_allocation')
+        budget_allocation_instance = None
+        if ba_id:
+            try:
+                budget_allocation_instance = BudgetAllocation.objects.select_related('approved_budget').get(id=ba_id)
+            except BudgetAllocation.DoesNotExist:
+                messages.error(request, "No such budget allocation for this user.")
+                budget_allocation_instance = None
+        
+        # Extracting the source of fund from the encoded string
+        sof_encoded = request.POST.get('source_of_fund')
+        if sof_encoded:
+            try:
+                pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
+                source_amount_decimal = Decimal(amount_str)
+                if source_amount_decimal <= 0:
+                    raise Exception
+                source_pre_instance = DepartmentPRE.objects.get(id=int(pre_id_str))
+            except (Exception, ValueError, DepartmentPRE.DoesNotExist):
+                source_pre_instance = None
+                messages.error(request, f"Invalid source of fund format or {Exception.message}.")
+                return redirect('activity_design_form')
+                
+        
         activity = ActivityDesign.objects.create(
             title_of_activity=request.POST.get('title_of_activity'),
             schedule_date=request.POST.get('schedule_date'),
@@ -932,9 +966,14 @@ def activity_design_form(request):
             participants=request.POST.get('participants'),
             resource_persons=request.POST.get('resource_persons'),
             materials_needed=request.POST.get('materials_needed'),
-            budget_allocation=request.POST.get('budget_allocation'),
+            budget_allocation=budget_allocation_instance,
             evaluation_plan=request.POST.get('evaluation_outcomes'),
+            source_pre=source_pre_instance if sof_encoded else None,
+            source_item_key=item_key if sof_encoded else None,
+            source_quarter=quarter if sof_encoded else None,
+            source_amount=source_amount_decimal if sof_encoded else None,
         )
+        
         
         # Save sessions (many-to-one)
         session_contents = request.POST.getlist('sessions[]')
@@ -945,43 +984,49 @@ def activity_design_form(request):
                     content=content,
                     order=order
                 )
-                
+             
+        # Temporary commented this code for form enhancing   
         # Save signatories (many-to-many)
-        names = request.POST.getlist('signatory_name[]')
-        positions = request.POST.getlist('signatory_position[]')
-        dates = request.POST.getlist('signatory_date[]')
+        # names = request.POST.getlist('signatory_name[]')
+        # positions = request.POST.getlist('signatory_position[]')
+        # dates = request.POST.getlist('signatory_date[]')
         
-        for name, position, date_str in zip(names, positions, dates):
-            if name.strip():
-                date_obj = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else None
-                Signatory.objects.create(
-                    activity=activity,
-                    name=name,
-                    position=position,
-                    date=date_obj
-                )
+        # for name, position, date_str in zip(names, positions, dates):
+        #     if name.strip():
+        #         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else None
+        #         Signatory.objects.create(
+        #             activity=activity,
+        #             name=name,
+        #             position=position,
+        #             date=date_obj
+        #         )
                 
-        # Save campus approval (one-to-one)
-        campus_approval = CampusApproval.objects.create(
-            activity=activity,
-            name=request.POST.get('campus_name'),
-            position=request.POST.get('campus_position'),
-            date=datetime.strptime(request.POST.get('campus_date'), "%Y-%m-%d").date() if request.POST.get('campus_date') else None,
-            remarks=request.POST.get('campus_remarks')
-        )
+        # # Save campus approval (one-to-one)
+        # campus_approval = CampusApproval.objects.create(
+        #     activity=activity,
+        #     name=request.POST.get('campus_name'),
+        #     position=request.POST.get('campus_position'),
+        #     date=datetime.strptime(request.POST.get('campus_date'), "%Y-%m-%d").date() if request.POST.get('campus_date') else None,
+        #     remarks=request.POST.get('campus_remarks')
+        # )
         
-        # Save University Approval (one-to-one)
-        university_approval = UniversityApproval.objects.create(
-            activity=activity,
-            name=request.POST.get('univ_name'),
-            position=request.POST.get('univ_position'),
-            date=datetime.strptime(request.POST.get('univ_date'), "%Y-%m-%d").date() if request.POST.get('univ_date') else None,
-            remarks=request.POST.get('univ_remarks')
-        )
+        # # Save University Approval (one-to-one)
+        # university_approval = UniversityApproval.objects.create(
+        #     activity=activity,
+        #     name=request.POST.get('univ_name'),
+        #     position=request.POST.get('univ_position'),
+        #     date=datetime.strptime(request.POST.get('univ_date'), "%Y-%m-%d").date() if request.POST.get('univ_date') else None,
+        #     remarks=request.POST.get('univ_remarks')
+        # )
+        
+        # Show message success 
         messages.success(request, "Activity Design submitted successfully.")
-        return redirect('activity_design_form')  # Redirect to the same form or a success page
         
-    return render(request, "end_user_app/activity_design_form.html")
+        return render(request, "end_user_app/activity_design_form.html", {'ad_id': activity.id, 'success': True})  # Redirect to the same form or a success page
+        
+    return render(request, "end_user_app/activity_design_form.html", {
+        'budget_allocations': budget_allocations,
+    })
 
 @login_required
 def preview_activity_design(request, pk):

@@ -51,6 +51,8 @@ class PurchaseRequest(models.Model):
     source_item_key = models.CharField(max_length=255, null=True, blank=True)
     source_quarter = models.CharField(max_length=10, null=True, blank=True)
     source_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    approved_by_approving_officer = models.BooleanField(default=False)
+    approved_by_admin = models.BooleanField(default=False)
     
     def __str__(self):
         return f"PR-{self.pr_no} ({self.entity_name})"
@@ -154,7 +156,6 @@ class ActivityDesign(models.Model):
     participants = models.TextField()
     resource_persons = models.TextField()
     materials_needed = models.TextField()
-    budget_allocation = models.TextField()
     evaluation_plan = models.TextField()
     status = models.CharField(max_length=50, default='Pending')
     approved_by_approving_officer = models.BooleanField(default=False)
@@ -163,10 +164,46 @@ class ActivityDesign(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    # New links for Budget Allocation and Source of Fund (PRE)
+    budget_allocation = models.ForeignKey(
+        'admin_panel.BudgetAllocation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='activity_designs'
+    )
+    # Link to the PRE that is the source-of-fund, plus which item/quarter and amount
+    source_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='linked_activity_designs'
+    )
+    source_item_key = models.CharField(max_length=255, null=True, blank=True)
+    source_quarter = models.CharField(max_length=10, null=True, blank=True)
+    source_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="activity_design_request")
+    
+    def __str__(self):
+        return self.title_of_activity
+    
 class Session(models.Model):
     activity = models.ForeignKey(ActivityDesign, related_name='sessions', on_delete=models.CASCADE)
     content = models.TextField()
     order = models.PositiveIntegerField()
+    
+class FundsAvailable(models.Model):
+    activity = models.ForeignKey(ActivityDesign, on_delete=models.CASCADE, related_name='funds_available')
+    name = models.CharField(max_length=100, null=True, blank=True)
+    position = models.CharField(max_length=50, null=True, blank=True)
+    date = models.DateField(null=True, blank=True)
+    
+class RecommendingApproval(models.Model):
+    activity = models.ForeignKey(ActivityDesign, on_delete=models.CASCADE, related_name='recommending_approval')
+    name = models.CharField(max_length=100, null=True, blank=True)
+    position = models.CharField(max_length=50, null=True, blank=True)
+    date = models.DateField(null=True, blank=True)
     
 class Signatory(models.Model):
     activity = models.ForeignKey(ActivityDesign, related_name='signatories', on_delete=models.CASCADE)

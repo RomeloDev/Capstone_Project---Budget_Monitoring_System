@@ -60,6 +60,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     fullname = models.CharField(max_length=100)
     email = models.EmailField(max_length=255, unique=True)
     department = models.CharField(max_length=255)
+    position = models.CharField(max_length=50, null=True, blank=True)
 
     is_admin = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
@@ -72,7 +73,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username", "fullname", "department"]
+    REQUIRED_FIELDS = ["username", "position",  "fullname", "department"]
 
     def save(self, *args, **kwargs):
         """Ensure admin users have correct permissions."""
@@ -90,3 +91,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.username} ({'Superuser' if self.is_superuser else 'Admin' if self.is_admin else 'User'})"
+    
+    # 👇 Add these methods
+    def get_full_name(self):
+        return f"{self.fullname}"
+
+    def get_short_name(self):
+        return self.fullname or self.email

@@ -36,7 +36,7 @@ def department_request(request):
     
     filter_department = request.GET.get('department')
     if filter_department:
-        purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='submitted', submitted_status='pending')
+        purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='submitted', submitted_status='pending', approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
     # else:
     #     purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted')
     
@@ -267,7 +267,7 @@ def preview_pre(request, pk: int):
         'grand_total_q3': grand_total_q3,
         'grand_total_q4': grand_total_q4,
         'grand_total_overall': grand_total_overall,
-        'prepared_by': pre.prepared_by_name,
+        'prepared_by': pre.submitted_by.fullname,
         'certified_by': pre.certified_by_name,
         'approved_by': pre.approved_by_name,
     })
@@ -316,16 +316,17 @@ def handle_request_action(request, pk):
                 return redirect('cd_department_request')
 
             # Apply spend
-            allocation.spent = (allocation.spent or 0) + (req.total_amount or 0)
-            allocation.save(update_fields=['spent', 'updated_at'])
+            # allocation.spent = (allocation.spent or 0) + (req.total_amount or 0)
+            # allocation.save(update_fields=['spent', 'updated_at'])
 
-            req.submitted_status = 'approved'
+            req.submitted_status = 'Partially Approved'
+            req.approved_by_approving_officer = True
             messages.success(request, f'Request PR-{req.pr_no} has been approved successfully.')
         elif action == 'reject':
             req.submitted_status = 'rejected'
             messages.error(request, f'Request PR-{req.pr_no} has been rejected.')
         req.approved_by = request.user
-        req.save(update_fields=['submitted_status', 'approved_by', 'updated_at'])
+        req.save(update_fields=['submitted_status', 'approved_by', 'updated_at', 'approved_by_approving_officer'])
 
     return redirect('cd_department_request')  # Redirect to the department request page after handling the action
 

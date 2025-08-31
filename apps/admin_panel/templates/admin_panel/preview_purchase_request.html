@@ -1,4 +1,4 @@
-{% extends "approving_officer_base_template/dashboard.html" %}
+{% extends "admin_base_template/dashboard.html" %}
 
 {% load humanize %}
 
@@ -141,13 +141,13 @@
     </div>
 
     <div class="mt-6 flex gap-3">
-    <form method="post" action="{% url 'handle_request_action' pr.id %}">
+    <form method="post" action="{% url 'handle_purchase_request' pr.id %}">
       {% csrf_token %}
       <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Approve</button>
       <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 ml-2">Reject</button>
     </form>
-    <a href="{% url 'cd_department_request' %}" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Back to list</a>
+    <a href="{% url 'department_pr_request' %}" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Back to list</a>
   </div>
   </div>
 </main>
-{% endblock main-content %}
+{% endblock %}
