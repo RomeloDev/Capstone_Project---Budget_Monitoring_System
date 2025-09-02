@@ -97,10 +97,10 @@ def departments_pr_request(request):
     
     filter_department = request.GET.get('department')
     if filter_department:
-        users_purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='submitted', submitted_status='Partially Approved', approved_by_approving_officer=True).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+        users_purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='Submitted', submitted_status='Pending', approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
     
     try:
-        users_purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted', approved_by_admin=False, approved_by_approving_officer=True).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+        users_purchase_requests = PurchaseRequest.objects.filter(pr_status='Submitted', approved_by_admin=False, approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
     except PurchaseRequest.DoesNotExist:
         users_purchase_requests = None
         
@@ -127,12 +127,12 @@ def handle_departments_request(request, request_id):
                 return redirect('department_pr_request')
             allocation.spent = (allocation.spent or 0) + (purchase_request.total_amount or 0)
             allocation.save(update_fields=['spent', 'updated_at'])
-            purchase_request.pr_status = 'submitted'
-            purchase_request.submitted_status = 'Approved'
+            purchase_request.pr_status = 'Submitted'
+            purchase_request.submitted_status = 'Partially Approved'
             purchase_request.approved_by_admin = True
         elif action == 'reject':
-            purchase_request.pr_status = 'submitted'
-            purchase_request.submitted_status = 'rejected'
+            purchase_request.pr_status = 'Submitted'
+            purchase_request.submitted_status = 'Rejected'
 
         purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at', 'approved_by_admin'])
 
@@ -362,7 +362,7 @@ def pre_request_page(request):
     This view shows a table of all approved PREs, with the ability to filter by department.
     The table shows the department, submitted by, submitted on, budget allocation, and status of each PRE.
     """
-    pres = DepartmentPRE.objects.filter(approved_by_approving_officer=True, approved_by_admin=False, status='Approved').select_related('submitted_by', 'budget_allocation__approved_budget').order_by('-created_at')
+    pres = DepartmentPRE.objects.filter(approved_by_approving_officer=False, approved_by_admin=False, status='Pending').select_related('submitted_by', 'budget_allocation__approved_budget').order_by('-created_at')
 
     # Department filter
     dept = request.GET.get('department')
@@ -370,7 +370,7 @@ def pre_request_page(request):
         pres = pres.filter(department=dept)
 
     # Distinct department list for filter select
-    departments = DepartmentPRE.objects.filter(approved_by_approving_officer=True).values_list('department', flat=True).distinct()
+    departments = DepartmentPRE.objects.filter(approved_by_approving_officer=False, approved_by_admin=False).values_list('department', flat=True).distinct()
 
     return render(request, "admin_panel/pre_request.html", {
         'pres': pres,
@@ -609,11 +609,9 @@ def admin_handle_pre_action(request, pk: int):
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'approve':
-            pre.status = 'Approved'
+            pre.status = 'Partially Approved'
             pre.approved_by_admin = True
-            budget_allocation.is_compiled = True
-            budget_allocation.save(update_fields=['is_compiled'])
-            audit_trail_action = 'APPROVE'
+            audit_trail_action = 'Partially APPROVE'
         elif action == 'reject':
             pre.status = 'Rejected'
             pre.approved_by_admin = False

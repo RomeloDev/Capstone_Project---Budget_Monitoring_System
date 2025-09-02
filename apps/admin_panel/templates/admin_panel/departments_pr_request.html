@@ -53,7 +53,12 @@
               <td class="px-4 py-2 text-left">{{ pr.requested_by.department }}</td>
               <td class="px-4 py-2 text-left">{{ pr.requested_by.fullname }}</td>
               <td class="px-4 py-2 text-left">{{ pr.created_at }}</td>
-              <td class="px-4 py-2 text-left">{{ pr.submitted_status }}</td>
+              {% if pr.submitted_status == 'Pending' %}
+              <td class="px-3 py-1 text-center bg-yellow-100 rounded-full text-yellow-600">Pending</td>
+              {% else %}
+
+              {% endif %}
+              {% comment %} <td class="px-4 py-2 text-left">{{ pr.submitted_status }}</td> {% endcomment %}
               <td class="px-4 py-2 text-left">{{ pr.purpose }}</td>
               <td class="py-2 px-4 border-b space-x-2">
                   <form action="{% url "preview_purchase_request" pr.id %}" class="inline">
@@ -61,7 +66,7 @@
                       <button type="submit" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</button>
                   </form>
                   
-                  {% if pr.submitted_status == 'Partially Approved' %}
+                  {% if pr.submitted_status == 'Pending' %}
                   <form method="post" action="{% url 'handle_purchase_request' pr.id %}" class="inline">
                       {% csrf_token %}
                       <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>

@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.humanize.templatetags.humanize import intcomma
 from decimal import Decimal
 from apps.users.models import User
+from apps.admin_panel.utils import log_audit_trail
 
 # Create your views here.
 @login_required
@@ -30,13 +31,13 @@ def department_request(request):
     departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
     
     try:
-        purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='pending')
+        purchase_requests = PurchaseRequest.objects.filter(pr_status='Submitted', submitted_status='Partially Approved', approved_by_admin=True, approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
     except PurchaseRequest.DoesNotExist:
         purchase_requests = None
     
     filter_department = request.GET.get('department')
     if filter_department:
-        purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='submitted', submitted_status='pending', approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+        purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='Submitted', submitted_status='Partially Approved', approved_by_approving_officer=False, approved_by_admin=True).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
     # else:
     #     purchase_requests = PurchaseRequest.objects.filter(pr_status='submitted')
     
@@ -46,7 +47,7 @@ def department_request(request):
 
 @login_required
 def department_pre_list(request):
-    pres = DepartmentPRE.objects.filter(status='Pending').select_related('submitted_by').order_by('-created_at')
+    pres = DepartmentPRE.objects.filter(status='Partially Approved', approved_by_approving_officer=False, approved_by_admin=True).select_related('submitted_by').order_by('-created_at')
     return render(request, 'approving_officer_app/department_pre.html', {
         'pres': pres,
     })
@@ -276,6 +277,7 @@ def preview_pre(request, pk: int):
 @login_required
 def handle_pre_action(request, pk: int):
     pre = get_object_or_404(DepartmentPRE, pk=pk)
+    budget_allocation = get_object_or_404(BudgetAllocation, id=pre.budget_allocation_id)
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'approve':
@@ -284,7 +286,16 @@ def handle_pre_action(request, pk: int):
         elif action == 'reject':
             pre.status = 'Rejected'
             pre.approved_by_approving_officer = False
+            budget_allocation.is_compiled = False
+            budget_allocation.save(update_fields=['is_compiled'])
         pre.save()
+        log_audit_trail(
+            request=request,
+            action=action.upper(),
+            model_name='DepartmentPRE',
+            record_id=pre.id,
+            detail=f"Approving Officer {action} a PRE with ID {pre.id} from department {pre.department}."
+        )
     return redirect('ao_department_pre_list')
 
 @login_required

@@ -1,6 +1,8 @@
 from django.contrib import admin
-from .models import PurchaseRequest, PurchaseRequestItems
+from .models import PurchaseRequest, PurchaseRequestItems, DepartmentPRE, ActivityDesign
 
 # Register your models here.
 admin.site.register(PurchaseRequest)
 admin.site.register(PurchaseRequestItems)
+admin.site.register(DepartmentPRE)
+admin.site.register(ActivityDesign)

@@ -11,6 +11,7 @@ class PurchaseRequest(models.Model):
     
     SUBMITTED_STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('partially_approved', 'Partially Approved'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
     ]
@@ -134,6 +135,7 @@ class DepartmentPRE(models.Model):
 
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
+        ('Partially Approved', 'Partially Approved'),
         ('Approved', 'Approved'),
         ('Rejected', 'Rejected'),
     ]

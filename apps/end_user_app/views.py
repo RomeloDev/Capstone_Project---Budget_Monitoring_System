@@ -62,7 +62,7 @@ def view_budget(request):
 @login_required
 def purchase_request(request):
     try:
-        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="submitted").select_related('source_pre')
+        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="Submitted").select_related('source_pre')
     except PurchaseRequest.DoesNotExist:
         purchase_requests = None
     return render(request, 'end_user_app/purchase_request.html', {'purchase_requests': purchase_requests})
@@ -248,8 +248,8 @@ def purchase_request_form(request):
                 pass
 
         # Mark as submitted
-        purchase_request_obj.pr_status = 'submitted'
-        purchase_request_obj.submitted_status = 'pending'
+        purchase_request_obj.pr_status = 'Submitted'
+        purchase_request_obj.submitted_status = 'Pending'
         purchase_request_obj.save()
         
         log_audit_trail(
@@ -261,7 +261,7 @@ def purchase_request_form(request):
         )
 
         from django.urls import reverse
-        preview_url = reverse('preview_purchase_request', args=[purchase_request_obj.id])
+        preview_url = reverse('end_user_preview_purchase_request', args=[purchase_request_obj.id])
         return JsonResponse({'success': True, 'redirect_url': preview_url})
 
     # GET request
@@ -641,6 +641,9 @@ def department_pre_form(request, pk:int):
             approved_by_name= None,
             budget_allocation=dept_alloc,
         )
+        
+        dept_alloc.is_compiled = True
+        dept_alloc.save(update_fields=['is_compiled'])
 
         messages.success(request, "PRE submitted successfully.")
         return render(request, "end_user_app/department_pre_form.html", {'pre_id': pre.id, 'success': True, **context}) 
@@ -655,8 +658,8 @@ def department_pre_page(request):
     budget_allocations = BudgetAllocation.objects.filter(department=request.user.department, is_compiled=False).select_related('approved_budget').order_by('-allocated_at')
     has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
     
-    count_submitted = DepartmentPRE.objects.filter(submitted_by=user, approved_by_admin=True).select_related('submitted_department_pres').count()
-    count_has_budget = BudgetAllocation.objects.filter(department=user_dept).count()
+    count_submitted = DepartmentPRE.objects.filter(submitted_by=user).select_related('submitted_department_pres').count()
+    count_has_budget = BudgetAllocation.objects.filter(department=user_dept, is_compiled=True).count()
     
     if count_submitted >= count_has_budget:
         has_budget = None
