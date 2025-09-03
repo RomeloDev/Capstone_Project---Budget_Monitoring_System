@@ -1,0 +1,89 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Department's Activity Design Requests{% endblock %}
+
+{% block main-content %}
+<div class="flex flex-col w-full">
+    <!-- Header Section -->
+    <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
+    <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+            <h1 class="text-2xl font-bold text-white">Department's Activity Design Requests</h1>
+            <p class="mt-2 text-sm text-gray-50">Manage submitted Activity Design requests approved by the Approving Officer.</p>
+        </div>
+    </div>
+    </header>
+
+    <div class="p-4 sm:p-6 lg:p-8">
+    <!-- Filter Section -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Filter Activity Design Requests</h2>
+        <form method="get" class="mt-4 grid gap-4 md:grid-cols-4">
+            <div>
+                <label for="department" class="block text-sm font-medium text-gray-700">Department</label>
+                <select name="department" id="department" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">All Departments</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept }}" {% if selected_department == dept %}selected{% endif %}>{{ dept }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">Filter</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Table Section -->
+    <div class="mt-8 flex flex-col">
+        <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+            <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-300">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Department</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Title of Activity</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Submitted By</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Submitted At</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            {% for ad in activity_designs %}
+                            <tr>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ ad.requested_by.department }}</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{ ad.title_of_activity }}</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{ ad.requested_by.fullname }}</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ ad.created_at|date:"M d, Y H:i" }}</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                    {% if ad.status == 'Pending' %}
+                                        <span class="inline-flex rounded-full bg-yellow-100 px-2 text-xs font-semibold leading-5 text-yellow-800">Pending</span>
+                                    {% else %}
+                                        <span class="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">{{ ad.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm flex gap-2">
+                                    <a href="{% url 'preview_activity_design' ad.id %}" class="inline-flex items-center rounded-md bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-200">View Details</a>
+                                    {% if ad.status == 'Pending' %}
+                                        <a href="{% url 'handle_activity_design_request' ad.id %}?action=approve" class="inline-flex items-center rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-200">Approve</a>
+                                        <a href="{% url 'handle_activity_design_request' ad.id %}?action=reject" class="inline-flex items-center rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-200">Reject</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-3 py-4 text-sm text-gray-500 text-center">No Activity Design requests found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+</div>
+{% endblock %}

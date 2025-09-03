@@ -6,7 +6,7 @@ from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
-from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE
+from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign
 from apps.users.models import User
 from django.db import transaction
 from django.db.models import Sum
@@ -637,3 +637,31 @@ def preview_purchase_request(request, pk:int):
     return render(request, 'admin_panel/preview_purchase_request.html', {
         'pr': pr,
     })
+    
+@login_required
+def department_activity_design(request):
+    # Get distinct departments from non-staff, non-approving officer users
+    departments = (
+        User.objects.filter(is_staff=False, is_approving_officer=False)
+        .exclude(department__isnull=True)
+        .values_list('department', flat=True)
+        .distinct()
+    )
+
+    department_filter = request.GET.get('department')
+    activity_designs = ActivityDesign.objects.filter(
+        status='Pending',
+        approved_by_admin=False,
+        approved_by_approving_officer=False,
+    ).select_related('requested_by', 'budget_allocation__approved_budget')
+
+    if department_filter:
+        activity_designs = activity_designs.filter(requested_by__department=department_filter)
+
+    # Handle possible DoesNotExist gracefully (though .filter() never raises it)
+    context = {
+        'activity_designs': activity_designs,
+        'departments': departments,
+        'selected_department': department_filter,
+    }
+    return render(request, 'admin_panel/departments_ad_request.html', context)
