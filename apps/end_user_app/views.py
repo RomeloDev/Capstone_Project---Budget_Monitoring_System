@@ -659,9 +659,9 @@ def department_pre_page(request):
     has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
     
     count_submitted = DepartmentPRE.objects.filter(submitted_by=user).select_related('submitted_department_pres').count()
-    count_has_budget = BudgetAllocation.objects.filter(department=user_dept, is_compiled=True).count()
+    count_has_budget = BudgetAllocation.objects.filter(department=user_dept, is_compiled=False).exists()
     
-    if count_submitted >= count_has_budget:
+    if not count_has_budget:
         has_budget = None
 
     # Load submitted PREs for this user/department

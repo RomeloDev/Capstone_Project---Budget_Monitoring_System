@@ -6,14 +6,14 @@ from decimal import Decimal
 class PurchaseRequest(models.Model):
     PR_STATUS_CHOICES = [
         ('draft', 'Draft'),
-        ('submitted', 'Submitted'),
+        ('Submitted', 'Submitted'),
     ]
     
     SUBMITTED_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('partially_approved', 'Partially Approved'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
+        ('Pending', 'Pending'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
     ]
     
     entity_name = models.CharField(max_length=255)

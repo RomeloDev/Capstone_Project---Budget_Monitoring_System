@@ -330,7 +330,7 @@ def handle_request_action(request, pk):
             # allocation.spent = (allocation.spent or 0) + (req.total_amount or 0)
             # allocation.save(update_fields=['spent', 'updated_at'])
 
-            req.submitted_status = 'Partially Approved'
+            req.submitted_status = 'Approved'
             req.approved_by_approving_officer = True
             messages.success(request, f'Request PR-{req.pr_no} has been approved successfully.')
         elif action == 'reject':
