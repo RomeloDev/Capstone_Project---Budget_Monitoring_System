@@ -95,14 +95,14 @@ def register_account(request):
 def departments_pr_request(request):
     departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
     
+    try:
+        users_purchase_requests = PurchaseRequest.objects.filter(pr_status='Submitted').select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+    except PurchaseRequest.DoesNotExist:
+        users_purchase_requests = None
+    
     filter_department = request.GET.get('department')
     if filter_department:
         users_purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='Submitted', submitted_status='Pending', approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
-    
-    try:
-        users_purchase_requests = PurchaseRequest.objects.filter(pr_status='Submitted', approved_by_admin=False, approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
-    except PurchaseRequest.DoesNotExist:
-        users_purchase_requests = None
         
     return render(request, 'admin_panel/departments_pr_request.html', {'users_purchase_requests': users_purchase_requests,                'departments': departments})
 
@@ -256,6 +256,7 @@ def admin_logout(request):
 
 @login_required
 def audit_trail(request):
+    
     # Get all audit records and users
     audit_records = AuditTrail.objects.select_related('user').all()
     departments = User.objects.all().values_list('department', flat=True).distinct()
@@ -286,7 +287,7 @@ def audit_trail(request):
     context = {
         'page_obj': page_obj,
         'action_choices': AuditTrail.ACTION_CHOICES,
-        'departments': departments
+        'departments': departments,
     }
     return render(request, 'admin_panel/audit_trail.html', context)
 
@@ -640,6 +641,16 @@ def preview_purchase_request(request, pk:int):
     
 @login_required
 def department_activity_design(request):
+    STATUS = (
+        ('PENDING', 'Pending'),
+        ('PARTIALLY APPROVED', 'Partially Approved'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected')
+    )
+    
+    # Get all the activity design request
+    activity_designs = ActivityDesign.objects.all().select_related('requested_by', 'budget_allocation__approved_budget')
+    
     # Get distinct departments from non-staff, non-approving officer users
     departments = (
         User.objects.filter(is_staff=False, is_approving_officer=False)
@@ -649,19 +660,54 @@ def department_activity_design(request):
     )
 
     department_filter = request.GET.get('department')
-    activity_designs = ActivityDesign.objects.filter(
-        status='Pending',
-        approved_by_admin=False,
-        approved_by_approving_officer=False,
-    ).select_related('requested_by', 'budget_allocation__approved_budget')
-
     if department_filter:
         activity_designs = activity_designs.filter(requested_by__department=department_filter)
 
+    status_filter = request.GET.get('status')
+    if status_filter:
+        activity_designs = activity_designs.filter(status=status_filter)
+        
     # Handle possible DoesNotExist gracefully (though .filter() never raises it)
     context = {
         'activity_designs': activity_designs,
         'departments': departments,
         'selected_department': department_filter,
+        'status_choices': STATUS,
     }
     return render(request, 'admin_panel/departments_ad_request.html', context)
+
+@login_required
+def admin_preview_activity_design(request, pk: int):
+    activity_design = get_object_or_404(ActivityDesign, id=pk)
+    return render(request, 'admin_panel/preview_activity_design.html', {'activity': activity_design})
+
+@login_required
+def handle_activity_design_request(request, pk:int):
+    """
+    View for Admin to approve or reject department activity designs.
+    Updates the status of the activity design and associated budget allocation.
+    """
+    activity_design = get_object_or_404(ActivityDesign, id=pk)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        allocation = activity_design.budget_allocation
+        if action == 'approve':
+            if allocation is None:
+                messages.error(request, 'No budget allocation linked to this activity design.')
+                return redirect('department_activity_design')
+            if allocation.remaining_budget < (activity_design.source_amount or 0):
+                messages.error(request, 'Insufficient remaining budget to approve this activity design.')
+                return redirect('department_activity_design')
+            allocation.spent = (allocation.spent or 0) + (activity_design.source_amount or 0)
+            allocation.save(update_fields=['spent', 'updated_at'])
+            activity_design.status = 'Partially Approved'
+            activity_design.approved_by_admin = True
+        elif action == 'reject':
+            activity_design.status = 'Rejected'
+            activity_design.approved_by_admin = False
+
+        activity_design.save(update_fields=['status', 'updated_at', 'approved_by_admin'])
+
+    return redirect('department_activity_design')

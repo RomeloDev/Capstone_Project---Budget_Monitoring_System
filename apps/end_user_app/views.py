@@ -975,6 +975,7 @@ def activity_design_form(request):
             source_item_key=item_key if sof_encoded else None,
             source_quarter=quarter if sof_encoded else None,
             source_amount=source_amount_decimal if sof_encoded else None,
+            requested_by=request.user,
         )
         
         

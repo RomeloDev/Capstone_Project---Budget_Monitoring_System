@@ -1,0 +1,220 @@
+{% extends "admin_base_template/dashboard.html" %}
+
+{% load humanize %}
+
+{% block title %}Preview Activity Design{% endblock title %}
+
+{% block main-content %}
+<main class="mx-auto max-w-5xl p-4 md:p-8">
+  <!-- Header / Masthead -->
+  <section class="mb-6 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+    <div class="flex flex-col items-center justify-between gap-4 text-center md:flex-row md:text-left">
+      <div class="flex items-center gap-4">
+        <div class="h-14 w-14 rounded-full bg-gray-100 ring-1 ring-gray-200">
+          <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" 
+               alt="Bisu Logo" 
+               class="h-full w-full object-cover rounded-full">
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-500">Republic of the Philippines</p>
+          <h1 class="text-lg font-semibold">Bohol Island State University</h1>
+          <p class="text-xs text-gray-500">[Address, Zip Code, Bohol, Philippines]</p>
+          <p class="text-[11px] text-gray-500">Office of the __________</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded bg-gray-100 ring-1 ring-gray-200">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/b/b1/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo">
+        </div>
+        <div class="h-10 w-20 rounded bg-gray-100 ring-1 ring-gray-200">
+          <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQyAcSvFonC-PFbOnMUYYjRlVgb9fNbgt_lFw&s" alt="ISO Logo">
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 border-t pt-3 text-center">
+      <h2 class="text-xl font-bold tracking-wide">TRAINING ACTIVITY DESIGN</h2>
+    </div>
+  </section>
+
+  <!-- Optional UI improvement: Add a print button for convenience -->
+  <div class="no-print mb-4 flex flex-wrap items-center gap-2">
+    {% comment %} <button onclick="window.print()" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Print</button> {% endcomment %}
+     <button type="button" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Download as Word</button>
+    <a href="{% url "activity_design_form" %}"  class="rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-200" style="cursor: pointer;">Submit New</a>
+  </div>
+
+  <!-- SECTION I: Title of Activity + Schedule / Venue -->
+  <!-- Section I -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="grid gap-4 border-t p-4 md:grid-cols-2">
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium">Title of Activity:</label>
+        <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.title_of_activity }}</div>
+      </div>
+      <div>
+        <label class="mb-1 block text-sm font-medium">Schedule / Venue:</label>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.schedule_date|date:"F d, Y" }}</div>
+          <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.venue }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION II: Rationale -->
+  <!-- Section II -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Rationale:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.rationale }}</div>
+    </div>
+  </section>
+
+  <!-- SECTION III: Objectives -->
+  <!-- Section III -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Objectives:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.objectives }}</div>
+    </div>
+  </section>
+
+  <!-- SECTION IV: Contents / Subject Matter + Sessions -->
+  <!-- Section IV -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="text-sm font-medium">Contents / Subject Matter:</label>
+      <div class="space-y-4 mt-2">
+        {% for session in activity.sessions.all %}
+        <div class="rounded-md border border-gray-200 p-3">
+          <label class="mb-1 block text-sm font-medium">Session {{ forloop.counter }}:</label>
+          <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ session.content }}</div>
+        </div>
+        {% empty %}
+        <div class="text-gray-500 italic">No sessions provided.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION V: Methodology / Process -->
+  <!-- Section V -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Methodology / Process:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.methodology }}</div>
+    </div>
+  </section>
+
+  <!-- SECTION VI: Participants -->
+  <!-- Section VI -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Participants:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.participants }}</div>
+    </div>
+  </section>
+
+  <!-- SECTION VII: Resource Persons and Facilitators -->
+  <!-- Section VII -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Resource Persons and Facilitators:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.resource_persons }}</div>
+    </div>
+  </section>
+
+  <!-- SECTION VIII: Materials Needed -->
+  <!-- Section VIII -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Materials Needed:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.materials_needed }}</div>
+    </div>
+  </section>
+
+  <!-- SECTION IX: Budget Allocation -->
+  <!-- Section IX -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Budget Allocation:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.budget_allocation }}</div>
+    </div>
+  </section>
+
+  <!-- SECTION X: Training Evaluation and Final Outcomes -->
+  <!-- Section X -->
+  <section class="card rounded-lg bg-white shadow-sm ring-1 ring-gray-200 mb-4">
+    <div class="border-t p-4">
+      <label class="mb-1 block text-sm font-medium">Training Evaluation and Final Outcomes:</label>
+      <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.evaluation_plan }}</div>
+    </div>
+  </section>
+
+  <!-- SIGNATORIES (Top row - three columns) -->
+  <!-- Signatories Section -->
+  <section class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 mb-4">
+    <h3 class="mb-3 text-base font-semibold">Signatories</h3>
+    <div class="grid gap-4 md:grid-cols-3">
+      {% for signatory in activity.signatories.all %}
+      <div class="rounded-md border border-gray-200 p-3">
+        <label class="block text-sm font-semibold">Name &amp; Signature</label>
+        <div class="mt-1 rounded bg-gray-50 px-3 py-2 font-semibold">{{ signatory.name }}</div>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ signatory.position }}</div>
+          <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ signatory.date|date:"F d, Y" }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="text-gray-500 italic">No signatories provided.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- APPROVALS: Approved by + Campus Level + University Level -->
+  <!-- Approvals Section -->
+  <section class="space-y-4">
+    <div class="card rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+      <p class="text-sm font-semibold">Approved by:</p>
+    </div>
+
+    <!-- Campus Level -->
+    <div class="card grid gap-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 md:grid-cols-3">
+      <div class="space-y-2 md:col-span-1">
+        <p class="text-sm font-semibold">Campus Level:</p>
+        <div class="rounded-md border border-gray-200 p-3">
+          <label class="block text-sm font-semibold">Name &amp; Signature</label>
+          <div class="mt-1 rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.campus_approval.name }}</div>
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.campus_approval.position }}</div>
+            <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.campus_approval.date|date:"F d, Y" }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-semibold">Remarks:</label>
+        <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.campus_approval.remarks }}</div>
+      </div>
+    </div>
+
+    <!-- University Level -->
+    <div class="card grid gap-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 md:grid-cols-3">
+      <div class="space-y-2 md:col-span-1">
+        <p class="text-sm font-semibold">University Level:</p>
+        <div class="rounded-md border border-gray-200 p-3">
+          <label class="block text-sm font-semibold">Name &amp; Signature</label>
+          <div class="mt-1 rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.university_approval.name }}</div>
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.university_approval.position }}</div>
+            <div class="rounded bg-gray-50 px-3 py-2 font-semibold">{{ activity.university_approval.date|date:"F d, Y" }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-semibold">Remarks:</label>
+        <div class="rounded bg-gray-50 px-3 py-2 whitespace-pre-line font-semibold">{{ activity.university_approval.remarks }}</div>
+      </div>
+    </div>
+  </section>
+</main>
+{% endblock main-content %}

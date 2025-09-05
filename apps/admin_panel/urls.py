@@ -18,4 +18,6 @@ urlpatterns = [
     path('pre/<int:pk>/action/', views.admin_handle_pre_action, name='admin_handle_pre_action'),
     path('preview_purchase_request/<int:pk>/', views.preview_purchase_request, name='preview_purchase_request'),
     path('department_activity_design/', views.department_activity_design, name='department_activity_design'),
+    path('handle_activity_design/<int:pk>/', views.handle_activity_design_request, name='handle_activity_design_request'),
+    path('admin-preview-activity-design/<int:pk>/', views.admin_preview_activity_design, name='admin_preview_activity_design'),
 ]
