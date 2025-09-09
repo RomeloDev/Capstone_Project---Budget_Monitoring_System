@@ -11,4 +11,7 @@ urlpatterns = [
     path('logout/', views.approving_officer_logout, name='approving_officer_logout'),
     path('handle_request_action/<int:pk>/', views.handle_request_action, name='handle_request_action'),
     path('preview-purchase-request/<int:pk>/', views.preview_purchase_request, name='ao_preview_purchase_request'),
+    path('activity_design/', views.activity_design_page, name='ao_activity_design_page'),
+    path('preview-activity-design/<int:pk>/', views.ao_preview_activity_design, name='ao_preview_activity_design'),
+    path('handle_activity_design_action/<int:pk>/', views.handle_activity_design_action, name='handle_activity_design_action'),
 ]

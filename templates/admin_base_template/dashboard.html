@@ -32,9 +32,9 @@
               <a href="{% url 'admin_dashboard' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'admin_dashboard' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-chart-pie w-5 text-center"></i>
                 <span>Dashboard</span>
@@ -45,9 +45,9 @@
               <a href="{% url 'client_accounts' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'client_accounts' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-users w-5 text-center"></i>
                 <span>Users</span>
@@ -58,9 +58,9 @@
               <a href="{% url 'audit_trail' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'audit_trail' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i>
                 <span>Audit Trail</span>
@@ -71,9 +71,9 @@
               <a href="{% url 'institutional_funds' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'institutional_funds' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-building-columns w-5 text-center"></i>
                 <span>Approved Budget</span>
@@ -84,9 +84,9 @@
               <a href="{% url 'budget_allocation' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'budget_allocation' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-hand-holding-dollar w-5 text-center"></i>
                 <span>Budget Allocation</span>
@@ -97,9 +97,9 @@
               <a href="{% url 'department_pr_request' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'department_pr_request' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-cart-shopping w-5 text-center"></i>
                 <span>Department's Purchase Request</span>
@@ -110,9 +110,9 @@
               <a href="{% url 'department_activity_design' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'department_activity_design' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-tasks w-5 text-center"></i>
                 <span>Department's Activity Design</span>
@@ -123,9 +123,9 @@
               <a href="{% url 'pre_request_page' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'pre_request_page' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-file-invoice w-5 text-center"></i>
                 <span>PRE Request</span>
@@ -136,9 +136,9 @@
               <a href="{% url 'budget_realignment' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
                  {% if request.resolver_match.url_name == 'budget_realignment' %}
-                   bg-blue-50 text-blue-600 font-medium
+                   bg-blue-600 text-white font-medium
                  {% else %}
-                   text-gray-700 hover:bg-gray-100
+                   text-gray-700 hover:bg-blue-600 hover:text-white
                  {% endif %}">
                 <i class="fa-solid fa-retweet w-5 text-center"></i>
                 <span>Re-Alignment Request</span>
@@ -147,7 +147,7 @@
 
             <li class="pt-6 border-t mt-6">
               <a href="{% url 'admin_logout' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md text-red-600 hover:bg-red-50">
+                 class="flex items-center gap-2 px-3 py-2 rounded-md text-red-600 hover:bg-red-600 hover:text-white">
                 <i class="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i>
                 <span>Logout</span>
               </a>

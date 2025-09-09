@@ -6,50 +6,23 @@
 
 {% block main-content %}
 <div class="flex flex-col w-full">
-    <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
+    <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg flex justify-between items-center">
+        <div>
             <h1 class="text-[20px] font-bold">Approved Budget</h1>
             <p class="text-sm text-blue-100 mt-1">Set the approved budget for the institution. This budget will be used to allocate funds to departments.</p>
-        </header>
-    <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
-
-    <!-- Approved Budget Form -->
-    <section class="bg-white rounded-lg p-6 shadow-md">
-        <header class="mb-4">
-        <h2 class="text-2xl font-bold text-gray-800">Add Approved Budget</h2>
-        <p class="text-gray-600">Set the approved budget for a specific quarter or year.</p>
-        </header>
-        
-        <form method="POST" action="{% url "institutional_funds" %}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {% csrf_token %}
-
-        <div>
-            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
-            <input type="text" name="title" id="title" placeholder="e.g., FY 2025 Q1 Budget" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
         </div>
-
-        <div>
-            <label for="period" class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-            <select name="period" id="period" class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            <option value="" disabled selected>-- Select Period --</option>
-            <option value="Q1">Q1</option>
-            <option value="Q2">Q2</option>
-            <option value="Q3">Q3</option>
-            <option value="Q4">Q4</option>
-            <option value="Full Year">Full Year</option>
-            </select>
-        </div>
-
-        <div class="md:col-span-2">
-            <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Approved Budget (₱)</label>
-            <input type="number" name="amount" id="amount" placeholder="Enter amount" required class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-        </div>
-
-        <div class="md:col-span-2 flex justify-end">
-            <button type="submit" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700">
-            Submit Budget
+        <div class="flex gap-2">
+            <button id="filterBtn" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded hover:bg-blue-50 transition-colors">
+                Filter
+            </button>
+            <button id="addBudgetBtn" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded hover:bg-blue-50 transition-colors">
+                Add Approved Budget
             </button>
         </div>
-        </form>
+    </header>
+    
+    <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
+        <!-- Messages -->
         {% if messages %}
             <div class="mb-4">
                 {% for message in messages %}
@@ -62,49 +35,360 @@
                 {% endfor %}
             </div>
         {% endif %}
-    </section>
 
-    <!-- Budget History Table -->
-    <section class="bg-white rounded-lg p-6 shadow-md">
-        <header class="mb-4">
-        <h2 class="text-2xl font-bold text-gray-800">Approved Budget History</h2>
-        </header>
+        <!-- Dashboard Summary Cards -->
+        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Total Approved Budget Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Total Approved Budget</p>
+                        <p class="text-3xl font-bold text-gray-900">₱{{ total_approved_budget|default:"0"|floatformat:0|intcomma }}</p>
+                        <p class="text-xs text-gray-500 mt-1">All time</p>
+                    </div>
+                    <div class="p-3 bg-blue-100 rounded-full">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
 
-        <div class="overflow-x-auto rounded-lg">
-        <table class="min-w-full text-sm text-left">
-            <thead class="bg-blue-600 font-semibold text-white">
-            <tr>
-                <th class="py-2 px-4">ID</th>
-                <th class="py-2 px-4">Title</th>
-                <th class="py-2 px-4">Period</th>
-                <th class="py-2 px-4">Amount</th>
-                <th class="py-2 px-4">Remaining Balance</th>
-                <th class="py-2 px-4">Created At</th>
-                <th class="py-2 px-4">Updated At</th>
-            </tr>
-            </thead>
-            <tbody class="text-gray-700">
-            {% for budget in approved_budgets %}
-            <tr class="hover:bg-gray-50">
-                <td class="py-2 px-4 border-b">{{ budget.id }}</td>
-                <td class="py-2 px-4 border-b">{{ budget.title }}</td>
-                <td class="py-2 px-4 border-b">{{ budget.period }}</td>
-                <td class="py-2 px-4 border-b">&#8369;{{ budget.amount|intcomma }}</td>
-                <td class="py-2 px-4 border-b">&#8369;{{ budget.remaining_budget|intcomma }}</td>
-                <td class="py-2 px-4 border-b">{{ budget.created_at }}</td>
-                <td class="py-2 px-4 border-b">{{ budget.updated_at }}</td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" class="py-4 px-4 text-center border-b text-gray-500">No Approved Budgets Yet</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        </div>
-    </section>
+            <!-- Total Remaining Budget Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Total Remaining Budget</p>
+                        <p class="text-3xl font-bold text-gray-900">₱{{ total_remaining_budget|default:"0"|floatformat:0|intcomma }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Available for allocation</p>
+                    </div>
+                    <div class="p-3 bg-green-100 rounded-full">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Budget Entries Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Total Budget Entries</p>
+                        <p class="text-3xl font-bold text-gray-900">{{ total_budget_count|default:"0" }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Approved budgets</p>
+                    </div>
+                    <div class="p-3 bg-purple-100 rounded-full">
+                        <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Utilization Rate Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Budget Utilization</p>
+                        <p class="text-3xl font-bold text-gray-900">{{ budget_utilization_rate|default:"0" }}%</p>
+                        <p class="text-xs text-gray-500 mt-1">Of total budget</p>
+                    </div>
+                    <div class="p-3 bg-yellow-100 rounded-full">
+                        <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Budget History Table -->
+        <section class="bg-white rounded-lg p-6 shadow-md">
+            <header class="mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">Approved Budget History</h2>
+            </header>
+
+            <div class="overflow-x-auto rounded-lg">
+                <table class="min-w-full text-sm text-left">
+                    <thead class="bg-blue-600 font-semibold text-white">
+                        <tr>
+                            <th class="py-2 px-4">ID</th>
+                            <th class="py-2 px-4">Title</th>
+                            <th class="py-2 px-4">Period</th>
+                            <th class="py-2 px-4">Amount</th>
+                            <th class="py-2 px-4">Remaining Balance</th>
+                            <th class="py-2 px-4">Created At</th>
+                            <th class="py-2 px-4">Updated At</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-700">
+                        {% for budget in approved_budgets %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b">{{ budget.id }}</td>
+                            <td class="py-2 px-4 border-b">{{ budget.title }}</td>
+                            <td class="py-2 px-4 border-b">{{ budget.period }}</td>
+                            <td class="py-2 px-4 border-b">&#8369;{{ budget.amount|intcomma }}</td>
+                            <td class="py-2 px-4 border-b">&#8369;{{ budget.remaining_budget|intcomma }}</td>
+                            <td class="py-2 px-4 border-b">{{ budget.created_at|date:"M d, Y g:i A" }}</td>
+                            <td class="py-2 px-4 border-b">{{ budget.updated_at|date:"M d, Y g:i A" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="py-4 px-4 text-center border-b text-gray-500">No Approved Budgets Yet</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if approved_budgets.has_other_pages %}
+            <div class="flex justify-between items-center mt-6">
+                <div class="text-sm text-gray-600">
+                    Showing {{ approved_budgets.start_index }} to {{ approved_budgets.end_index }} of {{ approved_budgets.paginator.count }} entries
+                </div>
+                <div class="flex gap-1">
+                    <!-- Previous Button -->
+                    {% if approved_budgets.has_previous %}
+                        <a href="?page={{ approved_budgets.previous_page_number }}" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                            Previous
+                        </a>
+                    {% else %}
+                        <span class="px-3 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed">
+                            Previous
+                        </span>
+                    {% endif %}
+
+                    <!-- Page Numbers -->
+                    {% for num in approved_budgets.paginator.page_range %}
+                        {% if approved_budgets.number == num %}
+                            <span class="px-3 py-2 bg-blue-600 text-white rounded">{{ num }}</span>
+                        {% elif num > approved_budgets.number|add:'-3' and num < approved_budgets.number|add:'3' %}
+                            <a href="?page={{ num }}" class="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors">{{ num }}</a>
+                        {% endif %}
+                    {% endfor %}
+
+                    <!-- Next Button -->
+                    {% if approved_budgets.has_next %}
+                        <a href="?page={{ approved_budgets.next_page_number }}" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                            Next
+                        </a>
+                    {% else %}
+                        <span class="px-3 py-2 bg-gray-300 text-gray-500 rounded cursor-not-allowed">
+                            Next
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </section>
     </main>
-
-
 </div>
+
+<!-- Add Budget Modal -->
+<div id="budgetModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <!-- Modal Header -->
+        <div class="bg-blue-600 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
+            <h2 class="text-xl font-bold">Add Approved Budget</h2>
+            <button id="closeBudgetModal" class="text-white hover:text-blue-200 text-2xl font-bold">&times;</button>
+        </div>
+        
+        <!-- Modal Content -->
+        <div class="p-6">
+            <p class="text-gray-600 mb-6">Set the approved budget for a specific quarter or year.</p>
+            
+            <form method="POST" action="{% url "institutional_funds" %}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% csrf_token %}
+
+                <div>
+                    <label for="title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input type="text" name="title" id="title" placeholder="e.g., FY 2025 Q1 Budget" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label for="period" class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <select name="period" id="period" class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="" disabled selected>-- Select Period --</option>
+                        <option value="Q1">Q1</option>
+                        <option value="Q2">Q2</option>
+                        <option value="Q3">Q3</option>
+                        <option value="Q4">Q4</option>
+                        <option value="Full Year">Full Year</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Approved Budget (₱)</label>
+                    <input type="number" name="amount" id="amount" placeholder="Enter amount" required class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div class="md:col-span-2 flex justify-end gap-3">
+                    <button type="button" id="cancelBudgetBtn" class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600">
+                        Cancel
+                    </button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700">
+                        Submit Budget
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Modal -->
+<div id="filterModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-lg max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <!-- Modal Header -->
+        <div class="bg-blue-600 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
+            <h2 class="text-xl font-bold">Filter Approved Budgets</h2>
+            <button id="closeFilterModal" class="text-white hover:text-blue-200 text-2xl font-bold">&times;</button>
+        </div>
+        
+        <!-- Modal Content -->
+        <div class="p-6">
+            <p class="text-gray-600 mb-6">Filter the approved budgets based on the criteria below.</p>
+            
+            <form method="GET" action="{% url "institutional_funds" %}" class="space-y-4">
+                <div>
+                    <label for="filter_period" class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <select name="period" id="filter_period" class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="">-- All Periods --</option>
+                        <option value="Q1">Q1</option>
+                        <option value="Q2">Q2</option>
+                        <option value="Q3">Q3</option>
+                        <option value="Q4">Q4</option>
+                        <option value="Full Year">Full Year</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="filter_amount_min" class="block text-sm font-medium text-gray-700 mb-1">Min Amount (₱)</label>
+                        <input type="number" name="amount_min" id="filter_amount_min" placeholder="0" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label for="filter_amount_max" class="block text-sm font-medium text-gray-700 mb-1">Max Amount (₱)</label>
+                        <input type="number" name="amount_max" id="filter_amount_max" placeholder="No limit" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="filter_date_from" class="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+                        <input type="date" name="date_from" id="filter_date_from" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label for="filter_date_to" class="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+                        <input type="date" name="date_to" id="filter_date_to" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="filter_search" class="block text-sm font-medium text-gray-700 mb-1">Search in Title</label>
+                    <input type="text" name="search" id="filter_search" placeholder="Enter keywords..." class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4">
+                    <button type="button" id="clearFilters" class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600">
+                        Clear Filters
+                    </button>
+                    <button type="button" id="cancelFilterBtn" class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600">
+                        Cancel
+                    </button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700">
+                        Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Budget Modal Elements
+    const budgetModal = document.getElementById('budgetModal');
+    const addBudgetBtn = document.getElementById('addBudgetBtn');
+    const closeBudgetModal = document.getElementById('closeBudgetModal');
+    const cancelBudgetBtn = document.getElementById('cancelBudgetBtn');
+    
+    // Filter Modal Elements
+    const filterModal = document.getElementById('filterModal');
+    const filterBtn = document.getElementById('filterBtn');
+    const closeFilterModal = document.getElementById('closeFilterModal');
+    const cancelFilterBtn = document.getElementById('cancelFilterBtn');
+    const clearFilters = document.getElementById('clearFilters');
+    
+    // Budget Modal Functions
+    function openBudgetModal() {
+        budgetModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeBudgetModalFunction() {
+        budgetModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        budgetModal.querySelector('form').reset();
+    }
+    
+    // Filter Modal Functions
+    function openFilterModal() {
+        filterModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeFilterModalFunction() {
+        filterModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+    
+    // Event Listeners for Budget Modal
+    addBudgetBtn.addEventListener('click', openBudgetModal);
+    closeBudgetModal.addEventListener('click', closeBudgetModalFunction);
+    cancelBudgetBtn.addEventListener('click', closeBudgetModalFunction);
+    
+    // Event Listeners for Filter Modal
+    filterBtn.addEventListener('click', openFilterModal);
+    closeFilterModal.addEventListener('click', closeFilterModalFunction);
+    cancelFilterBtn.addEventListener('click', closeFilterModalFunction);
+    
+    // Clear Filters
+    clearFilters.addEventListener('click', function() {
+        filterModal.querySelectorAll('input, select').forEach(function(element) {
+            if (element.type === 'text' || element.type === 'number' || element.type === 'date') {
+                element.value = '';
+            } else if (element.type === 'select-one') {
+                element.selectedIndex = 0;
+            }
+        });
+    });
+    
+    // Close modals when clicking outside
+    budgetModal.addEventListener('click', function(e) {
+        if (e.target === budgetModal) {
+            closeBudgetModalFunction();
+        }
+    });
+    
+    filterModal.addEventListener('click', function(e) {
+        if (e.target === filterModal) {
+            closeFilterModalFunction();
+        }
+    });
+    
+    // Close modals with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            if (!budgetModal.classList.contains('hidden')) {
+                closeBudgetModalFunction();
+            }
+            if (!filterModal.classList.contains('hidden')) {
+                closeFilterModalFunction();
+            }
+        }
+    });
+});
+</script>
 {% endblock  %}

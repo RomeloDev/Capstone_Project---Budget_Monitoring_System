@@ -1,86 +1,824 @@
 {% extends "admin_base_template/dashboard.html" %}
 {% load humanize %}
-
 {% block title %}Dashboard{% endblock %}
 
 {% block main-content %}
-<div class="flex flex-col w-full">
-  
+<div class="flex flex-col w-full min-h-screen bg-gradient-to-br from-gray-100">
   <!-- Header -->
-  <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
-    <h1 class="text-[20px] font-bold">Dashboard</h1>
-    <p class="text-sm text-blue-100 mt-1">
-      Welcome back, {{ user.department }}! Here's an overview of the system’s current status:
-    </p>
+  <header class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 text-white shadow-lg rounded-lg mb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Dashboard</h1>
+        <p class="text-blue-100 mt-1 text-sm">
+          Welcome back, <span class="font-semibold">{{ user.department }}</span>! Here's an overview of the system's current status
+        </p>
+      </div>
+      <div class="hidden md:flex items-center space-x-4">
+        <div class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
+          <div class="text-xs text-blue-100">Last Updated</div>
+          <div class="font-semibold" id="current-time">{{ current_time|date:"M d, Y g:i A" }}</div>
+        </div>
+      </div>
+    </div>
   </header>
 
   <!-- Main Section -->
-  <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
+  <main class="flex-1 px-6 pb-8 space-y-8">
 
-    <!-- Summary Cards -->
+    <!-- Dynamic Summary Cards -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       
       <!-- Total Users Card -->
-        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
-        <h2 class="text-md text-gray-700 mb-1">Total Users</h2>
-        <div class="text-2xl font-bold">{{ end_users_total }}</div>
-        <div class="text-blue-600 text-sm mt-1">Updated live</div>
+      <div class="metric-card group bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-l-4 border-blue-500 hover:scale-105 cursor-pointer" 
+           data-metric="users" onclick="animateCard(this)">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Active Users</h3>
+            <div class="text-3xl font-bold text-gray-900 mt-2 counter" data-target="{{ end_users_total }}">0</div>
+            <div class="flex items-center mt-2">
+              <div class="flex items-center text-blue-600 text-sm">
+                <svg class="trend-icon w-4 h-4 mr-1 {% if user_trend == 'up' %}text-green-500 rotate-0{% elif user_trend == 'down' %}text-red-500 rotate-180{% else %}text-gray-500{% endif %}" 
+                     fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                Active This Month
+              </div>
+            </div>
+          </div>
+          <div class="p-4 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors icon-container">
+            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+            </svg>
+          </div>
         </div>
+      </div>
 
-        <!-- Total Budget Card -->
-        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
-        <h2 class="text-md text-gray-700 mb-1">Total Budget</h2>
-        <div class="text-2xl font-bold">&#8369; {{ total_budget|intcomma }}</div>
-        <div class="text-green-500 text-sm mt-1">+₱1,000 since last month</div>
+      <!-- Total Budget Card -->
+      <div class="metric-card group bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-l-4 border-green-500 hover:scale-105 cursor-pointer" 
+           data-metric="budget" onclick="animateCard(this)">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Budget</h3>
+            <div class="text-3xl font-bold text-gray-900 mt-2">₱<span class="counter" data-target="{{ total_budget }}">0</span></div>
+            <div class="flex items-center mt-2">
+              <div class="flex items-center text-green-600 text-sm">
+                <svg class="trend-icon w-4 h-4 mr-1 {% if budget_trend == 'up' %}text-green-500 rotate-0{% elif budget_trend == 'down' %}text-red-500 rotate-180{% else %}text-gray-500{% endif %}" 
+                     fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                Available Funds
+              </div>
+            </div>
+          </div>
+          <div class="p-4 bg-green-100 rounded-full group-hover:bg-green-200 transition-colors icon-container">
+            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+            </svg>
+          </div>
         </div>
+      </div>
 
-        <!-- Pending Requests Card -->
-        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
-        <h2 class="text-md text-gray-700 mb-1">Pending Requests</h2>
-        <div class="text-2xl font-bold">{{ total_pending_realignment_request }}</div>
-        <div class="text-yellow-500 text-sm mt-1">Needs attention</div>
+      <!-- Pending Requests Card -->
+      <div class="metric-card group bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-l-4 border-yellow-500 hover:scale-105 cursor-pointer" 
+           data-metric="pending" onclick="animateCard(this)">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Pending Requests</h3>
+            <div class="text-3xl font-bold text-gray-900 mt-2 counter" data-target="{{ total_pending_realignment_request }}">0</div>
+            <div class="flex items-center mt-2">
+              <div class="flex items-center {% if total_pending_realignment_request > 10 %}text-red-600{% else %}text-yellow-600{% endif %} text-sm">
+                <svg class="trend-icon w-4 h-4 mr-1 {% if pending_trend == 'up' %}text-red-500 rotate-0{% elif pending_trend == 'down' %}text-green-500 rotate-180{% else %}text-gray-500{% endif %}" 
+                     fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                </svg>
+                {% if total_pending_realignment_request > 10 %}High Priority{% else %}Normal{% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="p-4 bg-yellow-100 rounded-full group-hover:bg-yellow-200 transition-colors icon-container">
+            <svg class="w-8 h-8 text-yellow-600 {% if total_pending_realignment_request > 0 %}animate-pulse{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
         </div>
+      </div>
 
-        <!-- Approved Requests Card -->
-        <div class="bg-white rounded-lg p-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-l-4 border-blue-600">
-        <h2 class="text-md text-gray-700 mb-1">Approved Requests</h2>
-        <div class="text-2xl font-bold">{{ total_approved_realignment_request }}</div>
-        <div class="text-green-500 text-sm mt-1">All good</div>
+      <!-- Approved Requests Card -->
+      <div class="metric-card group bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-l-4 border-purple-500 hover:scale-105 cursor-pointer" 
+           data-metric="approved" onclick="animateCard(this)">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Approved Requests</h3>
+            <div class="text-3xl font-bold text-gray-900 mt-2 counter" data-target="{{ total_approved_realignment_request }}">0</div>
+            <div class="flex items-center mt-2">
+              <div class="flex items-center text-purple-600 text-sm">
+                <svg class="trend-icon w-4 h-4 mr-1 {% if approved_trend == 'up' %}text-green-500 rotate-0{% elif approved_trend == 'down' %}text-red-500 rotate-180{% else %}text-gray-500{% endif %}" 
+                     fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                Completed
+              </div>
+            </div>
+          </div>
+          <div class="p-4 bg-purple-100 rounded-full group-hover:bg-purple-200 transition-colors icon-container">
+            <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
         </div>
-
-    </section>
-
-    <!-- Department Budget Table -->
-    <section>
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Department Budget Overview</h2>
-      <div class="overflow-x-auto bg-white rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border border-gray-200">
-        <table class="min-w-full divide-y divide-gray-200 text-sm">
-          <thead class="bg-blue-600 text-left font-semibold text-gray-50">
-            <tr>
-              <th class="px-6 py-3">Department</th>
-              <th class="px-6 py-3">Allocated Budget</th>
-              <th class="px-6 py-3">Used Budget</th>
-              <th class="px-6 py-3">Remaining Budget</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            {% for allocation in budget_allocated %}
-              <tr>
-                <td class="px-6 py-4 text-gray-700">{{ allocation.department }}</td>
-                <td class="px-6 py-4">&#8369; {{ allocation.total_allocated|intcomma }}</td>
-                <td class="px-6 py-4">&#8369; {{ allocation.spent|intcomma }}</td>
-                <td class="px-6 py-4">&#8369; {{ allocation.remaining_budget|intcomma }}</td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="4" class="px-6 py-4 text-center text-gray-500">No data available.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
       </div>
     </section>
-    
+
+    <!-- Additional Metrics Row -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-medium text-gray-600">Active Departments</h3>
+            <div class="text-2xl font-bold text-gray-900 counter" data-target="{{ active_departments }}">0</div>
+          </div>
+          <div class="p-3 bg-indigo-100 rounded-full">
+            <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h1a1 1 0 011 1v5m-4 0h4"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-medium text-gray-600">Avg Utilization</h3>
+            <div class="text-2xl font-bold text-gray-900"><span class="counter" data-target="{{ avg_utilization }}">0</span>%</div>
+          </div>
+          <div class="p-3 bg-cyan-100 rounded-full">
+            <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-medium text-gray-600">Low Budget Alerts</h3>
+            <div class="text-2xl font-bold {% if low_budget_depts > 0 %}text-red-600{% else %}text-green-600{% endif %} counter" data-target="{{ low_budget_depts }}">0</div>
+          </div>
+          <div class="p-3 {% if low_budget_depts > 0 %}bg-red-100{% else %}bg-green-100{% endif %} rounded-full">
+            <svg class="w-6 h-6 {% if low_budget_depts > 0 %}text-red-600{% else %}text-green-600{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833-.192 2.5 1.732 2.5z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Content with Sidebar -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+      <!-- LEFT SIDE: Chart + Table (span 2 cols) -->
+      <div class="lg:col-span-2 space-y-8">
+
+        <!-- CHART -->
+        <section class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-bold text-gray-800 flex items-center">
+              <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+              </svg>
+              Budget Allocation Insights
+            </h2>
+            <p class="text-sm text-gray-600 mt-1">Real-time overview of department budget distribution</p>
+          </div>
+          <div class="p-6">
+            <div class="h-[400px] relative">
+              <canvas id="deptBarChart" aria-label="Department budget chart" role="img"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- TABLE -->
+        <section class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-bold text-gray-800 flex items-center">
+              <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+              </svg>
+              Department Budget Overview
+            </h2>
+            <p class="text-sm text-gray-600 mt-1">Detailed breakdown by department</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+              <thead class="bg-gradient-to-r from-blue-600 to-blue-700">
+                <tr>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Department</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Allocated Budget</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Used Budget</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Remaining Budget</th>
+                  <th class="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                {% for allocation in budget_allocated %}
+                  <tr class="table-row hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="flex items-center">
+                        <div class="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                        <div class="font-medium text-gray-900">{{ allocation.department }}</div>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
+                      ₱{{ allocation.total_allocated|intcomma }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-900">
+                      ₱{{ allocation.spent|intcomma }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
+                      ₱{{ allocation.remaining_budget|intcomma }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      {% if allocation.remaining_budget > 0 %}
+                        <span class="status-badge inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                          </svg>
+                          Active
+                        </span>
+                      {% else %}
+                        <span class="status-badge inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                          </svg>
+                          Depleted
+                        </span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="px-6 py-12 text-center">
+                      <div class="flex flex-col items-center">
+                        <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-gray-500 text-lg font-medium">No budget data available</p>
+                        <p class="text-gray-400 text-sm">Start by creating department budgets</p>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT SIDE: Recent Activity -->
+      <aside class="space-y-6">
+        <section class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-bold text-gray-800 flex items-center">
+              <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+              Recent Activity
+            </h2>
+            <p class="text-xs text-gray-600 mt-1">Latest actions across the system</p>
+          </div>
+
+          <div class="p-4">
+            <div class="relative" id="activity-container">
+              {% for item in recent_activities %}
+                <div class="activity-item flex items-start space-x-3 mb-6 last:mb-0 opacity-0 translate-y-4" style="animation-delay: {{ forloop.counter|add:'-1'|floatformat:1 }}s;">
+                  <!-- Activity Dot -->
+                  <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center activity-dot
+                    {% if item.action == 'APPROVE' %} bg-green-500
+                    {% elif item.action == 'REJECT' %} bg-red-500
+                    {% elif item.action == 'UPDATE' %} bg-yellow-500
+                    {% elif item.action == 'DELETE' %} bg-red-400
+                    {% elif item.action == 'CREATE' %} bg-blue-600
+                    {% elif item.action == 'LOGIN' %} bg-blue-400
+                    {% else %} bg-gray-400 {% endif %}">
+                    {% if item.action == 'APPROVE' %}
+                      <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                      </svg>
+                    {% elif item.action == 'REJECT' %}
+                      <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                      </svg>
+                    {% elif item.action == 'CREATE' %}
+                      <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path>
+                      </svg>
+                    {% else %}
+                      <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
+                      </svg>
+                    {% endif %}
+                  </div>
+
+                  <!-- Activity Content -->
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between">
+                      <p class="text-sm font-medium text-gray-900 truncate">
+                        {{ item.user.get_full_name|default:item.user.username|default:"System" }}
+                      </p>
+                      <span class="text-xs text-gray-500 flex-shrink-0 ml-2">{{ item.timestamp|naturaltime }}</span>
+                    </div>
+
+                    <div class="mt-1 flex items-center space-x-2">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                        {% if item.action == 'APPROVE' %} bg-green-100 text-green-800
+                        {% elif item.action == 'REJECT' %} bg-red-100 text-red-800
+                        {% elif item.action == 'UPDATE' %} bg-yellow-100 text-yellow-800
+                        {% elif item.action == 'DELETE' %} bg-red-100 text-red-800
+                        {% elif item.action == 'CREATE' %} bg-blue-100 text-blue-800
+                        {% elif item.action == 'LOGIN' %} bg-blue-100 text-blue-700
+                        {% else %} bg-gray-100 text-gray-700 {% endif %}">
+                        {{ item.action }}
+                      </span>
+                      <span class="text-xs text-gray-600">
+                        {{ item.model_name }}{% if item.record_id %} #{{ item.record_id }}{% endif %}
+                      </span>
+                    </div>
+
+                    {% if item.detail %}
+                      <p class="mt-2 text-sm text-gray-600 bg-gray-50 rounded px-2 py-1">{{ item.detail }}</p>
+                    {% endif %}
+                  </div>
+                </div>
+              {% empty %}
+                <div class="text-center py-8">
+                  <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <p class="text-gray-500 font-medium">No recent activity</p>
+                  <p class="text-gray-400 text-sm">Activity will appear here as actions are performed</p>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+      </aside>
+
+    </section>
+
   </main>
+
+  <!-- Safely pass data to JS -->
+  {{ dept_labels|json_script:"dept-labels" }}
+  {{ dept_allocated|json_script:"dept-allocated" }}
+  {{ dept_spent|json_script:"dept-spent" }}
+  {{ dept_remaining|json_script:"dept-remaining" }}
 </div>
+
+<!-- Chart.js (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+
+<!-- Enhanced Dynamic Scripts -->
+<script>
+  // Counter Animation Function
+  function animateCounter(element, target, duration = 2000) {
+    const start = 0;
+    const startTime = performance.now();
+    
+    function updateCounter(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      const current = Math.floor(start + (target - start) * easeOutQuart);
+      
+      element.textContent = current.toLocaleString();
+      
+      if (progress < 1) {
+        requestAnimationFrame(updateCounter);
+      } else {
+        element.textContent = target.toLocaleString();
+      }
+    }
+    
+    requestAnimationFrame(updateCounter);
+  }
+
+  // Card Click Animation
+  function animateCard(card) {
+    card.style.transform = 'scale(0.98)';
+    setTimeout(() => {
+      card.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        card.style.transform = 'scale(1)';
+      }, 150);
+    }, 100);
+    
+    // Add ripple effect
+    const ripple = document.createElement('div');
+    ripple.className = 'absolute inset-0 bg-white opacity-20 rounded-xl pointer-events-none';
+    ripple.style.animation = 'ripple 0.6s ease-out';
+    card.style.position = 'relative';
+    card.appendChild(ripple);
+    
+    setTimeout(() => ripple.remove(), 600);
+  }
+
+  // Update Time Function
+  function updateCurrentTime() {
+    const now = new Date();
+    const timeElement = document.getElementById('current-time');
+    if (timeElement) {
+      timeElement.textContent = now.toLocaleString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+  }
+
+  // Initialize Dashboard
+  window.addEventListener('DOMContentLoaded', function () {
+    // Animate counters
+    document.querySelectorAll('.counter').forEach(counter => {
+      const target = parseInt(counter.dataset.target || '0');
+      setTimeout(() => {
+        animateCounter(counter, target);
+      }, Math.random() * 500); // Stagger animations
+    });
+
+    // Animate activity items
+    document.querySelectorAll('.activity-item').forEach((item, index) => {
+      setTimeout(() => {
+        item.style.opacity = '1';
+        item.style.transform = 'translateY(0)';
+        item.style.transition = 'all 0.6s ease-out';
+      }, index * 100);
+    });
+
+    // Animate table rows
+    document.querySelectorAll('.table-row').forEach((row, index) => {
+      row.style.opacity = '0';
+      row.style.transform = 'translateY(20px)';
+      setTimeout(() => {
+        row.style.opacity = '1';
+        row.style.transform = 'translateY(0)';
+        row.style.transition = 'all 0.4s ease-out';
+      }, index * 50 + 1000);
+    });
+
+    // Update time every minute
+    updateCurrentTime();
+    setInterval(updateCurrentTime, 60000);
+
+    // Chart initialization
+    const labels = JSON.parse(document.getElementById('dept-labels').textContent || '[]');
+    const allocated = JSON.parse(document.getElementById('dept-allocated').textContent || '[]');
+    const spent = JSON.parse(document.getElementById('dept-spent').textContent || '[]');
+    const remaining = JSON.parse(document.getElementById('dept-remaining').textContent || '[]');
+
+    const ctx = document.getElementById('deptBarChart');
+    if (!ctx) return;
+
+    const gradientAllocated = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400);
+    gradientAllocated.addColorStop(0, 'rgba(37, 99, 235, 0.8)');
+    gradientAllocated.addColorStop(1, 'rgba(37, 99, 235, 0.4)');
+
+    const gradientSpent = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400);
+    gradientSpent.addColorStop(0, 'rgba(16, 185, 129, 0.8)');
+    gradientSpent.addColorStop(1, 'rgba(16, 185, 129, 0.4)');
+
+    const gradientRemaining = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400);
+    gradientRemaining.addColorStop(0, 'rgba(234, 179, 8, 0.8)');
+    gradientRemaining.addColorStop(1, 'rgba(234, 179, 8, 0.4)');
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Allocated',
+            data: allocated,
+            backgroundColor: gradientAllocated,
+            borderColor: 'rgba(37, 99, 235, 1)',
+            borderWidth: 2,
+            borderRadius: 6,
+            borderSkipped: false,
+          },
+          {
+            label: 'Spent',
+            data: spent,
+            backgroundColor: gradientSpent,
+            borderColor: 'rgba(16, 185, 129, 1)',
+            borderWidth: 2,
+            borderRadius: 6,
+            borderSkipped: false,
+          },
+          {
+            label: 'Remaining',
+            data: remaining,
+            backgroundColor: gradientRemaining,
+            borderColor: 'rgba(234, 179, 8, 1)',
+            borderWidth: 2,
+            borderRadius: 6,
+            borderSkipped: false,
+          },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              padding: 20,
+              font: {
+                size: 12,
+                weight: 'bold'
+              }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            titleColor: 'white',
+            bodyColor: 'white',
+            cornerRadius: 8,
+            displayColors: true,
+            callbacks: {
+              label: function(context) {
+                const value = context.parsed.y ?? 0;
+                return `${context.dataset.label}: ₱${Number(value).toLocaleString()}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              font: {
+                size: 12,
+                weight: 'bold'
+              },
+              color: '#374151'
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(107, 114, 128, 0.1)'
+            },
+            ticks: {
+              font: {
+                size: 11
+              },
+              color: '#6B7280',
+              callback: function(value) {
+                return '₱' + Number(value).toLocaleString();
+              }
+            }
+          }
+        },
+        animation: {
+          duration: 1500,
+          easing: 'easeOutQuart',
+          delay: function(context) {
+            return context.dataIndex * 100;
+          }
+        }
+      }
+    });
+
+    // Auto-refresh dashboard data every 5 minutes
+    setInterval(() => {
+      console.log('Auto-refreshing dashboard data...');
+      // You can implement AJAX refresh here if needed
+      // location.reload();
+    }, 300000);
+  });
+
+  // Add some interactive features
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add hover effects to status badges
+    document.querySelectorAll('.status-badge').forEach(badge => {
+      badge.addEventListener('mouseenter', function() {
+        this.style.transform = 'scale(1.1)';
+      });
+      badge.addEventListener('mouseleave', function() {
+        this.style.transform = 'scale(1)';
+      });
+    });
+
+    // Add click to copy functionality for budget values
+    document.querySelectorAll('td:nth-child(2), td:nth-child(3), td:nth-child(4)').forEach(cell => {
+      cell.style.cursor = 'pointer';
+      cell.title = 'Click to copy value';
+      cell.addEventListener('click', function() {
+        const text = this.textContent.trim();
+        navigator.clipboard.writeText(text).then(() => {
+          // Show temporary feedback
+          const original = this.innerHTML;
+          this.innerHTML = '✓ Copied!';
+          this.style.color = '#10b981';
+          setTimeout(() => {
+            this.innerHTML = original;
+            this.style.color = '';
+          }, 1000);
+        });
+      });
+    });
+  });
+</script>
+
+<!-- Enhanced CSS Styles -->
+<style>
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 40px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes ripple {
+    0% {
+      transform: scale(0);
+      opacity: 0.5;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% { 
+      opacity: 1; 
+      transform: scale(1);
+    }
+    50% { 
+      opacity: 0.8; 
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes slideInFromRight {
+    from {
+      opacity: 0;
+      transform: translateX(100px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Card animations */
+  .metric-card {
+    animation: fadeInUp 0.6s ease-out both;
+  }
+
+  .metric-card:nth-child(1) { animation-delay: 0.1s; }
+  .metric-card:nth-child(2) { animation-delay: 0.2s; }
+  .metric-card:nth-child(3) { animation-delay: 0.3s; }
+  .metric-card:nth-child(4) { animation-delay: 0.4s; }
+
+  /* Icon hover animations */
+  .icon-container {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .group:hover .icon-container {
+    transform: rotate(10deg) scale(1.1);
+  }
+
+  /* Trend icon animations */
+  .trend-icon {
+    transition: all 0.3s ease;
+  }
+
+  /* Activity timeline enhancements */
+  .activity-item {
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .activity-item:hover {
+    transform: translateX(5px);
+    background: rgba(249, 250, 251, 0.5);
+    border-radius: 8px;
+    padding: 8px;
+    margin: -8px;
+  }
+
+  .activity-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 1rem;
+    top: 2rem;
+    bottom: -1.5rem;
+    width: 2px;
+    background: linear-gradient(to bottom, #e5e7eb, transparent);
+  }
+
+  .activity-dot {
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .activity-item:hover .activity-dot {
+    transform: scale(1.2);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Table enhancements */
+  tbody tr {
+    transition: all 0.3s ease;
+  }
+
+  tbody tr:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(to right, #f8fafc, #ffffff);
+  }
+
+  /* Loading states */
+  .counter {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Mobile responsiveness */
+  @media (max-width: 768px) {
+    .metric-card {
+      animation-delay: 0s;
+    }
+    
+    .activity-item:hover {
+      transform: none;
+    }
+  }
+
+  /* Chart loading animation */
+  #deptBarChart {
+    background: linear-gradient(-45deg, #f8fafc, #f1f5f9, #f8fafc, #f1f5f9);
+    background-size: 400% 400%;
+    animation: shimmer 1.5s ease-in-out;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* Status badge animations */
+  .status-badge {
+    transition: all 0.2s ease;
+  }
+
+  .status-badge:hover {
+    transform: scale(1.05);
+  }
+
+  /* Utility classes */
+  .transition-all {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+</style>
 {% endblock %}

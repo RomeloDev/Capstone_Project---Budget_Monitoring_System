@@ -655,14 +655,16 @@ def department_pre_form(request, pk:int):
 def department_pre_page(request):
     user = request.user
     user_dept = user.department
+    # has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
+    
+    is_has_budget = BudgetAllocation.objects.filter(department=user_dept, is_compiled=False).exists()
+    
+    if is_has_budget:
+        has_budget = True
+    else:
+        has_budget = False
+        
     budget_allocations = BudgetAllocation.objects.filter(department=request.user.department, is_compiled=False).select_related('approved_budget').order_by('-allocated_at')
-    has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
-    
-    count_submitted = DepartmentPRE.objects.filter(submitted_by=user).select_related('submitted_department_pres').count()
-    count_has_budget = BudgetAllocation.objects.filter(department=user_dept, is_compiled=False).exists()
-    
-    if not count_has_budget:
-        has_budget = None
 
     # Load submitted PREs for this user/department
     pres = DepartmentPRE.objects.filter(submitted_by=user).order_by('-created_at')

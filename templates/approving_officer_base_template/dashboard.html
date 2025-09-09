@@ -46,10 +46,21 @@
                     {% else %}
                         hover:bg-gray-100 dark:hover:bg-gray-700 
                     {% endif %} rounded-md transition-colors duration-200">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-6 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                     </svg>
-                    <span>Departments PR Request</span>
+                    <span>Departments Purchase Request</span>
+                </a>
+
+                <a href="{% url "ao_activity_design_page" %}" class="flex items-center space-x-2 p-2 
+                {% if request.resolver_match.url_name == 'ao_activity_design_page' %}
+                    bg-gray-700
+                    {% else %}
+                        hover:bg-gray-100 dark:hover:bg-gray-700 
+                    {% endif %} rounded-md transition-colors duration-200">
+
+                    <svg class="w-6 h-5" fill="#ffffff" stroke="currentColor" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="3 4 24 24" xml:space="preserve" stroke="#ffffff"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <g> <g> <path d="M22.277,18.415c-3.574,0-6.474,2.897-6.474,6.474c0,3.574,2.899,6.473,6.474,6.473s6.475-2.897,6.475-6.473 C28.752,21.312,25.853,18.415,22.277,18.415z M20.889,28.869l-3.457-3.456l1.357-1.358l2.1,2.1l4.568-4.568l1.356,1.357 L20.889,28.869z"></path> </g> <g> <path d="M4.326,28.289V1.719h13.363v6.884h6.885v9.22c0.612,0.198,1.188,0.478,1.719,0.819V7.891L18.401,0H2.609v30.008h14.293 c-0.486-0.51-0.9-1.087-1.227-1.719H4.326z"></path> </g> <g> <circle cx="8.788" cy="11.686" r="2.426"></circle> </g> <g> <rect x="13.391" y="10.246" width="8.238" height="2.88"></rect> </g> <g> <circle cx="8.788" cy="18.094" r="2.426"></circle> </g> <g> <path d="M21.629,17.488v-0.834h-8.238v2.88h3.744C18.324,18.391,19.891,17.639,21.629,17.488z"></path> </g> <g> <circle cx="8.788" cy="24.19" r="2.426"></circle> </g> <g> <path d="M13.391,22.751v2.88h1.49c-0.024-0.245-0.038-0.492-0.038-0.742c0-0.744,0.113-1.459,0.316-2.138H13.391z"></path> </g> </g> </g> </g></svg>
+                    <span>Departments Activity Designs Request</span>
                 </a>
 
                 <a href="{% url "ao_department_pre_list" %}" class="flex items-center space-x-2 p-2 

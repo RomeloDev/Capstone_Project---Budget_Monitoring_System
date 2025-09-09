@@ -4,47 +4,70 @@
 
 {% block main-content %}
 
-    <div class="flex flex-col w-full">
-        <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
-            <h1 class="text-[20px] font-bold text-gray-100">Users</h1>
-            <p class="text-sm text-blue-100 mt-1">Manage all registered user accounts in the system.</p>
-        </header>
-        <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
-            {% comment %} <header class="dashboard-header">
-                <h1>Manage User Accounts</h1>
-                <p>Manage all registered client accounts in the system.</p>
-            </header> {% endcomment %}
+<div x-data="{ showModal: false }" class="flex flex-col w-full">
+    <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
+        <h1 class="text-[20px] font-bold text-gray-100">Users</h1>
+        <p class="text-sm text-blue-100 mt-1">Manage all registered user accounts in the system.</p>
+    </header>
 
-            <div class="flex justify-center items-center">
-                <div class="flex flex-col w-[500px] bg-white p-[1.5rem] rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-t-[8px] border-blue-600">
-                    <form action="{% url "register_account" %}" method="post">
-                        {% csrf_token %}
-                        <h2 class="text-center font-bold text-[1.4rem] text-[#2c3e50] mb-4">Create an End User Account</h2>
-                        <p class="font-semibold text-[1.1rem]">Personal Details:</p>
+    <!-- Action Buttons Section -->
+    <div class="flex justify-end gap-3 mt-9 px-4 mr-3">
+        <!-- Add User Button -->
+        <button @click="showModal = true" type="button"
+            class="flex items-center bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <i class="fas fa-plus mr-2"></i> Add User
+        </button>
+        {% comment %} <button type="button"
+            class="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+            <i class="fas fa-filter mr-2"></i> Filter
+        </button> {% endcomment %}
+    </div>
 
-                        {% comment %} Personal Details Section {% endcomment %}
-                        <div class="pl-8 pr-8 pt-2 pb-2">
-                            <div class="flex flex-col mb-3">
-                                <label for="username" class="font-medium text-[0.9rem]">Username:</label>
-                                <input type="text" name="username" id="username" class="rounded-lg h-[2rem]" required>
-                            </div>
-                            <div class="flex flex-col mb-3">
-                                <label for="fullname" class="font-medium text-[0.9rem]">Fullname:</label>
-                                <input type="text" name="fullname" id="fullname" class="rounded-lg h-[2rem]" required>
-                            </div>
-                            <div class="flex flex-col mb-3">
-                                <label for="position" class="font-medium text-[0.9rem]">Position:</label>
-                                <input type="text" name="position" id="position" class="rounded-lg h-[2rem]" required>
-                            </div>
-                            <div class="flex flex-col mb-3">
-                                <label for="email" class="font-medium text-[0.9rem]">Email:</label>
-                                <input type="email" name="email" id="email" class="rounded-lg h-[2rem]" required>
-                            </div>
+    <main class="flex-1 px-6 py-1 bg-gray-100 space-y-6">
+
+        <!-- Modal -->
+        <div x-show="showModal"
+             class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+             x-transition>
+            <div class="bg-white rounded-xl shadow-lg w-[500px] max-h-[90vh] overflow-y-auto p-6 relative">
+                
+                <!-- Close Button -->
+                <button @click="showModal = false"
+                        class="absolute top-3 right-3 text-gray-500 hover:text-gray-800">
+                    ✕
+                </button>
+
+                <!-- Registration Form -->
+                <form action="{% url 'register_account' %}" method="post">
+                    {% csrf_token %}
+                    <h2 class="text-center font-bold text-[1.4rem] text-[#2c3e50] mb-4">
+                        Create an End User Account
+                    </h2>
+                    <p class="font-semibold text-[1.1rem]">Personal Details:</p>
+
+                    <!-- Personal Details Section -->
+                    <div class="pl-8 pr-8 pt-2 pb-2">
+                        <div class="flex flex-col mb-3">
+                            <label for="username" class="font-medium text-[0.9rem]">Username:</label>
+                            <input type="text" name="username" id="username" class="rounded-lg h-[2rem]" required>
                         </div>
+                        <div class="flex flex-col mb-3">
+                            <label for="fullname" class="font-medium text-[0.9rem]">Fullname:</label>
+                            <input type="text" name="fullname" id="fullname" class="rounded-lg h-[2rem]" required>
+                        </div>
+                        <div class="flex flex-col mb-3">
+                            <label for="position" class="font-medium text-[0.9rem]">Position:</label>
+                            <input type="text" name="position" id="position" class="rounded-lg h-[2rem]" required>
+                        </div>
+                        <div class="flex flex-col mb-3">
+                            <label for="email" class="font-medium text-[0.9rem]">Email:</label>
+                            <input type="email" name="email" id="email" class="rounded-lg h-[2rem]" required>
+                        </div>
+                    </div>
 
-                        {% comment %} Departments Section {% endcomment %}
-                        
-                            <p class="font-semibold text-[1.1rem]">Department:</p>
+                    <!-- Department Section (your existing Alpine dropdown) -->
+                    <!-- keep your department dropdown here unchanged -->
+                     <p class="font-semibold text-[1.1rem]">Department:</p>
                             
                             {% comment %} Dropdown {% endcomment %}
                         <div x-data="{ selected: '', openMFO: '' }" class="ml-10 w-[20rem]">
@@ -178,39 +201,45 @@
                             </div>
                         </div>
 
-
-                        {% comment %} Security Details Section {% endcomment %}
-                        <div>
-                            <p class="font-semibold text-[1.1rem] mt-4">Security:</p>
-                            <div class="pl-8 pr-8 pb-3 pt-3">
-                                <div class="flex flex-col">
-                                    <label for="password" class="font-medium text-[0.9rem]">Password:</label>
-                                    <input type="password" name="password" id="password" class="rounded-lg h-[2rem]" required>
-                                </div>
-                                <div class="flex flex-col">
-                                    <label for="confirm-password" class="font-medium text-[0.9rem]">Confirm Password:</label>
-                                    <input type="password" name="confirm-password" id="confirm-password" class="rounded-lg h-[2rem]" required>
-                                </div>
+                    <!-- Security Section -->
+                    <div>
+                        <p class="font-semibold text-[1.1rem] mt-4">Security:</p>
+                        <div class="pl-8 pr-8 pb-3 pt-3">
+                            <div class="flex flex-col">
+                                <label for="password" class="font-medium text-[0.9rem]">Password:</label>
+                                <input type="password" name="password" id="password" class="rounded-lg h-[2rem]" required>
+                            </div>
+                            <div class="flex flex-col">
+                                <label for="confirm-password" class="font-medium text-[0.9rem]">Confirm Password:</label>
+                                <input type="password" name="confirm-password" id="confirm-password" class="rounded-lg h-[2rem]" required>
                             </div>
                         </div>
-                        <div class="flex justify-center items-center">
-                            <button type="submit" class="text-white shadow-lg bg-gradient-to-r from-green-400 via-green-500 to-green-600 hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 dark:focus:ring-green-800 font-semibold rounded-lg text-lg px-5 py-2.5 text-center me-2 mb-2 w-[15rem] mt-5 h-[3rem]">Register</button>
-                        </div>
-                        <p class="text-red-600 text-[1rem] text-center">{{ error }}</p>
-                        <p class="text-green-500 text-[1rem] text-center">{{ success }}</p>
-                    </form>
-                </div>
+                    </div>
+
+                    <!-- Register Button -->
+                    <div class="flex justify-center items-center">
+                        <button type="submit"
+                            class="text-white shadow-lg bg-gradient-to-r from-green-400 via-green-500 to-green-600 
+                                   hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 
+                                   font-semibold rounded-lg text-lg px-5 py-2.5 mt-5 w-[15rem] h-[3rem]">
+                            Register
+                        </button>
+                    </div>
+
+                    <p class="text-red-600 text-[1rem] text-center">{{ error }}</p>
+                    <p class="text-green-500 text-[1rem] text-center">{{ success }}</p>
+                </form>
             </div>
+        </div>
 
-
-            <!-- Client Accounts Table -->
-            <section class="bg-white p-6 rounded-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] mt-8">
+        <!-- Client Accounts Table -->
+        <section class="bg-white p-6 rounded-xl shadow-lg mt-8">
             <header class="mb-4">
                 <h2 class="text-2xl font-bold text-gray-800">Registered Clients</h2>
                 <p class="text-gray-600">View and manage all client accounts.</p>
             </header>
-
-            <div class="overflow-x-auto rounded-md">
+            <!-- keep your table here -->
+             <div class="overflow-x-auto rounded-md">
                 <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-blue-600">
                     <tr>
@@ -243,8 +272,8 @@
                 </tbody>
                 </table>
             </div>
-            </section>
+        </section>
 
-        </main>
-    </div>
+    </main>
+</div>
 {% endblock %}

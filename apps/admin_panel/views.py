@@ -13,8 +13,10 @@ from django.db.models import Sum
 from django.template.defaultfilters import floatformat
 from django.contrib.humanize.templatetags.humanize import intcomma
 from django.utils import timezone
-from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .utils import log_audit_trail
+from django.db.models import Count
+from datetime import timedelta
 
 
 
@@ -22,27 +24,130 @@ from .utils import log_audit_trail
 @login_required
 def admin_dashboard(request):
     try:
-        end_users_total = User.objects.filter(is_staff=False, is_approving_officer=True).count()
-        total_budget = Budget.objects.aggregate(Sum('total_fund'))['total_fund__sum']
-        total_pending_realignment_request = Budget_Realignment.objects.filter(status='pending').count()
-        total_approved_realignment_request = Budget_Realignment.objects.filter(status='approved').count()
-        budget_allocated = BudgetAllocation.objects.all()
-    except:
+        # Total Users (Active users who logged in within last 30 days)
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        end_users_total = User.objects.filter(
+            is_staff=False, 
+            is_approving_officer=True,
+            last_login__gte=thirty_days_ago
+        ).count()
+        
+        # Alternative: All registered users if you prefer total count
+        # end_users_total = User.objects.filter(is_staff=False, is_approving_officer=True).count()
+        
+        # Total Budget from ApprovedBudget (since Budget model seems different)
+        total_budget = ApprovedBudget.objects.aggregate(
+            Sum('amount')
+        )['amount__sum'] or 0
+        
+        # Pending Requests Count
+        total_pending_realignment_request = Budget_Realignment.objects.filter(
+            status='pending'
+        ).count()
+        
+        # Approved Requests Count  
+        total_approved_realignment_request = Budget_Realignment.objects.filter(
+            status='approved'
+        ).count()
+        
+        # Budget allocations for the table
+        budget_allocated = BudgetAllocation.objects.select_related('approved_budget').all()
+        
+        # Calculate percentage changes for trends (you can customize this based on your needs)
+        # This is a simple example - you might want to compare with previous period
+        user_trend = "up"  # You can calculate actual trend
+        budget_trend = "up"
+        pending_trend = "down" if total_pending_realignment_request < 10 else "up"
+        approved_trend = "up"
+        
+        # Chart data (group by department)
+        dept_agg = (
+            BudgetAllocation.objects
+            .values('department')
+            .annotate(
+                total_allocated=Sum('total_allocated'),
+                total_spent=Sum('spent')
+            )
+            .order_by('department')
+        )
+        
+        dept_labels = [row['department'] or 'Unknown' for row in dept_agg]
+        dept_allocated = [float(row['total_allocated'] or 0) for row in dept_agg]
+        dept_spent = [float(row['total_spent'] or 0) for row in dept_agg]
+        dept_remaining = [max(0.0, a - s) for a, s in zip(dept_allocated, dept_spent)]
+        
+        # Recent Activity (latest 8 for better display)
+        recent_activities = (
+            AuditTrail.objects
+            .select_related('user')
+            .order_by('-timestamp')[:8]
+        )
+        
+        # Additional metrics for enhanced dashboard
+        # Total departments with active budgets
+        active_departments = BudgetAllocation.objects.values('department').distinct().count()
+        
+        # Average budget utilization
+        total_allocated_sum = sum(dept_allocated) or 1  # Avoid division by zero
+        total_spent_sum = sum(dept_spent)
+        avg_utilization = (total_spent_sum / total_allocated_sum * 100) if total_allocated_sum > 0 else 0
+        
+        # Low budget departments (less than 20% remaining)
+        low_budget_depts = BudgetAllocation.objects.filter(
+            total_allocated__gt=0
+        ).extra(
+            where=["(total_allocated - spent) / total_allocated < 0.2"]
+        ).count()
+        
+    except Exception as e:
+        # Fallback values in case of any errors
+        print(f"Dashboard error: {e}")  # For debugging
         end_users_total = 0
         total_budget = 0
         total_pending_realignment_request = 0
         total_approved_realignment_request = 0
-        budget_allocated = None
+        budget_allocated = BudgetAllocation.objects.none()
+        dept_labels, dept_allocated, dept_spent, dept_remaining = [], [], [], []
+        recent_activities = AuditTrail.objects.none()
+        user_trend = budget_trend = pending_trend = approved_trend = "neutral"
+        active_departments = 0
+        avg_utilization = 0
+        low_budget_depts = 0
 
-
-
-    return render(request, 'admin_panel/dashboard.html', {'end_users_total': end_users_total,
-    'total_budget': total_budget, 
-    'total_pending_realignment_request': total_pending_realignment_request, 'total_approved_realignment_request': total_approved_realignment_request,
-    'budget_allocated': budget_allocated,
-    'intcomma': intcomma
-    })
-
+    context = {
+        # Main metrics
+        'end_users_total': end_users_total,
+        'total_budget': total_budget,
+        'total_pending_realignment_request': total_pending_realignment_request,
+        'total_approved_realignment_request': total_approved_realignment_request,
+        
+        # Trends (you can implement actual trend calculation)
+        'user_trend': user_trend,
+        'budget_trend': budget_trend,
+        'pending_trend': pending_trend,
+        'approved_trend': approved_trend,
+        
+        # Data for table and charts
+        'budget_allocated': budget_allocated,
+        'dept_labels': dept_labels,
+        'dept_allocated': dept_allocated,
+        'dept_spent': dept_spent,
+        'dept_remaining': dept_remaining,
+        
+        # Recent activity
+        'recent_activities': recent_activities,
+        
+        # Additional metrics
+        'active_departments': active_departments,
+        'avg_utilization': round(avg_utilization, 1),
+        'low_budget_depts': low_budget_depts,
+        
+        # Template helper
+        'current_time': timezone.now(),
+    }
+    
+    return render(request, 'admin_panel/dashboard.html', context)
+    
 @login_required
 def client_accounts(request):
     try:
@@ -93,6 +198,12 @@ def register_account(request):
 
 @login_required
 def departments_pr_request(request):
+    STATUS = (
+        ('Pending', 'Pending'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Rejected', 'Rejected'),
+        ('Approved', 'Approved')
+    )
     departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
     
     try:
@@ -100,11 +211,25 @@ def departments_pr_request(request):
     except PurchaseRequest.DoesNotExist:
         users_purchase_requests = None
     
+    status_counts = {
+        'total': users_purchase_requests.count(),
+        'pending': users_purchase_requests.filter(submitted_status='Pending').count(),
+        'approved': users_purchase_requests.filter(submitted_status='Approved').count(),
+        'partially_approved': users_purchase_requests.filter(submitted_status='Partially Approved').count(),
+        'rejected': users_purchase_requests.filter(submitted_status='Rejected').count(),
+    }
+    
     filter_department = request.GET.get('department')
     if filter_department:
-        users_purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='Submitted', submitted_status='Pending', approved_by_approving_officer=False).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+        users_purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='Submitted',).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
         
-    return render(request, 'admin_panel/departments_pr_request.html', {'users_purchase_requests': users_purchase_requests,                'departments': departments})
+    status_filter = request.GET.get('status')
+    if status_filter:
+        users_purchase_requests = users_purchase_requests.filter(submitted_status=status_filter, pr_status='Submitted')
+        
+    context = {'users_purchase_requests': users_purchase_requests,     'departments': departments, 'status_choices': STATUS, 'status_counts': status_counts}
+    
+    return render(request, 'admin_panel/departments_pr_request.html', context)
 
 @login_required
 def handle_departments_request(request, request_id):
@@ -205,13 +330,50 @@ def budget_allocation(request):
     return render(request, "admin_panel/budget_allocation.html", {'approved_budgets': approved_budgets, 'departments': departments, 'budgets': allocations})
     
 # This is the Approved Budget View
+# @login_required
+# def institutional_funds(request):
+#     if request.method == 'POST':
+#         title = request.POST.get('title')
+#         period = request.POST.get('period')
+#         amount = request.POST.get('amount')
+        
+#         # Validation
+#         if not title or not period or not amount:
+#             messages.error(request, "All fields are required.")
+#             return redirect("institutional_funds")
+#         else:
+#             try:
+#                 amount = Decimal(amount)
+#             except (ValueError, TypeError):
+#                 messages.error(request, "Invalid amount entered.")
+#                 return redirect("institutional_funds")
+        
+#             # Create the approved budget
+#             ApprovedBudget.objects.create(
+#                 title=title,
+#                 period=period,
+#                 amount=amount
+#             )
+#             messages.success(request, "Approved budget successfully added.")
+#             log_audit_trail(
+#                 request=request,
+#                 action='CREATE',
+#                 model_name='ApprovedBudget',
+#                 record_id=None,  # No specific record ID for creation
+#                 detail=f"Created approved budget: {title} for period {period} with amount {intcomma(amount)}."
+#             )
+#             return redirect("institutional_funds")
+        
+#     approved_budgets = ApprovedBudget.objects.order_by('-created_at')
+#     return render(request, 'admin_panel/institutional_funds.html', {'approved_budgets': approved_budgets})
+
 @login_required
 def institutional_funds(request):
     if request.method == 'POST':
         title = request.POST.get('title')
         period = request.POST.get('period')
         amount = request.POST.get('amount')
-        
+       
         # Validation
         if not title or not period or not amount:
             messages.error(request, "All fields are required.")
@@ -222,7 +384,7 @@ def institutional_funds(request):
             except (ValueError, TypeError):
                 messages.error(request, "Invalid amount entered.")
                 return redirect("institutional_funds")
-        
+       
             # Create the approved budget
             ApprovedBudget.objects.create(
                 title=title,
@@ -238,9 +400,53 @@ def institutional_funds(request):
                 detail=f"Created approved budget: {title} for period {period} with amount {intcomma(amount)}."
             )
             return redirect("institutional_funds")
-        
-    approved_budgets = ApprovedBudget.objects.order_by('-created_at')
-    return render(request, 'admin_panel/institutional_funds.html', {'approved_budgets': approved_budgets})
+    
+    # Get all approved budgets ordered by creation date (newest first)
+    approved_budgets_list = ApprovedBudget.objects.order_by('-created_at')
+    
+    # Calculate summary statistics
+    budget_stats = ApprovedBudget.objects.aggregate(
+        total_approved=Sum('amount'),
+        total_count=Count('id')
+    )
+    
+    total_approved_budget = budget_stats['total_approved'] or Decimal('0')
+    total_budget_count = budget_stats['total_count'] or 0
+    
+    # Calculate total remaining budget
+    total_remaining_budget = Decimal('0')
+    budget_utilization_rate = 0
+    
+    for budget in approved_budgets_list:
+        total_remaining_budget += budget.remaining_budget
+    
+    # Calculate utilization rate
+    if total_approved_budget > 0:
+        total_allocated = total_approved_budget - total_remaining_budget
+        budget_utilization_rate = round((total_allocated / total_approved_budget) * 100, 1)
+    
+    # Pagination
+    paginator = Paginator(approved_budgets_list, 10)  # Show 10 budgets per page
+    page_number = request.GET.get('page')
+    
+    try:
+        approved_budgets = paginator.page(page_number)
+    except PageNotAnInteger:
+        # If page is not an integer, deliver first page
+        approved_budgets = paginator.page(1)
+    except EmptyPage:
+        # If page is out of range, deliver last page of results
+        approved_budgets = paginator.page(paginator.num_pages)
+    
+    context = {
+        'approved_budgets': approved_budgets,
+        'total_approved_budget': total_approved_budget,
+        'total_remaining_budget': total_remaining_budget,
+        'total_budget_count': total_budget_count,
+        'budget_utilization_rate': budget_utilization_rate,
+    }
+    
+    return render(request, 'admin_panel/institutional_funds.html', context)
 
 @login_required
 def admin_logout(request):

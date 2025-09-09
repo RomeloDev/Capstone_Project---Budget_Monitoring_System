@@ -1,8 +1,7 @@
-{% extends "admin_base_template/dashboard.html" %}
-
+{% extends "approving_officer_base_template/dashboard.html" %}
 {% load humanize %}
 
-{% block title %}Preview Activity Design{% endblock title %}
+{% block title %}Preview Activity Design{% endblock %}
 
 {% block main-content %}
 <main class="mx-auto max-w-5xl p-4 md:p-8">
@@ -40,7 +39,7 @@
   <div class="no-print mb-4 flex flex-wrap items-center gap-2">
     {% comment %} <button onclick="window.print()" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Print</button> {% endcomment %}
      <button type="button" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Download as Word</button>
-    <a href="{% url "department_activity_design" %}"  class="rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-200" style="cursor: pointer;">Go back to List</a>
+    <a href="{% url "ao_activity_design_page" %}"  class="rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-200" style="cursor: pointer;">Go Back to List</a>
   </div>
 
   <!-- SECTION I: Title of Activity + Schedule / Venue -->
@@ -217,4 +216,13 @@
     </div>
   </section>
 </main>
-{% endblock main-content %}
+
+{% comment %} {# Optional UI improvements:
+   - Add a print button for easy printing.
+   - Use whitespace-pre-line for text blocks to preserve formatting.
+   - Use consistent card and section spacing for readability.
+   - Add a "Submit New" button for quick access to the form.
+   - Responsive grid layouts for signatories and approvals.
+#} {% endcomment %}
+
+{% endblock %}

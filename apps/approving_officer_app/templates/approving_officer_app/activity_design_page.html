@@ -1,0 +1,100 @@
+{% extends "approving_officer_base_template/dashboard.html" %}
+
+{% load humanize %}
+
+{% block title %}
+    Department Activity Designs
+{% endblock %}
+
+{% block main-content %}
+<h1 class="text-3xl font-bold mb-4">Department Activity Designs</h1>
+<p class="text-gray-600">Manage submitted activity design requests from departments.</p>
+
+<div class="overflow-x-auto mt-7">
+    <form method="get" class="mb-4">
+        <label for="department" class="mr-2 font-semibold">Filter by Department:</label>
+        <select name="department" id="department" onchange="this.form.submit()" class="px-4 py-2 border border-gray-400 rounded">
+            <option value="">All</option>
+            {% for dept in departments %}
+                <option value="{{ dept }}" {% if request.GET.department == dept %}selected{% endif %}>{{ dept }}</option>
+            {% endfor %}
+        </select>
+        <label for="status" class="mr-2 font-semibold ml-2">Filter by Status:</label>
+        <select name="status" id="status" onchange="this.form.submit()" class="px-4 py-2 border border-gray-400 rounded">
+            <option value="">All</option>
+            {% for code, status in status_choices %}
+                <option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ status }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    <table class="min-w-full bg-white border border-gray-800">
+        <thead class="bg-gray-200 border-b border-gray-800">
+            <tr>
+                <th class="py-2 px-4 border-b">Design ID</th>
+                <th class="py-2 px-4 border-b">Department</th>
+                <th class="py-2 px-4 border-b">Title of Activity</th>
+                <th class="py-2 px-4 border-b">Budget</th>
+                <th class="py-2 px-4 border-b">Status</th>
+                <th class="py-2 px-4 border-b">Action</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white border-b-2 border-gray-800 text-center">
+            {% if activity_design %}
+                {% for design in activity_design %}
+                <tr>
+                    <td class="py-2 px-4 border-b">AD-{{ design.id }}</td>
+                    <td class="py-2 px-4 border-b">{{ design.requested_by.department }}</td>
+                    <td class="py-2 px-4 border-b">{{ design.title_of_activity }}</td>
+                    <td class="py-2 px-4 border-b">&#8369;{{ design.source_amount|floatformat:2|intcomma }}</td>
+                    <td class="py-2 px-4 border-b">
+                        {% if design.status == 'Pending' %}
+                            <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm">Pending</span>
+                        {% elif design.status == 'Partially Approved' %}
+                            <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm">Partially Approved</span>
+                        {% elif design.status == 'Approved' %}
+                            <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm">Approved</span>
+                        {% else %}
+                            <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-sm">Rejected</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-2 px-4 border-b space-x-2">
+                        <form action="{% url "ao_preview_activity_design" design.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</button>
+                        </form>
+                        {% if design.status == 'Partially Approved' %}
+                        <form method="post" action="{% url "handle_activity_design_action" design.id  %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
+                            <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2">Reject</button>
+                        </form>
+                        {% else %}
+                            <button class="bg-gray-400 text-white px-3 py-1 rounded cursor-not-allowed" disabled>{{ design.status|title }}</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="py-4 text-center text-gray-600">No activity designs found.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+    {% if messages %}
+        {% for message in messages %}
+            <p class="text-center text-[1.2rem] mt-2 font-medium 
+                {% if message.tags == 'success' %}
+                    text-green-600
+                {% elif message.tags == 'error' %}
+                    text-red-600
+                {% else %}
+                    text-gray-700
+                {% endif %}
+            ">
+                {{ message }}
+            </p>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from apps.end_user_app.models import PurchaseRequest, DepartmentPRE
+from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign
 from apps.admin_panel.models import BudgetAllocation
 from django.contrib import messages
 from django.contrib.humanize.templatetags.humanize import intcomma
@@ -350,3 +350,63 @@ def preview_purchase_request(request, pk:int):
     return render(request, 'approving_officer_app/preview_purchase_request.html', {
         'pr': pr,
     })
+    
+@login_required
+def activity_design_page(request):
+    STATUS = (
+        ('Pending', 'Pending'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    )
+    
+    departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
+    
+    try:
+        activity_design = ActivityDesign.objects.all().select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+    except ActivityDesign.DoesNotExist:
+        activity_design = None
+    
+    filter_department = request.GET.get('department')
+    if filter_department:
+        activity_design = ActivityDesign.objects.all().select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+        
+    status_filter = request.GET.get('status')
+    if status_filter:
+        activity_design = activity_design.filter(status=status_filter)
+        
+    context = {
+        'activity_design': activity_design,
+        'departments': departments,
+        'status_choices': STATUS
+    }
+    return render(request, 'approving_officer_app/activity_design_page.html', context)
+
+def ao_preview_activity_design(request, pk: int):
+    activity = get_object_or_404(ActivityDesign.objects.prefetch_related('sessions', 'signatories').select_related('campus_approval', 'university_approval'), pk=pk)
+    
+    return render(request, 'approving_officer_app/preview_activity_design.html', {
+        'activity': activity,
+    })
+    
+def handle_activity_design_action(request, pk: int):
+    activity = get_object_or_404(ActivityDesign, pk=pk)
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'approve':
+            activity.status = 'Approved'
+            activity.approved_by_approving_officer = True
+            messages.success(request, f'Activity Design with ID {activity.id} has been approved successfully.')
+        elif action == 'reject':
+            activity.status = 'Rejected'
+            activity.approved_by_approving_officer = False
+            messages.error(request, f'Activity Design with ID {activity.id} has been rejected.')
+        activity.save()
+        log_audit_trail(
+            request=request,
+            action=action.upper(),
+            model_name='ActivityDesign',
+            record_id=activity.id,
+            detail=f"Approving Officer {action} an Activity Design with ID {activity.id} from department {activity.requested_by.department}."
+        )
+    return redirect('ao_activity_design_page')
