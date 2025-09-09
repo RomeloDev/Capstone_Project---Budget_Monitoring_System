@@ -173,3 +173,5 @@ AUTH_USER_MODEL = "users.User"
 #         "show_all_models": True,
 #     },
 # }
+
+LOGIN_URL = '/'

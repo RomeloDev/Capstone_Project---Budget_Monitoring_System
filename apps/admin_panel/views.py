@@ -17,11 +17,12 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .utils import log_audit_trail
 from django.db.models import Count
 from datetime import timedelta
+from apps.users.utils import role_required
 
 
 
 # Create your views here.
-@login_required
+@role_required('admin', login_url='/admin/')
 def admin_dashboard(request):
     try:
         # Total Users (Active users who logged in within last 30 days)
@@ -148,7 +149,7 @@ def admin_dashboard(request):
     
     return render(request, 'admin_panel/dashboard.html', context)
     
-@login_required
+@role_required('admin', login_url='/admin/')
 def client_accounts(request):
     try:
         end_users = User.objects.filter(is_staff=False)
@@ -156,7 +157,7 @@ def client_accounts(request):
         end_users = None
     return render(request, 'admin_panel/client_accounts.html', {'end_users': end_users})
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def register_account(request):
     
     if request.method == "POST":
@@ -196,7 +197,7 @@ def register_account(request):
                 end_users = None
             return render(request, "admin_panel/client_accounts.html", {'success': "Account registered successfully!", 'end_users': end_users})
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def departments_pr_request(request):
     STATUS = (
         ('Pending', 'Pending'),
@@ -231,7 +232,7 @@ def departments_pr_request(request):
     
     return render(request, 'admin_panel/departments_pr_request.html', context)
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def handle_departments_request(request, request_id):
     """
     Optional admin handler for PRs. Aligns with model fields and updates allocation.
@@ -263,7 +264,7 @@ def handle_departments_request(request, request_id):
 
     return redirect('department_pr_request')
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def budget_allocation(request):
     approved_budgets = ApprovedBudget.objects.all()
     departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
@@ -367,7 +368,7 @@ def budget_allocation(request):
 #     approved_budgets = ApprovedBudget.objects.order_by('-created_at')
 #     return render(request, 'admin_panel/institutional_funds.html', {'approved_budgets': approved_budgets})
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def institutional_funds(request):
     if request.method == 'POST':
         title = request.POST.get('title')
@@ -448,7 +449,7 @@ def institutional_funds(request):
     
     return render(request, 'admin_panel/institutional_funds.html', context)
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def admin_logout(request):
     log_audit_trail(
         request=request,
@@ -460,7 +461,7 @@ def admin_logout(request):
     logout(request)
     return redirect('admin_login')
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def audit_trail(request):
     
     # Get all audit records and users
@@ -497,7 +498,7 @@ def audit_trail(request):
     }
     return render(request, 'admin_panel/audit_trail.html', context)
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def budget_re_alignment(request):
     try:
         re_alignment_request = Budget_Realignment.objects.all()
@@ -505,7 +506,7 @@ def budget_re_alignment(request):
         re_alignment_request = None
     return render(request, 'admin_panel/budget_re-alignment.html', {'re_alignment_request': re_alignment_request})
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def handle_re_alignment_request_action(request, pk):
     req = get_object_or_404(Budget_Realignment, pk=pk)
     
@@ -560,7 +561,7 @@ def handle_re_alignment_request_action(request, pk):
         
     return redirect('budget_realignment')
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def pre_request_page(request):
     # Filter only PREs that were approved by the approving officer
     """
@@ -585,7 +586,7 @@ def pre_request_page(request):
     })
 
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def admin_preview_pre(request, pk: int):
     pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by', 'budget_allocation__approved_budget'), pk=pk)
 
@@ -808,7 +809,7 @@ def admin_preview_pre(request, pk: int):
     })
 
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def admin_handle_pre_action(request, pk: int):
     pre = get_object_or_404(DepartmentPRE, pk=pk)
     budget_allocation = get_object_or_404(BudgetAllocation, id=pre.budget_allocation_id)
@@ -835,7 +836,7 @@ def admin_handle_pre_action(request, pk: int):
         )
     return redirect('pre_request_page')
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def preview_purchase_request(request, pk:int):
     pr = get_object_or_404(PurchaseRequest.objects.select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre'),
         pk=pk,
@@ -845,7 +846,7 @@ def preview_purchase_request(request, pk:int):
         'pr': pr,
     })
     
-@login_required
+@role_required('admin', login_url='/admin/')
 def department_activity_design(request):
     STATUS = (
         ('PENDING', 'Pending'),
@@ -882,12 +883,12 @@ def department_activity_design(request):
     }
     return render(request, 'admin_panel/departments_ad_request.html', context)
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def admin_preview_activity_design(request, pk: int):
     activity_design = get_object_or_404(ActivityDesign, id=pk)
     return render(request, 'admin_panel/preview_activity_design.html', {'activity': activity_design})
 
-@login_required
+@role_required('admin', login_url='/admin/')
 def handle_activity_design_request(request, pk:int):
     """
     View for Admin to approve or reject department activity designs.

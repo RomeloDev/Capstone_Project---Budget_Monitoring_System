@@ -14,9 +14,10 @@ from django.db.models import Sum
 from django.contrib.humanize.templatetags.humanize import intcomma
 from datetime import datetime
 from apps.admin_panel.utils import log_audit_trail
+from apps.users.utils import role_required
 
 # Create your views here.
-@login_required
+@role_required('end_user', login_url='/')
 def user_dashboard(request):
     try:
         # Get the budget allocation of the logged-in user
@@ -48,7 +49,7 @@ def user_dashboard(request):
         "usage_percentage": usage_percentage,
         })
 
-@login_required
+@role_required('end_user', login_url='/')
 def view_budget(request):
     try:
         # Fetch all budget allocations for the logged-in user and include related approved_budget
@@ -59,7 +60,7 @@ def view_budget(request):
     
     return render(request, 'end_user_app/view_budget.html', {'budget': budget})
 
-@login_required
+@role_required('end_user', login_url='/')
 def purchase_request(request):
     try:
         purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="Submitted").select_related('source_pre')
@@ -67,11 +68,11 @@ def purchase_request(request):
         purchase_requests = None
     return render(request, 'end_user_app/purchase_request.html', {'purchase_requests': purchase_requests})
 
-@login_required
+@role_required('end_user', login_url='/')
 def settings(request):
     return render(request, 'end_user_app/settings.html')
 
-@login_required
+@role_required('end_user', login_url='/')
 def end_user_logout(request):
     log_audit_trail(
         request=request,
@@ -82,7 +83,7 @@ def end_user_logout(request):
     logout(request)
     return redirect('end_user_login') # redirect to the login page
 
-@login_required 
+@role_required('end_user', login_url='/')
 def purchase_request_form(request):
     # Ensure a draft PR exists for the user to accumulate items prior to submission
     purchase_request_obj, _created = PurchaseRequest.objects.get_or_create(
@@ -279,7 +280,7 @@ def purchase_request_form(request):
         }
     )
 
-@login_required
+@role_required('end_user', login_url='/')
 def preview_purchase_request(request, pk: int):
     pr = get_object_or_404(
         PurchaseRequest.objects.select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre'),
@@ -288,7 +289,7 @@ def preview_purchase_request(request, pk: int):
     )
     return render(request, 'end_user_app/preview_purchase_request.html', {'pr': pr})
 
-@login_required
+@role_required('end_user', login_url='/')
 def papp_list(request, papp):
     try:
         papp = BudgetAllocation.objects.filter(assigned_user=request.user).values_list('papp', flat=True)
@@ -296,7 +297,7 @@ def papp_list(request, papp):
         papp = None
     return papp
 
-@login_required
+@role_required('end_user', login_url='/')
 def re_alignment(request):
     """
     target_papp = papp_list(request, papp="target_papp")
@@ -344,7 +345,7 @@ def re_alignment(request):
     return render(request, "end_user_app/re_alignment.html")
     
 @require_http_methods(["POST"])
-@login_required
+@role_required('end_user', login_url='/')
 def add_purchase_request_items(request):
     # Get or create draft purchase request
     purchase_request, created = PurchaseRequest.objects.get_or_create(
@@ -384,7 +385,7 @@ def add_purchase_request_items(request):
     # })
     
 
-@login_required
+@role_required('end_user', login_url='/')
 @require_http_methods(["DELETE"])
 def remove_purchase_item(request, item_id):
     remove_item = get_object_or_404(PurchaseRequestItems, id=item_id)
@@ -409,7 +410,7 @@ def remove_purchase_item(request, item_id):
     # return HttpResponse(status=200)  # Empty response with 200 OK
     #return JsonResponse({"success": True})
     
-@login_required
+@role_required('end_user', login_url='/')
 def department_pre_form(request, pk:int):
     budget_allocation = BudgetAllocation.objects.filter(department=request.user.department, id=pk).first()
     context = {
@@ -651,7 +652,7 @@ def department_pre_form(request, pk:int):
     
     return render(request, "end_user_app/department_pre_form.html", context)
 
-@login_required
+@role_required('end_user', login_url='/')
 def department_pre_page(request):
     user = request.user
     user_dept = user.department
@@ -676,7 +677,7 @@ def department_pre_page(request):
     })
 
 
-@login_required
+@role_required('end_user', login_url='/')
 def preview_pre(request, pk: int):
     pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by'), pk=pk)
     # Security: ensure user can only view their own PRE (unless you allow admins)
@@ -924,7 +925,7 @@ def preview_pre(request, pk: int):
     return render(request, "end_user_app/preview_pre.html", context)
     
 # Activity Design Form Logic
-@login_required
+@role_required('end_user', login_url='/')
 def activity_design_form(request):
     budget_allocations = BudgetAllocation.objects.select_related('approved_budget').filter(department=getattr(request.user, 'department', ''))
     
@@ -1034,7 +1035,7 @@ def activity_design_form(request):
         'budget_allocations': budget_allocations,
     })
 
-@login_required
+@role_required('end_user', login_url='/')
 def preview_activity_design(request, pk):
     activity = get_object_or_404(ActivityDesign.objects.prefetch_related('sessions', 'signatories').select_related('campus_approval', 'university_approval'), pk=pk)
     context = {
@@ -1154,7 +1155,7 @@ def build_pre_source_options(pres_queryset):
                     options.append({'value': encoded, 'label': display})
         return options
     
-@login_required
+@role_required('end_user', login_url='/')
 def load_source_of_fund(request):
     ba_id = request.GET.get("budget_allocation")
     source_of_fund_options = []

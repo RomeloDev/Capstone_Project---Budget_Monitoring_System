@@ -8,9 +8,10 @@ from django.contrib.humanize.templatetags.humanize import intcomma
 from decimal import Decimal
 from apps.users.models import User
 from apps.admin_panel.utils import log_audit_trail
+from apps.users.utils import role_required
 
 # Create your views here.
-@login_required
+@role_required('officer', login_url='/')
 def dashboard(request):
     try:
         pending_request = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='pending').count()
@@ -26,7 +27,7 @@ def dashboard(request):
         'rejected_request': rejected_request,
     })
 
-@login_required
+@role_required('officer', login_url='/')
 def department_request(request):
     departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
     
@@ -45,7 +46,7 @@ def department_request(request):
     return render(request, 'approving_officer_app/department_request.html', {'purchase_requests': purchase_requests, 'departments': departments})
 
 
-@login_required
+@role_required('officer', login_url='/')
 def department_pre_list(request):
     pres = DepartmentPRE.objects.filter(status='Partially Approved', approved_by_approving_officer=False, approved_by_admin=True).select_related('submitted_by').order_by('-created_at')
     return render(request, 'approving_officer_app/department_pre.html', {
@@ -53,7 +54,7 @@ def department_pre_list(request):
     })
 
 
-@login_required
+@role_required('officer', login_url='/')
 def preview_pre(request, pk: int):
     pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by'), pk=pk)
 
@@ -274,7 +275,7 @@ def preview_pre(request, pk: int):
     })
 
 
-@login_required
+@role_required('officer', login_url='/')
 def handle_pre_action(request, pk: int):
     pre = get_object_or_404(DepartmentPRE, pk=pk)
     budget_allocation = get_object_or_404(BudgetAllocation, id=pre.budget_allocation_id)
@@ -298,16 +299,16 @@ def handle_pre_action(request, pk: int):
         )
     return redirect('ao_department_pre_list')
 
-@login_required
+@role_required('officer', login_url='/')
 def settings(request):
     return render(request, 'approving_officer_app/settings.html')
 
-@login_required
+@role_required('officer', login_url='/')
 def approving_officer_logout(request):
     logout(request)
     return redirect('end_user_login') # redirect to the login page
 
-@login_required
+@role_required('officer', login_url='/')
 def handle_request_action(request, pk):
     req = get_object_or_404(PurchaseRequest, pk=pk)
     
@@ -341,7 +342,7 @@ def handle_request_action(request, pk):
 
     return redirect('cd_department_request')  # Redirect to the department request page after handling the action
 
-@login_required
+@role_required('officer', login_url='/')
 def preview_purchase_request(request, pk:int):
     pr = get_object_or_404(PurchaseRequest.objects.select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre'),
         pk=pk,
@@ -351,7 +352,7 @@ def preview_purchase_request(request, pk:int):
         'pr': pr,
     })
     
-@login_required
+@role_required('officer', login_url='/')
 def activity_design_page(request):
     STATUS = (
         ('Pending', 'Pending'),
@@ -382,6 +383,7 @@ def activity_design_page(request):
     }
     return render(request, 'approving_officer_app/activity_design_page.html', context)
 
+@role_required('officer', login_url='/')
 def ao_preview_activity_design(request, pk: int):
     activity = get_object_or_404(ActivityDesign.objects.prefetch_related('sessions', 'signatories').select_related('campus_approval', 'university_approval'), pk=pk)
     
@@ -389,6 +391,7 @@ def ao_preview_activity_design(request, pk: int):
         'activity': activity,
     })
     
+@role_required('officer', login_url='/')
 def handle_activity_design_action(request, pk: int):
     activity = get_object_or_404(ActivityDesign, pk=pk)
     if request.method == 'POST':
