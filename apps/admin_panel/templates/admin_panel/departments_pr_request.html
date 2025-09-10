@@ -119,8 +119,8 @@
     <!-- Table Section -->
     <section class="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
       <h2 class="text-xl mb-2 font-semibold text-gray-800">Submitted Purchase Requests</h2>
-      <table class="min-w-full table-auto border border-gray-200 text-sm">
-        <thead class="bg-gray-100 text-gray-700 font-semibold">
+      <table class="min-w-full table-auto border border-gray-300 text-sm">
+        <thead class="bg-gray-100 border-b-2 text-gray-700 font-semibold">
           <tr>
             <th class="px-4 py-2 text-left">Department</th>
             <th class="px-4 py-2 text-left">Submitted By</th>
@@ -132,7 +132,7 @@
         </thead>
         <tbody>
           {% for pr in users_purchase_requests %}
-            <tr class="border-b border-gray-200">
+            <tr class="border-b border-gray-300">
               <td class="px-4 py-2 text-left">{{ pr.requested_by.department }}</td>
               <td class="px-4 py-2 text-left">{{ pr.requested_by.fullname }}</td>
               <td class="px-4 py-2 text-left">{{ pr.created_at }}</td>

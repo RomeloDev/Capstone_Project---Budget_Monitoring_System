@@ -570,20 +570,36 @@ def pre_request_page(request):
     This view shows a table of all approved PREs, with the ability to filter by department.
     The table shows the department, submitted by, submitted on, budget allocation, and status of each PRE.
     """
-    pres = DepartmentPRE.objects.filter(approved_by_approving_officer=False, approved_by_admin=False, status='Pending').select_related('submitted_by', 'budget_allocation__approved_budget').order_by('-created_at')
+    
+    STATUS_CHOICES = (
+        ('Pending', 'Pending'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Rejected', 'Rejected'),
+        ('Approved', 'Approved')
+    )
+    
+    pres = DepartmentPRE.objects.all().select_related('submitted_by', 'budget_allocation__approved_budget').order_by('-created_at')
 
     # Department filter
     dept = request.GET.get('department')
     if dept:
         pres = pres.filter(department=dept)
+        
+    # Status filter
+    status = request.GET.get('status')
+    if status:
+        pres = pres.filter(status=status)
 
     # Distinct department list for filter select
-    departments = DepartmentPRE.objects.filter(approved_by_approving_officer=False, approved_by_admin=False).values_list('department', flat=True).distinct()
-
-    return render(request, "admin_panel/pre_request.html", {
+    departments = DepartmentPRE.objects.all().values_list('department', flat=True).distinct()
+    
+    context = {
         'pres': pres,
         'departments': departments,
-    })
+        'status_choices': STATUS_CHOICES,
+    }
+
+    return render(request, "admin_panel/pre_request.html", context)
 
 
 @role_required('admin', login_url='/admin/')
