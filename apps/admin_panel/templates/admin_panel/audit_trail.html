@@ -88,7 +88,12 @@
                                         {{ record.timestamp|date:"M d, Y H:i:s" }}
                                     </td>
                                     <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
-                                        {{ record.user.get_full_name|default:record.user.username }}
+                                        {% comment %} {{ record.user.get_full_name|default:record.user.username }} {% endcomment %}
+                                        {% if record.user %}
+                                        {{ record.user.get_full_name|default:record.user.username|default:"Unknown User" }}
+                                        {% else %}
+                                        System
+                                        {% endif %}
                                     </td>
                                     <td class="whitespace-nowrap px-3 py-4 text-sm">
                                         <span class="inline-flex shadow-sm ring-slate-900 rounded-full px-2 text-xs font-semibold leading-5

@@ -11,6 +11,19 @@
         <p class="text-gray-600">Here’s your department’s historical and current budget data.</p>
     </header>
 
+    {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+                <div class="text-white px-4 py-2 mt-1 rounded 
+                    {% if message.tags == 'error' %} bg-red-500
+                    {% elif message.tags == 'success' %} bg-green-500
+                    {% else %} bg-gray-500 {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
     <!-- Budget History Section -->
     <section class="bg-white p-6 rounded-xl shadow-md">
         <h2 class="text-xl font-bold text-gray-800 mb-4">Budget History</h2>
@@ -24,6 +37,7 @@
                         <th class="px-4 py-3 text-left">Total Allocated</th>
                         <th class="px-4 py-3 text-left">Spent</th>
                         <th class="px-4 py-3 text-left">Remaining</th>
+                        <th class="px-4 py-3 text-left">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">
@@ -42,6 +56,14 @@
                             </td>
                             <td class="px-4 py-3 text-blue-700">
                                 ₱{{ b.remaining_budget|floatformat:2|intcomma }}
+                            </td>
+                            <td class="px-4 py-3 text-blue-700">
+                                <a href="{% url "budget_details" b.id %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                    View Details</a>
                             </td>
                         </tr>
                         {% endfor %}

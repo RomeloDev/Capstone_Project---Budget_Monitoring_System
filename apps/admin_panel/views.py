@@ -277,67 +277,85 @@ def handle_departments_request(request, request_id):
                         item_key=purchase_request.source_item_key
                     )
                     
-                    print(f"DEBUG: Found {all_items.count()} items for {purchase_request.source_item_key}")
+                    available_items = [item for item in all_items if item.remaining_amount > 0]
                     
-                    # Filter in Python for remaining budget
-                    available_items = []
-                    for item in all_items:
-                        remaining = item.remaining_amount
-                        print(f"DEBUG: {item.quarter} - Allocated: ₱{item.allocated_amount}, Consumed: ₱{item.consumed_amount}, Remaining: ₱{remaining}")
-                        if remaining > 0:
-                            available_items.append(item)
-                    
-                    if not available_items:
-                        messages.error(request, f"No budget available for {purchase_request.source_item_key}. All quarters consumed.")
-                        return redirect('department_pr_request')
-                    
-                    # Calculate total available
-                    total_available = sum(item.remaining_amount for item in available_items)
-                    print(f"DEBUG: Total available across all quarters: ₱{total_available}")
-                    
-                    if total_available < purchase_request.total_amount:
-                        messages.error(request, f"Insufficient total budget. Available: ₱{total_available}, Required: ₱{purchase_request.total_amount}")
-                        return redirect('department_pr_request')
-                    
-                    # Distribute across quarters - ROBUST VERSION
                     remaining_to_allocate = purchase_request.total_amount
-                    allocated_quarters = []
-                    total_allocated = Decimal('0')
-
+                    
                     for item in available_items:
-                        if remaining_to_allocate <= Decimal('0'):
-                            print(f"DEBUG: Breaking loop - remaining_to_allocate: ₱{remaining_to_allocate}")
+                        if remaining_to_allocate <= 0:
                             break
                         
                         allocation_amount = min(item.remaining_amount, remaining_to_allocate)
-                        
-                        if allocation_amount > Decimal('0'):
-                            # Update the item
+                        if allocation_amount > 0:
                             item.consumed_amount += allocation_amount
                             item.save()
-                            
-                            # Track the allocation
-                            allocated_quarters.append(f"{item.quarter.upper()}: ₱{allocation_amount}")
-                            total_allocated += allocation_amount
                             remaining_to_allocate -= allocation_amount
                             
-                            print(f"DEBUG: Allocated ₱{allocation_amount} from {item.quarter}")
-                            print(f"DEBUG: Remaining to allocate: ₱{remaining_to_allocate}")
-
-                    # Verify the allocation
-                    print(f"DEBUG: Total allocated: ₱{total_allocated}")
-                    print(f"DEBUG: Purchase request amount: ₱{purchase_request.total_amount}")
-                    print(f"DEBUG: Final remaining: ₱{remaining_to_allocate}")
-
-                    if total_allocated != purchase_request.total_amount:
-                        print(f"ERROR: Allocation mismatch! Expected: ₱{purchase_request.total_amount}, Actual: ₱{total_allocated}")
-
-                    messages.success(request, f"Budget allocated: {', '.join(allocated_quarters)} (Total: ₱{total_allocated})")
-                    
                 except Exception as e:
-                    print(f"DEBUG ERROR: {e}")
-                    messages.error(request, f"Error processing budget allocation: {e}")
+                    messages.error(request, f"Error processing budget: {e}")
                     return redirect('department_pr_request')
+                    
+                #     print(f"DEBUG: Found {all_items.count()} items for {purchase_request.source_item_key}")
+                    
+                #     # Filter in Python for remaining budget
+                #     available_items = []
+                #     for item in all_items:
+                #         remaining = item.remaining_amount
+                #         print(f"DEBUG: {item.quarter} - Allocated: ₱{item.allocated_amount}, Consumed: ₱{item.consumed_amount}, Remaining: ₱{remaining}")
+                #         if remaining > 0:
+                #             available_items.append(item)
+                    
+                #     if not available_items:
+                #         messages.error(request, f"No budget available for {purchase_request.source_item_key}. All quarters consumed.")
+                #         return redirect('department_pr_request')
+                    
+                #     # Calculate total available
+                #     total_available = sum(item.remaining_amount for item in available_items)
+                #     print(f"DEBUG: Total available across all quarters: ₱{total_available}")
+                    
+                #     if total_available < purchase_request.total_amount:
+                #         messages.error(request, f"Insufficient total budget. Available: ₱{total_available}, Required: ₱{purchase_request.total_amount}")
+                #         return redirect('department_pr_request')
+                    
+                #     # Distribute across quarters - ROBUST VERSION
+                #     remaining_to_allocate = purchase_request.total_amount
+                #     allocated_quarters = []
+                #     total_allocated = Decimal('0')
+
+                #     for item in available_items:
+                #         if remaining_to_allocate <= Decimal('0'):
+                #             print(f"DEBUG: Breaking loop - remaining_to_allocate: ₱{remaining_to_allocate}")
+                #             break
+                        
+                #         allocation_amount = min(item.remaining_amount, remaining_to_allocate)
+                        
+                #         if allocation_amount > Decimal('0'):
+                #             # Update the item
+                #             item.consumed_amount += allocation_amount
+                #             item.save()
+                            
+                #             # Track the allocation
+                #             allocated_quarters.append(f"{item.quarter.upper()}: ₱{allocation_amount}")
+                #             total_allocated += allocation_amount
+                #             remaining_to_allocate -= allocation_amount
+                            
+                #             print(f"DEBUG: Allocated ₱{allocation_amount} from {item.quarter}")
+                #             print(f"DEBUG: Remaining to allocate: ₱{remaining_to_allocate}")
+
+                #     # Verify the allocation
+                #     print(f"DEBUG: Total allocated: ₱{total_allocated}")
+                #     print(f"DEBUG: Purchase request amount: ₱{purchase_request.total_amount}")
+                #     print(f"DEBUG: Final remaining: ₱{remaining_to_allocate}")
+
+                #     if total_allocated != purchase_request.total_amount:
+                #         print(f"ERROR: Allocation mismatch! Expected: ₱{purchase_request.total_amount}, Actual: ₱{total_allocated}")
+
+                #     messages.success(request, f"Budget updated: {', '.join(allocated_quarters)} (Total: ₱{total_allocated})")
+                    
+                # except Exception as e:
+                #     print(f"DEBUG ERROR: {e}")
+                #     messages.error(request, f"Error processing budget allocation: {e}")
+                #     return redirect('department_pr_request')
 
             # Check remaining budget before approval (this is the BudgetAllocation object)
             if allocation.remaining_budget < (purchase_request.total_amount or 0):
@@ -353,6 +371,7 @@ def handle_departments_request(request, request_id):
             purchase_request.pr_status = 'Submitted'
             purchase_request.submitted_status = 'Partially Approved'
             purchase_request.approved_by_admin = True
+            messages.success(request, 'Purchase Request approved successfully.')
         elif action == 'reject':
             purchase_request.pr_status = 'Submitted'
             purchase_request.submitted_status = 'Rejected'

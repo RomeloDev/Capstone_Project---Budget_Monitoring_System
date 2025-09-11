@@ -15,6 +15,7 @@ from django.contrib.humanize.templatetags.humanize import intcomma
 from datetime import datetime
 from apps.admin_panel.utils import log_audit_trail
 from apps.users.utils import role_required
+from .constants import FRIENDLY_LABELS
 
 # Create your views here.
 @role_required('end_user', login_url='/')
@@ -99,121 +100,14 @@ def purchase_request_form(request):
     budget_allocations = BudgetAllocation.objects.select_related('approved_budget').filter(
         department=getattr(request.user, 'department', '')
     )
-
-    # Build Source-of-Fund options from approved PRE entries with positive amounts
-    def build_pre_source_options(user):
-        options = []
-        approved_pres = DepartmentPRE.objects.filter(
-            submitted_by=user,
+    
+    approved_pres = DepartmentPRE.objects.filter(
+            submitted_by=request.user,
             approved_by_approving_officer=True,
             approved_by_admin=True,
         )
 
-        # Friendly labels for known PRE item keys (fallback to humanized key)
-        friendly_labels = {
-            'travel_local': 'Traveling Expenses - Local',
-            'travel_foreign': 'Traveling Expenses - Foreign',
-            'training_expenses': 'Training Expenses',
-            'office_supplies_expenses': 'Office Supplies Expenses',
-            'accountable_form_expenses': 'Accountable Form Expenses',
-            'agri_marine_supplies_expenses': 'Agricultural and Marine Supplies Expenses',
-            'drugs_medicines': 'Drugs and Medicines',
-            'med_dental_lab_supplies_expenses': 'Medical, Dental & Laboratory Supplies Expenses',
-            'food_supplies_expenses': 'Food Supplies Expenses',
-            'fuel_oil_lubricants_expenses': 'Fuel, Oil and Lubricants Expenses',
-            'textbooks_instructional_materials_expenses': 'Textbooks and Instructional Materials Expenses',
-            'construction_material_expenses': 'Construction Materials Expenses',
-            'other_supplies_materials_expenses': 'Other Supplies & Materials Expenses',
-            'semee_machinery': 'Semi-expendable - Machinery',
-            'semee_office_equipment': 'Semi-expendable - Office Equipment',
-            'semee_information_communication': 'Semi-expendable - ICT Equipment',
-            'semee_communications_equipment': 'Semi-expendable - Communications Equipment',
-            'semee_drr_equipment': 'Semi-expendable - Disaster Response and Rescue Equipment',
-            'semee_medical_equipment': 'Semi-expendable - Medical Equipment',
-            'semee_printing_equipment': 'Semi-expendable - Printing Equipment',
-            'semee_sports_equipment': 'Semi-expendable - Sports Equipment',
-            'semee_technical_scientific_equipment': 'Semi-expendable - Technical and Scientific Equipment',
-            'semee_ict_equipment': 'Semi-expendable - ICT Equipment',
-            'semee_other_machinery_equipment': 'Semi-expendable - Other Machinery and Equipment',
-            'furniture_fixtures': 'Furniture and Fixtures',
-            'books': 'Books',
-            'water_expenses': 'Water Expenses',
-            'electricity_expenses': 'Electricity Expenses',
-            'postage_courier_services': 'Postage and Courier Services',
-            'telephone_expenses': 'Telephone Expenses',
-            'telephone_expenses_landline': 'Telephone Expenses (Landline)',
-            'internet_subscription_expenses': 'Internet Subscription Expenses',
-            'cable_satellite_telegraph_radio_expenses': 'Cable, Satellite, Telegraph & Radio Expenses',
-            'awards_rewards_expenses': 'Awards/Rewards Expenses',
-            'prizes': 'Prizes',
-            'survey_expenses': 'Survey Expenses',
-            'survey_research_exploration_development_expenses': 'Survey, Research, Exploration, and Development expenses',
-            'legal_services': 'Legal Services',
-            'auditing_services': 'Auditing Services',
-            'consultancy_services': 'Consultancy Services',
-            'other_professional_servies': 'Other Professional Services',
-            'security_services': 'Security Services',
-            'janitorial_services': 'Janitorial Services',
-            'other_general_services': 'Other General Services',
-            'environment/sanitary_services': 'Environment/Sanitary Services',
-            'repair_maintenance_land_improvements': 'Repair & Maintenance - Land Improvements',
-            'buildings': 'Buildings',
-            'school_buildings': 'School Buildings',
-            'hostel_dormitories': 'Hostels and Dormitories',
-            'other_structures': 'Other Structures',
-            'repair_maintenance_machinery': 'Repair & Maintenance - Machinery',
-            'repair_maintenance_office_equipment': 'Repair & Maintenance - Office Equipment',
-            'repair_maintenance_ict_equipment': 'Repair & Maintenance - ICT Equipment',
-            'repair_maintenance_agri_forestry_equipment': 'Repair & Maintenance - Agricultural and Forestry Equipment',
-            'repair_maintenance_marine_fishery_equipment': 'Repair & Maintenance - Marine and Fishery Equipment',
-            'repair_maintenance_airport_equipment': 'Repair & Maintenance - Airport Equipment',
-            'repair_maintenance_communication_equipment': 'Repair & Maintenance - Communication Equipment',
-            'repair_maintenance_drre_equipment': 'Repair & Maintenance - Disaster, Response and Rescue Equipment',
-            'repair_maintenance_medical_equipment': 'Repair & Maintenance - Medical Equipment',
-            'repair_maintenance_printing_equipment': 'Repair & Maintenance - Printing Equipment',
-            'repair_maintenance_sports_equipment': 'Repair & Maintenance - Sports Equipment',
-            'repair_maintenance_technical_scientific_equipment': 'Repair & Maintenance - Technical and Scientific Equipment',
-            'repair_maintenance_other_machinery_equipment': 'Repair & Maintenance - Other Machinery and Equipment',
-            'repair_maintenance_motor': 'Repair & Maintenance - Motor Vehicles',
-            'repair_maintenance_other_transportation_equipment': 'Repair & Maintenance - Other Transportation Equipment',
-            'repair_maintenance_furniture_fixtures': 'Repair & Maintenance - Furniture & Fixtures',
-            'repair_maintenance_semi_expendable_machinery_equipment': 'Repair & Maintenance - Semi-Expendable Machinery and Equipment',
-            'repair_maintenance_other_property_plant_equipment': 'Repair & Maintenance - Other Property, Plant and Equipment',
-            'taxes_duties_licenses': 'Taxes, Duties and Licenses',
-            'fidelity_bond_premiums': 'Fidelity Bond Premiums',
-            'insurance_expenses': 'Insurance Expenses',
-            'labor_wages': 'Labor and Wages',
-            'advertising_expenses': 'Advertising Expenses',
-            'printing_publication_expenses': 'Printing and Publication Expenses',
-            'representation_expenses': 'Representation Expenses',
-            'transportation_delivery_expenses': 'Transportation and Delivery Expenses',
-            'rent/lease_expenses': 'Rent/Lease Expenses',
-            'membership_dues_contribute_to_org': 'Membership Dues and contributions to organizations',
-            'subscription_expenses': 'Subscription Expenses',
-            'website_maintenance': 'Website Maintenance',
-            'other_maintenance_operating_expenses': 'Other Maintenance and Operating Expenses',
-        }
-
-        for pre in approved_pres:
-            payload = pre.data or {}
-            for key, value in payload.items():
-                if not isinstance(value, (int, float, Decimal)):
-                    try:
-                        value = Decimal(str(value))
-                    except Exception:
-                        continue
-                if value and value > 0 and (key.endswith('_q1') or key.endswith('_q2') or key.endswith('_q3') or key.endswith('_q4')):
-                    base_key, quarter = key.rsplit('_', 1)
-                    quarter = quarter.upper()
-                    label_base = friendly_labels.get(base_key, base_key.replace('_', ' ').title())
-                    display_amount = f"{intcomma(value)}"
-                    display = f"{label_base} {quarter} - {display_amount}"
-                    # Encode value for round-trip on submit
-                    encoded = f"{pre.id}|{base_key}|{quarter}|{value}"
-                    options.append({'value': encoded, 'label': display})
-        return options
-
-    source_of_fund_options = build_pre_source_options(request.user)
+    source_of_fund_options = build_pre_source_options(approved_pres)
 
     if request.method == 'POST':
         # Parse and save header fields
@@ -234,37 +128,219 @@ def purchase_request_form(request):
             except BudgetAllocation.DoesNotExist:
                 print("No such budget allocation for this user.")
                 purchase_request_obj.budget_allocation = None
-
-        # Source of fund linkage (encoded as preId|itemKey|QUARTER|amount)
+                
+        # BUDGET VALIDATION BEFORE SAVING
         sof_encoded = request.POST.get('source_of_fund')
         if sof_encoded:
             try:
-                # pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
-                # pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
-                # purchase_request_obj.source_pre = pre_obj
-                # purchase_request_obj.source_item_key = item_key
-                # purchase_request_obj.source_quarter = quarter
-                # purchase_request_obj.source_amount = Decimal(amount_str)
-                
                 parts = sof_encoded.split('|', 2)
                 if len(parts) >= 3:
                     pre_id_str, item_key, quarters_data = parts
-                    pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
+                    pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str))
                     
-                    # Parse quarters data to get the first available quarter and amount
+                    # Validate budget availability
+                    all_items = PRELineItemBudget.objects.filter(
+                        pre=pre_obj,
+                        item_key=item_key
+                    )
+                    
+                    available_items = [item for item in all_items if item.remaining_amount > 0]
+                    
+                    if not available_items:
+                        error_message =  f"No budget available for the selected source of fund. All quarters consumed."
+                        print(error_message)
+                        return JsonResponse({
+                            'success': False,
+                            'error': error_message,
+                            'error_type': 'insufficient_budget'
+                        })
+                    
+                    total_available = sum(item.remaining_amount for item in available_items)
+                    
+                    if total_available < purchase_request_obj.total_amount:
+                        error_message = f"Insufficient budget. Available: ₱{total_available:,.2f}, Required: ₱{purchase_request_obj.total_amount:,.2f}"
+                        print(error_message)
+                        return JsonResponse({
+                            'success': False,
+                            'error': error_message,
+                            'error_type': 'insufficient_budget'
+                        })
+                    
+                    # RESERVE THE BUDGET (Optional - for better UX)
+                    remaining_to_reserve = purchase_request_obj.total_amount
+                    for item in available_items:
+                        if remaining_to_reserve <= 0:
+                            break
+                        
+                        reservation_amount = min(item.remaining_amount, remaining_to_reserve)
+                        if reservation_amount > 0:
+                            # You could add a "reserved_amount" field to track this
+                            # item.reserved_amount += reservation_amount
+                            remaining_to_reserve -= reservation_amount
+                    
+                    # Store source information
+                    purchase_request_obj.source_pre = pre_obj
+                    purchase_request_obj.source_item_key = item_key
+                    
+                    # Parse quarters data to get the first quarter for compatibility
                     quarters = quarters_data.split('|')
                     if quarters:
                         first_quarter_data = quarters[0].split(':')
                         if len(first_quarter_data) == 2:
                             quarter, amount_str = first_quarter_data
-                            
-                            purchase_request_obj.source_pre = pre_obj
-                            purchase_request_obj.source_item_key = item_key
                             purchase_request_obj.source_quarter = quarter
                             purchase_request_obj.source_amount = Decimal(amount_str)
+                            
+                    
+                    # Calculate total amount across all quarters
+                    total_amount = Decimal('0')
+                    for quarter_info in quarters:
+                        if ':' in quarter_info:
+                            q, amount_str = quarter_info.split(':')
+                            total_amount += Decimal(amount_str)
+
+                    # Set the display value
+                    item_label = FRIENDLY_LABELS.get(item_key, item_key.replace('_', ' ').title())
+                    purchase_request_obj.source_of_fund_display = f"{item_label} - ₱{total_amount:,.2f}"
+                    
             except Exception as e:
-                print(f"Error parsing source of fund: {e}")
-                pass
+                error_message = f"Error validating budget: {e}"
+                print(error_message)
+                return JsonResponse({
+                    'success': False,
+                    'error': error_message,
+                    'error_type': 'budget_validation_error'
+                })
+
+        # Source of fund linkage (encoded as preId|itemKey|QUARTER|amount)
+        # sof_encoded = request.POST.get('source_of_fund')
+        # if sof_encoded:
+        #     try:
+        #         # pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
+        #         # pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
+        #         # purchase_request_obj.source_pre = pre_obj
+        #         # purchase_request_obj.source_item_key = item_key
+        #         # purchase_request_obj.source_quarter = quarter
+        #         # purchase_request_obj.source_amount = Decimal(amount_str)
+                
+        #         parts = sof_encoded.split('|', 2)
+        #         if len(parts) >= 3:
+        #             pre_id_str, item_key, quarters_data = parts
+        #             pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
+                    
+        #             # Calculate total amount across all quarters
+        #             quarters = quarters_data.split('|')
+        #             total_amount = Decimal('0')
+        #             quarter_details = []
+                    
+        #             for quarter_info in quarters:
+        #                 if ':' in quarter_info:
+        #                     quarter, amount_str = quarter_info.split(':')
+        #                     amount = Decimal(amount_str)
+        #                     total_amount += amount
+        #                     quarter_details.append(f"{quarter.upper()}: ₱{amount}")
+                    
+        #             # Store for processing (first quarter for compatibility)
+        #             first_quarter_data = quarters[0].split(':')
+        #             if len(first_quarter_data) == 2:
+        #                 quarter, amount_str = first_quarter_data
+                        
+        #                 purchase_request_obj.source_pre = pre_obj
+        #                 purchase_request_obj.source_item_key = item_key
+        #                 purchase_request_obj.source_quarter = quarter  # Keep for compatibility
+        #                 purchase_request_obj.source_amount = Decimal(amount_str)  # Keep for compatibility
+                        
+        #                 # Friendly labels for known PRE item keys (fallback to humanized key)
+        #                 friendly_labels = {
+        #                     'travel_local': 'Traveling Expenses - Local',
+        #                     'travel_foreign': 'Traveling Expenses - Foreign',
+        #                     'training_expenses': 'Training Expenses',
+        #                     'office_supplies_expenses': 'Office Supplies Expenses',
+        #                     'accountable_form_expenses': 'Accountable Form Expenses',
+        #                     'agri_marine_supplies_expenses': 'Agricultural and Marine Supplies Expenses',
+        #                     'drugs_medicines': 'Drugs and Medicines',
+        #                     'med_dental_lab_supplies_expenses': 'Medical, Dental & Laboratory Supplies Expenses',
+        #                     'food_supplies_expenses': 'Food Supplies Expenses',
+        #                     'fuel_oil_lubricants_expenses': 'Fuel, Oil and Lubricants Expenses',
+        #                     'textbooks_instructional_materials_expenses': 'Textbooks and Instructional Materials Expenses',
+        #                     'construction_material_expenses': 'Construction Materials Expenses',
+        #                     'other_supplies_materials_expenses': 'Other Supplies & Materials Expenses',
+        #                     'semee_machinery': 'Semi-expendable - Machinery',
+        #                     'semee_office_equipment': 'Semi-expendable - Office Equipment',
+        #                     'semee_information_communication': 'Semi-expendable - ICT Equipment',
+        #                     'semee_communications_equipment': 'Semi-expendable - Communications Equipment',
+        #                     'semee_drr_equipment': 'Semi-expendable - Disaster Response and Rescue Equipment',
+        #                     'semee_medical_equipment': 'Semi-expendable - Medical Equipment',
+        #                     'semee_printing_equipment': 'Semi-expendable - Printing Equipment',
+        #                     'semee_sports_equipment': 'Semi-expendable - Sports Equipment',
+        #                     'semee_technical_scientific_equipment': 'Semi-expendable - Technical and Scientific Equipment',
+        #                     'semee_ict_equipment': 'Semi-expendable - ICT Equipment',
+        #                     'semee_other_machinery_equipment': 'Semi-expendable - Other Machinery and Equipment',
+        #                     'furniture_fixtures': 'Furniture and Fixtures',
+        #                     'books': 'Books',
+        #                     'water_expenses': 'Water Expenses',
+        #                     'electricity_expenses': 'Electricity Expenses',
+        #                     'postage_courier_services': 'Postage and Courier Services',
+        #                     'telephone_expenses': 'Telephone Expenses',
+        #                     'telephone_expenses_landline': 'Telephone Expenses (Landline)',
+        #                     'internet_subscription_expenses': 'Internet Subscription Expenses',
+        #                     'cable_satellite_telegraph_radio_expenses': 'Cable, Satellite, Telegraph & Radio Expenses',
+        #                     'awards_rewards_expenses': 'Awards/Rewards Expenses',
+        #                     'prizes': 'Prizes',
+        #                     'survey_expenses': 'Survey Expenses',
+        #                     'survey_research_exploration_development_expenses': 'Survey, Research, Exploration, and Development expenses',
+        #                     'legal_services': 'Legal Services',
+        #                     'auditing_services': 'Auditing Services',
+        #                     'consultancy_services': 'Consultancy Services',
+        #                     'other_professional_servies': 'Other Professional Services',
+        #                     'security_services': 'Security Services',
+        #                     'janitorial_services': 'Janitorial Services',
+        #                     'other_general_services': 'Other General Services',
+        #                     'environment/sanitary_services': 'Environment/Sanitary Services',
+        #                     'repair_maintenance_land_improvements': 'Repair & Maintenance - Land Improvements',
+        #                     'buildings': 'Buildings',
+        #                     'school_buildings': 'School Buildings',
+        #                     'hostel_dormitories': 'Hostels and Dormitories',
+        #                     'other_structures': 'Other Structures',
+        #                     'repair_maintenance_machinery': 'Repair & Maintenance - Machinery',
+        #                     'repair_maintenance_office_equipment': 'Repair & Maintenance - Office Equipment',
+        #                     'repair_maintenance_ict_equipment': 'Repair & Maintenance - ICT Equipment',
+        #                     'repair_maintenance_agri_forestry_equipment': 'Repair & Maintenance - Agricultural and Forestry Equipment',
+        #                     'repair_maintenance_marine_fishery_equipment': 'Repair & Maintenance - Marine and Fishery Equipment',
+        #                     'repair_maintenance_airport_equipment': 'Repair & Maintenance - Airport Equipment',
+        #                     'repair_maintenance_communication_equipment': 'Repair & Maintenance - Communication Equipment',
+        #                     'repair_maintenance_drre_equipment': 'Repair & Maintenance - Disaster, Response and Rescue Equipment',
+        #                     'repair_maintenance_medical_equipment': 'Repair & Maintenance - Medical Equipment',
+        #                     'repair_maintenance_printing_equipment': 'Repair & Maintenance - Printing Equipment',
+        #                     'repair_maintenance_sports_equipment': 'Repair & Maintenance - Sports Equipment',
+        #                     'repair_maintenance_technical_scientific_equipment': 'Repair & Maintenance - Technical and Scientific Equipment',
+        #                     'repair_maintenance_other_machinery_equipment': 'Repair & Maintenance - Other Machinery and Equipment',
+        #                     'repair_maintenance_motor': 'Repair & Maintenance - Motor Vehicles',
+        #                     'repair_maintenance_other_transportation_equipment': 'Repair & Maintenance - Other Transportation Equipment',
+        #                     'repair_maintenance_furniture_fixtures': 'Repair & Maintenance - Furniture & Fixtures',
+        #                     'repair_maintenance_semi_expendable_machinery_equipment': 'Repair & Maintenance - Semi-Expendable Machinery and Equipment',
+        #                     'repair_maintenance_other_property_plant_equipment': 'Repair & Maintenance - Other Property, Plant and Equipment',
+        #                     'taxes_duties_licenses': 'Taxes, Duties and Licenses',
+        #                     'fidelity_bond_premiums': 'Fidelity Bond Premiums',
+        #                     'insurance_expenses': 'Insurance Expenses',
+        #                     'labor_wages': 'Labor and Wages',
+        #                     'advertising_expenses': 'Advertising Expenses',
+        #                     'printing_publication_expenses': 'Printing and Publication Expenses',
+        #                     'representation_expenses': 'Representation Expenses',
+        #                     'transportation_delivery_expenses': 'Transportation and Delivery Expenses',
+        #                     'rent/lease_expenses': 'Rent/Lease Expenses',
+        #                     'membership_dues_contribute_to_org': 'Membership Dues and contributions to organizations',
+        #                     'subscription_expenses': 'Subscription Expenses',
+        #                     'website_maintenance': 'Website Maintenance',
+        #                     'other_maintenance_operating_expenses': 'Other Maintenance and Operating Expenses',
+        #                 }
+                        
+        #                 item_label = friendly_labels.get(item_key, item_key.replace('_', ' ').title())
+        #                 purchase_request_obj.source_of_fund_display = f"{item_label} - ₱{total_amount:,.2f}"
+        #                 purchase_request_obj.source_of_fund_details = ', '.join(quarter_details)
+        #     except Exception as e:
+        #         print(f"Error parsing source of fund: {e}")
+        #         pass
 
         # Mark as submitted
         purchase_request_obj.pr_status = 'Submitted'
@@ -1070,89 +1146,7 @@ def build_pre_source_options(pres_queryset):
         # )
 
         # Friendly labels for known PRE item keys (fallback to humanized key)
-        friendly_labels = {
-            'travel_local': 'Traveling Expenses - Local',
-            'travel_foreign': 'Traveling Expenses - Foreign',
-            'training_expenses': 'Training Expenses',
-            'office_supplies_expenses': 'Office Supplies Expenses',
-            'accountable_form_expenses': 'Accountable Form Expenses',
-            'agri_marine_supplies_expenses': 'Agricultural and Marine Supplies Expenses',
-            'drugs_medicines': 'Drugs and Medicines',
-            'med_dental_lab_supplies_expenses': 'Medical, Dental & Laboratory Supplies Expenses',
-            'food_supplies_expenses': 'Food Supplies Expenses',
-            'fuel_oil_lubricants_expenses': 'Fuel, Oil and Lubricants Expenses',
-            'textbooks_instructional_materials_expenses': 'Textbooks and Instructional Materials Expenses',
-            'construction_material_expenses': 'Construction Materials Expenses',
-            'other_supplies_materials_expenses': 'Other Supplies & Materials Expenses',
-            'semee_machinery': 'Semi-expendable - Machinery',
-            'semee_office_equipment': 'Semi-expendable - Office Equipment',
-            'semee_information_communication': 'Semi-expendable - ICT Equipment',
-            'semee_communications_equipment': 'Semi-expendable - Communications Equipment',
-            'semee_drr_equipment': 'Semi-expendable - Disaster Response and Rescue Equipment',
-            'semee_medical_equipment': 'Semi-expendable - Medical Equipment',
-            'semee_printing_equipment': 'Semi-expendable - Printing Equipment',
-            'semee_sports_equipment': 'Semi-expendable - Sports Equipment',
-            'semee_technical_scientific_equipment': 'Semi-expendable - Technical and Scientific Equipment',
-            'semee_ict_equipment': 'Semi-expendable - ICT Equipment',
-            'semee_other_machinery_equipment': 'Semi-expendable - Other Machinery and Equipment',
-            'furniture_fixtures': 'Furniture and Fixtures',
-            'books': 'Books',
-            'water_expenses': 'Water Expenses',
-            'electricity_expenses': 'Electricity Expenses',
-            'postage_courier_services': 'Postage and Courier Services',
-            'telephone_expenses': 'Telephone Expenses',
-            'telephone_expenses_landline': 'Telephone Expenses (Landline)',
-            'internet_subscription_expenses': 'Internet Subscription Expenses',
-            'cable_satellite_telegraph_radio_expenses': 'Cable, Satellite, Telegraph & Radio Expenses',
-            'awards_rewards_expenses': 'Awards/Rewards Expenses',
-            'prizes': 'Prizes',
-            'survey_expenses': 'Survey Expenses',
-            'survey_research_exploration_development_expenses': 'Survey, Research, Exploration, and Development expenses',
-            'legal_services': 'Legal Services',
-            'auditing_services': 'Auditing Services',
-            'consultancy_services': 'Consultancy Services',
-            'other_professional_servies': 'Other Professional Services',
-            'security_services': 'Security Services',
-            'janitorial_services': 'Janitorial Services',
-            'other_general_services': 'Other General Services',
-            'environment/sanitary_services': 'Environment/Sanitary Services',
-            'repair_maintenance_land_improvements': 'Repair & Maintenance - Land Improvements',
-            'buildings': 'Buildings',
-            'school_buildings': 'School Buildings',
-            'hostel_dormitories': 'Hostels and Dormitories',
-            'other_structures': 'Other Structures',
-            'repair_maintenance_machinery': 'Repair & Maintenance - Machinery',
-            'repair_maintenance_office_equipment': 'Repair & Maintenance - Office Equipment',
-            'repair_maintenance_ict_equipment': 'Repair & Maintenance - ICT Equipment',
-            'repair_maintenance_agri_forestry_equipment': 'Repair & Maintenance - Agricultural and Forestry Equipment',
-            'repair_maintenance_marine_fishery_equipment': 'Repair & Maintenance - Marine and Fishery Equipment',
-            'repair_maintenance_airport_equipment': 'Repair & Maintenance - Airport Equipment',
-            'repair_maintenance_communication_equipment': 'Repair & Maintenance - Communication Equipment',
-            'repair_maintenance_drre_equipment': 'Repair & Maintenance - Disaster, Response and Rescue Equipment',
-            'repair_maintenance_medical_equipment': 'Repair & Maintenance - Medical Equipment',
-            'repair_maintenance_printing_equipment': 'Repair & Maintenance - Printing Equipment',
-            'repair_maintenance_sports_equipment': 'Repair & Maintenance - Sports Equipment',
-            'repair_maintenance_technical_scientific_equipment': 'Repair & Maintenance - Technical and Scientific Equipment',
-            'repair_maintenance_other_machinery_equipment': 'Repair & Maintenance - Other Machinery and Equipment',
-            'repair_maintenance_motor': 'Repair & Maintenance - Motor Vehicles',
-            'repair_maintenance_other_transportation_equipment': 'Repair & Maintenance - Other Transportation Equipment',
-            'repair_maintenance_furniture_fixtures': 'Repair & Maintenance - Furniture & Fixtures',
-            'repair_maintenance_semi_expendable_machinery_equipment': 'Repair & Maintenance - Semi-Expendable Machinery and Equipment',
-            'repair_maintenance_other_property_plant_equipment': 'Repair & Maintenance - Other Property, Plant and Equipment',
-            'taxes_duties_licenses': 'Taxes, Duties and Licenses',
-            'fidelity_bond_premiums': 'Fidelity Bond Premiums',
-            'insurance_expenses': 'Insurance Expenses',
-            'labor_wages': 'Labor and Wages',
-            'advertising_expenses': 'Advertising Expenses',
-            'printing_publication_expenses': 'Printing and Publication Expenses',
-            'representation_expenses': 'Representation Expenses',
-            'transportation_delivery_expenses': 'Transportation and Delivery Expenses',
-            'rent/lease_expenses': 'Rent/Lease Expenses',
-            'membership_dues_contribute_to_org': 'Membership Dues and contributions to organizations',
-            'subscription_expenses': 'Subscription Expenses',
-            'website_maintenance': 'Website Maintenance',
-            'other_maintenance_operating_expenses': 'Other Maintenance and Operating Expenses',
-        }
+        friendly_labels = FRIENDLY_LABELS
         
         line_item_groups = {}
         
@@ -1228,3 +1222,59 @@ def load_source_of_fund(request):
         "end_user_app/partials/source_of_fund_options.html",
         {"source_of_fund_options": source_of_fund_options}
     )
+
+@role_required('end_user', login_url='/')
+def budget_details(request, budget_id):
+    budget_allocation = get_object_or_404(BudgetAllocation.objects.select_related('approved_budget'), id=budget_id, department=getattr(request.user, 'department', ''))
+    
+    try:
+        # Get all PRE line items for this budget allocation
+        related_pres = DepartmentPRE.objects.filter(
+            budget_allocation=budget_allocation,
+            submitted_by=request.user
+        ).order_by('-created_at')
+    except DepartmentPRE.DoesNotExist:
+        messages.error(request, "No PREs found for this budget allocation.")
+        return redirect('user_view_budget')
+    
+    # Get all PRE line items with friendly names
+    pre_line_items = []
+    total_pre_allocated = Decimal('0')
+    total_pre_consumed = Decimal('0')
+    
+    # Friendly labels (you can import this from constants.py if you created it)
+    friendly_labels = FRIENDLY_LABELS
+    
+    for pre in related_pres:
+        line_items = PRELineItemBudget.objects.filter(pre=pre).order_by('item_key', 'quarter')
+        
+        for item in line_items:
+            # Add friendly name to the item
+            item.friendly_name = friendly_labels.get(
+                item.item_key, 
+                item.item_key.replace('_', ' ').title()
+            )
+            
+            pre_line_items.append(item)
+            total_pre_allocated += item.allocated_amount
+            total_pre_consumed += item.consumed_amount
+    
+    total_pre_remaining = total_pre_allocated - total_pre_consumed
+    
+    # Calculate utilization percentage
+    utilization_percentage = 0
+    if budget_allocation.total_allocated > 0:
+        utilization_percentage = (budget_allocation.spent / budget_allocation.total_allocated) * 100
+    
+    context = {
+        'budget_allocation': budget_allocation,
+        'pre_line_items': pre_line_items,
+        'related_pres': related_pres,
+        'total_pre_allocated': total_pre_allocated,
+        'total_pre_consumed': total_pre_consumed,
+        'total_pre_remaining': total_pre_remaining,
+        'utilization_percentage': utilization_percentage,
+    }
+    
+    return render(request, 'end_user_app/budget_details.html', context)
+        

@@ -56,6 +56,9 @@ class PurchaseRequest(models.Model):
     approved_by_approving_officer = models.BooleanField(default=False)
     approved_by_admin = models.BooleanField(default=False)
     
+    # Store the original source of fund selection for display
+    source_of_fund_display = models.CharField(max_length=500, null=True, blank=True)
+    
     def __str__(self):
         return f"PR-{self.pr_no} ({self.entity_name})"
 
@@ -136,11 +139,17 @@ class PRELineItemBudget(models.Model):
     allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
     consumed_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
+    reserved_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # For pending PRs
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         unique_together = ['pre', 'item_key', 'quarter']
+        
+    @property
+    def available_amount(self):
+        return self.allocated_amount - self.consumed_amount - self.reserved_amount
     
     @property
     def remaining_amount(self):

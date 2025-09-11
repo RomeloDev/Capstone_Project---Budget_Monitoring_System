@@ -132,7 +132,7 @@ Preview Purchase Request
         <p class="text-sm text-gray-500">Source of Fund</p>
         {% if pr.source_pre %}
         <p class="font-medium">
-          {{ pr.source_item_key|default:'—'|title }} {{ pr.source_quarter }} - ₱ {{ pr.source_amount|intcomma }}
+          {{ pr.source_of_fund_display|default:pr.source_item_key|title }} 
         </p>
         {% else %}
         <p class="text-gray-500">—</p>

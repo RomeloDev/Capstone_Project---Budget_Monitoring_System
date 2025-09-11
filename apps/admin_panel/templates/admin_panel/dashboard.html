@@ -325,7 +325,11 @@
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between">
                       <p class="text-sm font-medium text-gray-900 truncate">
-                        {{ item.user.get_full_name|default:item.user.username|default:"System" }}
+                        {% if item.user %}
+                          {{ item.user.get_full_name|default:item.user.username|default:"Unknown User" }}
+                        {% else %}
+                          System
+                        {% endif %}
                       </p>
                       <span class="text-xs text-gray-500 flex-shrink-0 ml-2">{{ item.timestamp|naturaltime }}</span>
                     </div>
