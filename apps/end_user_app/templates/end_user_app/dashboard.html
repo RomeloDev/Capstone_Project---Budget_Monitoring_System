@@ -15,11 +15,11 @@
     <section class="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div class="bg-green-100 p-6 rounded-xl shadow-md border-l-4 border-green-500 hover:scale-[1.02] transition-transform">
             <p class="text-sm font-medium text-gray-500">Total Budget</p>
-            <p class="text-3xl font-bold text-green-700 mt-2">&#8369;{{ total_budget|floatformat:2|default:"0.00" }}</p>
+            <p class="text-3xl font-bold text-green-700 mt-2">&#8369;{{ total_budget|floatformat:2|intcomma|default:"0.00" }}</p>
         </div>
         <div class="bg-yellow-100 p-6 rounded-xl shadow-md border-l-4 border-yellow-500 hover:scale-[1.02] transition-transform">
             <p class="text-sm font-medium text-gray-500">Remaining Balance</p>
-            <p class="text-3xl font-bold text-yellow-700 mt-2">&#8369;{{ remaining_balance|floatformat:2|default:"0.00" }}</p>
+            <p class="text-3xl font-bold text-yellow-700 mt-2">&#8369;{{ remaining_balance|floatformat:2|intcomma|default:"0.00" }}</p>
         </div>
         <div class="bg-blue-100 p-6 rounded-xl shadow-md border-l-4 border-blue-500 hover:scale-[1.02] transition-transform">
             <p class="text-sm font-medium text-gray-500">Approved Requests</p>
@@ -37,9 +37,9 @@
             </div>
         </div>
         <div class="flex justify-between text-sm text-gray-600 mt-1">
-            <span>₱{{ spent|floatformat:2 }} spent</span>
+            <span>₱{{ spent|floatformat:2|intcomma }} spent</span>
             <span>{{ usage_percentage|floatformat:0 }}%</span>
-            <span>of ₱{{ total_budget|floatformat:2 }}</span>
+            <span>of ₱{{ total_budget|floatformat:2|intcomma }}</span>
         </div>
     </section>
     {% endif %}

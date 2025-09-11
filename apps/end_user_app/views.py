@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget
 from decimal import Decimal
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -239,13 +239,31 @@ def purchase_request_form(request):
         sof_encoded = request.POST.get('source_of_fund')
         if sof_encoded:
             try:
-                pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
-                pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
-                purchase_request_obj.source_pre = pre_obj
-                purchase_request_obj.source_item_key = item_key
-                purchase_request_obj.source_quarter = quarter
-                purchase_request_obj.source_amount = Decimal(amount_str)
-            except Exception:
+                # pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
+                # pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
+                # purchase_request_obj.source_pre = pre_obj
+                # purchase_request_obj.source_item_key = item_key
+                # purchase_request_obj.source_quarter = quarter
+                # purchase_request_obj.source_amount = Decimal(amount_str)
+                
+                parts = sof_encoded.split('|', 2)
+                if len(parts) >= 3:
+                    pre_id_str, item_key, quarters_data = parts
+                    pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
+                    
+                    # Parse quarters data to get the first available quarter and amount
+                    quarters = quarters_data.split('|')
+                    if quarters:
+                        first_quarter_data = quarters[0].split(':')
+                        if len(first_quarter_data) == 2:
+                            quarter, amount_str = first_quarter_data
+                            
+                            purchase_request_obj.source_pre = pre_obj
+                            purchase_request_obj.source_item_key = item_key
+                            purchase_request_obj.source_quarter = quarter
+                            purchase_request_obj.source_amount = Decimal(amount_str)
+            except Exception as e:
+                print(f"Error parsing source of fund: {e}")
                 pass
 
         # Mark as submitted
@@ -1135,24 +1153,43 @@ def build_pre_source_options(pres_queryset):
             'website_maintenance': 'Website Maintenance',
             'other_maintenance_operating_expenses': 'Other Maintenance and Operating Expenses',
         }
-
+        
+        line_item_groups = {}
+        
         for pre in pres_queryset:
-            payload = pre.data or {}
-            for key, value in payload.items():
-                if not isinstance(value, (int, float, Decimal)):
-                    try:
-                        value = Decimal(str(value))
-                    except Exception:
-                        continue
-                if value and value > 0 and (key.endswith('_q1') or key.endswith('_q2') or key.endswith('_q3') or key.endswith('_q4')):
-                    base_key, quarter = key.rsplit('_', 1)
-                    quarter = quarter.upper()
-                    label_base = friendly_labels.get(base_key, base_key.replace('_', ' ').title())
-                    display_amount = f"{intcomma(value)}"
-                    display = f"{label_base} {quarter} - {display_amount}"
-                    # Encode value for round-trip on submit
-                    encoded = f"{pre.id}|{base_key}|{quarter}|{value}"
-                    options.append({'value': encoded, 'label': display})
+            # Get line item budgets instead of parsing JSON
+            line_items = PRELineItemBudget.objects.filter(pre=pre)
+            
+            for line_item in line_items:
+                if line_item.remaining_amount > 0:
+                    key = f"{pre.id}|{line_item.item_key}"
+                    
+                    if key not in line_item_groups:
+                        line_item_groups[key] = {
+                            'pre_id': pre.id,
+                            'item_key': line_item.item_key,
+                            'label': friendly_labels.get(line_item.item_key, line_item.item_key.replace('_', ' ').title()),
+                            'total_remaining': Decimal('0'),
+                            'total_allocated': Decimal('0'),
+                            'quarters': []
+                        }
+                        
+                    line_item_groups[key]['total_remaining'] += line_item.remaining_amount
+                    line_item_groups[key]['total_allocated'] += line_item.allocated_amount
+                    line_item_groups[key]['quarters'].append({
+                        'quarter': line_item.quarter,
+                        'remaining': line_item.remaining_amount
+                    })   
+                                     
+        # Create options from grouped data
+        for group_key, group_data in line_item_groups.items():
+            display = f"{group_data['label']} - ₱{intcomma(group_data['total_remaining'])}"
+            
+            # Encode all quarters for this line item
+            quarters_data = "|".join([f"{q['quarter']}:{q['remaining']}" for q in group_data['quarters']])
+            encoded = f"{group_data['pre_id']}|{group_data['item_key']}|{quarters_data}"
+            
+            options.append({'value': encoded, 'label': display})
         return options
     
 @role_required('end_user', login_url='/')

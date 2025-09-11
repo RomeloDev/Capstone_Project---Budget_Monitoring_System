@@ -1,3 +1,4 @@
+import decimal
 from django.db import models
 from apps.users.models import User
 from decimal import Decimal
@@ -77,6 +78,27 @@ class PurchaseRequestItems(models.Model):
 
     def __str__(self):
         return f"{self.item_description} - {self.quantity} pcs"
+    
+class PurchaseRequestAllocation(models.Model):
+    """Tracks how a purchase request is allocated across multiple PRE quarters"""
+    
+    purchase_request = models.ForeignKey(
+        'PurchaseRequest', 
+        on_delete=models.CASCADE, 
+        related_name='quarter_allocations'
+    )
+    pre_line_item = models.ForeignKey(
+        'PRELineItemBudget', 
+        on_delete=models.CASCADE
+    )
+    allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['purchase_request', 'pre_line_item']
+    
+    def __str__(self):
+        return f"PR {self.purchase_request.pr_no} - {self.pre_line_item.item_key} {self.pre_line_item.quarter.upper()}: ₱{self.allocated_amount}"
 
 
 class Budget_Realignment(models.Model):
@@ -97,6 +119,41 @@ class Budget_Realignment(models.Model):
 
     def __str__(self):
         return f"Realignment by {self.requested_by} from {self.source_papp} to {self.target_papp} - ₱{self.amount}"
+    
+
+class PRELineItemBudget(models.Model):
+    """Tracks budget consumption for individual PRE line items"""
+    
+    pre = models.ForeignKey(
+        'DepartmentPRE', 
+        on_delete=models.CASCADE, 
+        related_name='line_item_budgets'
+    )
+    item_key = models.CharField(max_length=255)  # e.g., 'travel_local'
+    quarter = models.CharField(max_length=10)    # e.g., 'q1', 'q2', 'q3', 'q4'
+    
+    # Budget tracking
+    allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    consumed_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['pre', 'item_key', 'quarter']
+    
+    @property
+    def remaining_amount(self):
+        return self.allocated_amount - self.consumed_amount
+    
+    @property
+    def utilization_percentage(self):
+        if self.allocated_amount > 0:
+            return (self.consumed_amount / self.allocated_amount) * 100
+        return 0
+    
+    def __str__(self):
+        return f"{self.pre.department} - {self.item_key} {self.quarter.upper()}: ₱{self.remaining_amount}"
 
 
 class DepartmentPRE(models.Model):
@@ -147,6 +204,34 @@ class DepartmentPRE(models.Model):
         dept = self.department or "Unknown Dept"
         creator = self.submitted_by.get_full_name() if self.submitted_by else "Unknown User"
         return f"PRE for {dept} by {creator} on {self.created_at:%Y-%m-%d}"
+    
+    def create_line_item_budgets(self):
+        """Extract budget lines from JSON and create tracking records"""
+        if not self.data:
+            return
+
+        for key, value in self.data.items():
+            if key.endswith(('_q1', '_q2', '_q3', '_q4')):
+                try:
+                    # Handle empty strings, None, and whitespace
+                    if value is None or str(value).strip() == '':
+                        continue
+                    
+                    amount = Decimal(str(value).strip())
+                    if amount > 0:
+                        base_key, quarter = key.rsplit('_', 1)
+                        PRELineItemBudget.objects.get_or_create(
+                            pre=self,
+                            item_key=base_key,
+                            quarter=quarter,
+                            defaults={'allocated_amount': amount}
+                        )
+                except (ValueError, TypeError, decimal.InvalidOperation, decimal.ConversionSyntax):
+                    # Log the problematic data for debugging
+                    print(f"Skipping invalid budget data: {key} = {repr(value)}")
+                    continue
+    
+
     
 class ActivityDesign(models.Model):
     title_of_activity = models.CharField(max_length=255)

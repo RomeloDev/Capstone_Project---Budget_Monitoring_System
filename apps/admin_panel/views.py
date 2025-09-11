@@ -6,7 +6,7 @@ from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
-from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign
+from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign, PRELineItemBudget
 from apps.users.models import User
 from django.db import transaction
 from django.db.models import Sum
@@ -248,6 +248,103 @@ def handle_departments_request(request, request_id):
             if allocation is None:
                 messages.error(request, 'No budget allocation linked to this request.')
                 return redirect('department_pr_request')
+            
+            # if purchase_request.source_pre and purchase_request.source_item_key:
+            #     try:
+            #         line_item = PRELineItemBudget.objects.get(
+            #             pre=purchase_request.source_pre, 
+            #             item_key=purchase_request.source_item_key,
+            #             quarter=purchase_request.source_quarter
+            #             )
+                    
+            #         # Check if sufficient budget remains
+            #         if line_item.remaining_amount >= purchase_request.total_amount:
+            #             line_item.consumed_amount += purchase_request.total_amount
+            #             line_item.save()
+                        
+            #         else:
+            #             messages.error(request, f"Insufficient budget in {line_item}. Remaining: ₱{line_item.remaining_amount}")
+            #             return redirect('department_pr_request')
+            #     except PRELineItemBudget.DoesNotExist:
+            #         messages.error(request, "Budget line item not found.")
+            #         return redirect('department_pr_request')
+            
+            if purchase_request.source_pre and purchase_request.source_item_key:
+                try:
+                    # Simple query first - no annotations
+                    all_items = PRELineItemBudget.objects.filter(
+                        pre=purchase_request.source_pre,
+                        item_key=purchase_request.source_item_key
+                    )
+                    
+                    print(f"DEBUG: Found {all_items.count()} items for {purchase_request.source_item_key}")
+                    
+                    # Filter in Python for remaining budget
+                    available_items = []
+                    for item in all_items:
+                        remaining = item.remaining_amount
+                        print(f"DEBUG: {item.quarter} - Allocated: ₱{item.allocated_amount}, Consumed: ₱{item.consumed_amount}, Remaining: ₱{remaining}")
+                        if remaining > 0:
+                            available_items.append(item)
+                    
+                    if not available_items:
+                        messages.error(request, f"No budget available for {purchase_request.source_item_key}. All quarters consumed.")
+                        return redirect('department_pr_request')
+                    
+                    # Calculate total available
+                    total_available = sum(item.remaining_amount for item in available_items)
+                    print(f"DEBUG: Total available across all quarters: ₱{total_available}")
+                    
+                    if total_available < purchase_request.total_amount:
+                        messages.error(request, f"Insufficient total budget. Available: ₱{total_available}, Required: ₱{purchase_request.total_amount}")
+                        return redirect('department_pr_request')
+                    
+                    # Distribute across quarters - ROBUST VERSION
+                    remaining_to_allocate = purchase_request.total_amount
+                    allocated_quarters = []
+                    total_allocated = Decimal('0')
+
+                    for item in available_items:
+                        if remaining_to_allocate <= Decimal('0'):
+                            print(f"DEBUG: Breaking loop - remaining_to_allocate: ₱{remaining_to_allocate}")
+                            break
+                        
+                        allocation_amount = min(item.remaining_amount, remaining_to_allocate)
+                        
+                        if allocation_amount > Decimal('0'):
+                            # Update the item
+                            item.consumed_amount += allocation_amount
+                            item.save()
+                            
+                            # Track the allocation
+                            allocated_quarters.append(f"{item.quarter.upper()}: ₱{allocation_amount}")
+                            total_allocated += allocation_amount
+                            remaining_to_allocate -= allocation_amount
+                            
+                            print(f"DEBUG: Allocated ₱{allocation_amount} from {item.quarter}")
+                            print(f"DEBUG: Remaining to allocate: ₱{remaining_to_allocate}")
+
+                    # Verify the allocation
+                    print(f"DEBUG: Total allocated: ₱{total_allocated}")
+                    print(f"DEBUG: Purchase request amount: ₱{purchase_request.total_amount}")
+                    print(f"DEBUG: Final remaining: ₱{remaining_to_allocate}")
+
+                    if total_allocated != purchase_request.total_amount:
+                        print(f"ERROR: Allocation mismatch! Expected: ₱{purchase_request.total_amount}, Actual: ₱{total_allocated}")
+
+                    messages.success(request, f"Budget allocated: {', '.join(allocated_quarters)} (Total: ₱{total_allocated})")
+                    
+                except Exception as e:
+                    print(f"DEBUG ERROR: {e}")
+                    messages.error(request, f"Error processing budget allocation: {e}")
+                    return redirect('department_pr_request')
+
+            # Check remaining budget before approval (this is the BudgetAllocation object)
+            if allocation.remaining_budget < (purchase_request.total_amount or 0):
+                messages.error(request, 'Insufficient remaining budget to approve this request.')
+                return redirect('department_pr_request')
+            
+            # Check remaining budget before approval
             if allocation.remaining_budget < (purchase_request.total_amount or 0):
                 messages.error(request, 'Insufficient remaining budget to approve this request.')
                 return redirect('department_pr_request')
@@ -329,44 +426,7 @@ def budget_allocation(request):
     )
     
     return render(request, "admin_panel/budget_allocation.html", {'approved_budgets': approved_budgets, 'departments': departments, 'budgets': allocations})
-    
-# This is the Approved Budget View
-# @login_required
-# def institutional_funds(request):
-#     if request.method == 'POST':
-#         title = request.POST.get('title')
-#         period = request.POST.get('period')
-#         amount = request.POST.get('amount')
-        
-#         # Validation
-#         if not title or not period or not amount:
-#             messages.error(request, "All fields are required.")
-#             return redirect("institutional_funds")
-#         else:
-#             try:
-#                 amount = Decimal(amount)
-#             except (ValueError, TypeError):
-#                 messages.error(request, "Invalid amount entered.")
-#                 return redirect("institutional_funds")
-        
-#             # Create the approved budget
-#             ApprovedBudget.objects.create(
-#                 title=title,
-#                 period=period,
-#                 amount=amount
-#             )
-#             messages.success(request, "Approved budget successfully added.")
-#             log_audit_trail(
-#                 request=request,
-#                 action='CREATE',
-#                 model_name='ApprovedBudget',
-#                 record_id=None,  # No specific record ID for creation
-#                 detail=f"Created approved budget: {title} for period {period} with amount {intcomma(amount)}."
-#             )
-#             return redirect("institutional_funds")
-        
-#     approved_budgets = ApprovedBudget.objects.order_by('-created_at')
-#     return render(request, 'admin_panel/institutional_funds.html', {'approved_budgets': approved_budgets})
+
 
 @role_required('admin', login_url='/admin/')
 def institutional_funds(request):

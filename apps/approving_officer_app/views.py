@@ -284,6 +284,9 @@ def handle_pre_action(request, pk: int):
         if action == 'approve':
             pre.status = 'Approved'
             pre.approved_by_approving_officer = True
+            
+            if pre.approved_by_admin and pre.approved_by_approving_officer:
+                pre.create_line_item_budgets()
         elif action == 'reject':
             pre.status = 'Rejected'
             pre.approved_by_approving_officer = False

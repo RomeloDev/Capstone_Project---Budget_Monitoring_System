@@ -115,6 +115,19 @@
         <span>Filter Purchase Requests</span>
       </button>
     </section>
+    
+    {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+                <div class="text-white px-4 py-2 mt-1 rounded 
+                    {% if message.tags == 'error' %} bg-red-500
+                    {% elif message.tags == 'success' %} bg-green-500
+                    {% else %} bg-gray-500 {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
 
     <!-- Table Section -->
     <section class="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
