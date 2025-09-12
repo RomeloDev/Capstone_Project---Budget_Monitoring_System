@@ -362,38 +362,43 @@ def handle_departments_request(request, request_id):
             #     messages.error(request, 'Insufficient remaining budget to approve this request.')
             #     return redirect('department_pr_request')
             
-            allocation.spent = (allocation.spent or 0) + (purchase_request.total_amount or 0)
-            allocation.save(update_fields=['spent', 'updated_at'])
+            # allocation.spent = (allocation.spent or 0) + (purchase_request.total_amount or 0)
+            # allocation.save(update_fields=['spent', 'updated_at'])
             purchase_request.pr_status = 'Submitted'
             purchase_request.submitted_status = 'Partially Approved'
             purchase_request.approved_by_admin = True
             purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at', 'approved_by_admin'])
+            
+            log_audit_trail(
+                request=request,
+                action='APPROVE',
+                model_name='PurchaseRequest',
+                record_id=purchase_request.id,
+                detail=f'Purchase Request {purchase_request.pr_no} have been Partially Approved by Admin'
+            )
+            
             messages.success(request, 'Purchase Request approved successfully.')
         elif action == 'reject':
             try:
-                allocations = PurchaseRequestAllocation.objects.filter(purchase_request=purchase_request).select_related('pre_line_item')
+                # allocations = PurchaseRequestAllocation.objects.filter(purchase_request=purchase_request).select_related('pre_line_item')
                 
-                total_released = Decimal('0')
-                released_details = []
+                # total_released = Decimal('0')
+                # released_details = []
                 
-                for pr_allocation in allocations:
-                    line_item = pr_allocation.pre_line_item
-                    allocated_amount = pr_allocation.allocated_amount
+                # for pr_allocation in allocations:
+                #     line_item = pr_allocation.pre_line_item
+                #     allocated_amount = pr_allocation.allocated_amount
                     
-                    line_item.consumed_amount -= allocated_amount
-                    line_item.save()
+                #     line_item.consumed_amount -= allocated_amount
+                #     line_item.save()
                     
-                    total_released += allocated_amount
-                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
+                #     total_released += allocated_amount
+                #     released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
                     
-                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
+                #     print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
                     
-                # Delete allocations after reversal
-                allocations.delete()
-                
-                # if allocation:
-                #     allocation.spent = max(0, (allocation.spent or 0) - (purchase_request.total_amount or 0))
-                #     allocation.save(update_fields=['spent', 'updated_at'])
+                # # Delete allocations after reversal
+                # allocations.delete()
                 
                 purchase_request.pr_status = 'Submitted'
                 purchase_request.submitted_status = 'Rejected'
@@ -405,11 +410,11 @@ def handle_departments_request(request, request_id):
                     action='REJECT',
                     model_name='PurchaseRequest',
                     record_id=purchase_request.id,
-                    detail=f'Rejected PR {purchase_request.pr_no} and released ₱{total_released} budget. Details: {", ".join(released_details)}'
+                    detail=f'Purchase Request {purchase_request.pr_no} have been Rejected by Admin'
                 )
                 
-                messages.warning(request, "Purchase Request rejected")
-                messages.success(request, f'Released ₱{total_released:,.2f} back to budget.')
+                messages.error(request, f"Purchase Request PR-{purchase_request.pr_no} has been Rejected")
+                # messages.success(request, f'Released ₱{total_released:,.2f} back to budget.')
                 
             except Exception as e:
                 print(f"DEBUG ERROR: {e}")

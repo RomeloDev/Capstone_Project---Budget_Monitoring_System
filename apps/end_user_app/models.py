@@ -279,6 +279,7 @@ class ActivityDesign(models.Model):
     source_item_key = models.CharField(max_length=255, null=True, blank=True)
     source_quarter = models.CharField(max_length=10, null=True, blank=True)
     source_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, null=True, blank=True)
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="activity_design_request")
     
     def __str__(self):

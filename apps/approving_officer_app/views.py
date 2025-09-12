@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign
+from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign, PurchaseRequestAllocation
 from apps.admin_panel.models import BudgetAllocation
 from django.contrib import messages
 from django.contrib.humanize.templatetags.humanize import intcomma
@@ -317,9 +317,12 @@ def handle_request_action(request, pk):
     
     if request.method == 'POST':
         action = request.POST.get('action')
+        
+        # Ensure there is an associated budget allocation
+        allocation = req.budget_allocation
         if action == 'approve':
             # Ensure there is an associated budget allocation
-            allocation = req.budget_allocation
+            # allocation = req.budget_allocation
             if allocation is None:
                 messages.error(request, 'No budget allocation linked to this request.')
                 return redirect('cd_department_request')
@@ -331,17 +334,64 @@ def handle_request_action(request, pk):
                 return redirect('cd_department_request')
 
             # Apply spend
-            # allocation.spent = (allocation.spent or 0) + (req.total_amount or 0)
-            # allocation.save(update_fields=['spent', 'updated_at'])
+            allocation.spent = (allocation.spent or 0) + (req.total_amount or 0)
+            allocation.save(update_fields=['spent', 'updated_at'])
 
             req.submitted_status = 'Approved'
             req.approved_by_approving_officer = True
+            req.approved_by = request.user
+            req.save(update_fields=['submitted_status', 'approved_by', 'updated_at', 'approved_by_approving_officer'])
+            
+            log_audit_trail(
+                request=request,
+                action='APPROVE',
+                model_name='PurchaseRequest',
+                record_id=req.id,
+                detail=f'Purchase Request {req.pr_no} have been Approved by Approving Officer'
+            )
+            
             messages.success(request, f'Request PR-{req.pr_no} has been approved successfully.')
         elif action == 'reject':
-            req.submitted_status = 'rejected'
-            messages.error(request, f'Request PR-{req.pr_no} has been rejected.')
-        req.approved_by = request.user
-        req.save(update_fields=['submitted_status', 'approved_by', 'updated_at', 'approved_by_approving_officer'])
+            try:
+                allocations = PurchaseRequestAllocation.objects.filter(purchase_request=req).select_related('pre_line_item')
+                
+                total_released = Decimal('0')
+                released_details = []
+                
+                for pr_allocation in allocations:
+                    line_item = pr_allocation.pre_line_item
+                    allocated_amount = pr_allocation.allocated_amount
+                    
+                    line_item.consumed_amount -= allocated_amount
+                    line_item.save()
+                    
+                    total_released += allocated_amount
+                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
+                    
+                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
+                    
+                # Delete allocations after reversal
+                allocations.delete()
+                
+                # Update Purchase Request Status
+                req.submitted_status = 'Rejected'
+                req.save(update_fields=['submitted_status', 'updated_at'])
+                
+                # Log in Audit Trail
+                log_audit_trail(
+                    request=request,
+                    action='REJECT',
+                    model_name='PurchaseRequest',
+                    record_id=req.id,
+                    detail=f'Rejected PR {req.pr_no} and released ₱{total_released} budget. Details: {", ".join(released_details)}'
+                )
+                
+                messages.error(request, f'Request PR-{req.pr_no} has been rejected.')
+                messages.success(request, f'Released ₱{total_released:,.2f} back to budget.')
+            except Exception as e:
+                print(f"DEBUG ERROR: {e}")
+                messages.error(request, f"Error processing rejection: {e}")
+                return redirect('cd_department_request')
 
     return redirect('cd_department_request')  # Redirect to the department request page after handling the action
 
