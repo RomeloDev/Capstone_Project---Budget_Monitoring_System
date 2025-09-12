@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation
 from decimal import Decimal
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -136,6 +136,7 @@ def purchase_request_form(request):
                 parts = sof_encoded.split('|', 2)
                 if len(parts) >= 3:
                     pre_id_str, item_key, quarters_data = parts
+                    # Department PRE object instance
                     pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str))
                     
                     # Validate budget availability
@@ -167,16 +168,43 @@ def purchase_request_form(request):
                         })
                     
                     # RESERVE THE BUDGET (Optional - for better UX)
-                    remaining_to_reserve = purchase_request_obj.total_amount
+                    # remaining_to_reserve = purchase_request_obj.total_amount
+                    # for item in available_items:
+                    #     if remaining_to_reserve <= 0:
+                    #         break
+                        
+                    #     reservation_amount = min(item.remaining_amount, remaining_to_reserve)
+                    #     if reservation_amount > 0:
+                    #         # You could add a "reserved_amount" field to track this
+                    #         # item.reserved_amount += reservation_amount
+                    #         remaining_to_reserve -= reservation_amount
+                    
+                    remaining_to_allocate = purchase_request_obj.total_amount
+                    allocations_made = []
+                    
                     for item in available_items:
-                        if remaining_to_reserve <= 0:
+                        if remaining_to_allocate <= 0:
                             break
                         
-                        reservation_amount = min(item.remaining_amount, remaining_to_reserve)
-                        if reservation_amount > 0:
-                            # You could add a "reserved_amount" field to track this
-                            # item.reserved_amount += reservation_amount
-                            remaining_to_reserve -= reservation_amount
+                        allocation_amount = min(item.remaining_amount, remaining_to_allocate)
+                        if allocation_amount > 0:
+                            item.consumed_amount += allocation_amount
+                            item.save()
+                            
+                            # Track this allocation for potential reversal
+                            allocation_record = PurchaseRequestAllocation.objects.create(
+                                purchase_request=purchase_request_obj,
+                                pre_line_item=item,
+                                allocated_amount=allocation_amount
+                            )
+                            
+                            allocations_made.append(allocation_record)
+                            
+                            remaining_to_allocate -= allocation_amount
+                            
+                            print(f"Allocated ₱{allocation_amount} from {item.item_key} {item.quarter}")
+                    
+                    print(f"Total allocations made: {len(allocations_made)}")
                     
                     # Store source information
                     purchase_request_obj.source_pre = pre_obj

@@ -131,7 +131,7 @@
                         <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
                         <div id="source_of_fund_container">
                             <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
-                            <select name="source_of_fund" id="source_of_fund" class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                            <select name="source_of_fund" id="source_of_fund" class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required>
                                 <option value="">Select Source of Fund</option>
                                 {% for opt in source_of_fund_options %}
                                     <option value="{{ opt.value }}">{{ opt.label }}</option>

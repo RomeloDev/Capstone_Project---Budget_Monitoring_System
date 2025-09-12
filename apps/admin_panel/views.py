@@ -6,7 +6,7 @@ from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
-from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign, PRELineItemBudget
+from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign, PRELineItemBudget, PurchaseRequestAllocation
 from apps.users.models import User
 from django.db import transaction
 from django.db.models import Sum
@@ -269,31 +269,31 @@ def handle_departments_request(request, request_id):
             #         messages.error(request, "Budget line item not found.")
             #         return redirect('department_pr_request')
             
-            if purchase_request.source_pre and purchase_request.source_item_key:
-                try:
-                    # Simple query first - no annotations
-                    all_items = PRELineItemBudget.objects.filter(
-                        pre=purchase_request.source_pre,
-                        item_key=purchase_request.source_item_key
-                    )
+            # if purchase_request.source_pre and purchase_request.source_item_key:
+            #     try:
+            #         # Simple query first - no annotations
+            #         all_items = PRELineItemBudget.objects.filter(
+            #             pre=purchase_request.source_pre,
+            #             item_key=purchase_request.source_item_key
+            #         )
                     
-                    available_items = [item for item in all_items if item.remaining_amount > 0]
+            #         available_items = [item for item in all_items if item.remaining_amount > 0]
                     
-                    remaining_to_allocate = purchase_request.total_amount
+            #         remaining_to_allocate = purchase_request.total_amount
                     
-                    for item in available_items:
-                        if remaining_to_allocate <= 0:
-                            break
+            #         for item in available_items:
+            #             if remaining_to_allocate <= 0:
+            #                 break
                         
-                        allocation_amount = min(item.remaining_amount, remaining_to_allocate)
-                        if allocation_amount > 0:
-                            item.consumed_amount += allocation_amount
-                            item.save()
-                            remaining_to_allocate -= allocation_amount
+            #             allocation_amount = min(item.remaining_amount, remaining_to_allocate)
+            #             if allocation_amount > 0:
+            #                 item.consumed_amount += allocation_amount
+            #                 item.save()
+            #                 remaining_to_allocate -= allocation_amount
                             
-                except Exception as e:
-                    messages.error(request, f"Error processing budget: {e}")
-                    return redirect('department_pr_request')
+            #     except Exception as e:
+            #         messages.error(request, f"Error processing budget: {e}")
+            #         return redirect('department_pr_request')
                     
                 #     print(f"DEBUG: Found {all_items.count()} items for {purchase_request.source_item_key}")
                     
@@ -358,25 +358,63 @@ def handle_departments_request(request, request_id):
                 #     return redirect('department_pr_request')
 
             # Check remaining budget before approval (this is the BudgetAllocation object)
-            if allocation.remaining_budget < (purchase_request.total_amount or 0):
-                messages.error(request, 'Insufficient remaining budget to approve this request.')
-                return redirect('department_pr_request')
+            # if allocation.remaining_budget < (purchase_request.total_amount or 0):
+            #     messages.error(request, 'Insufficient remaining budget to approve this request.')
+            #     return redirect('department_pr_request')
             
-            # Check remaining budget before approval
-            if allocation.remaining_budget < (purchase_request.total_amount or 0):
-                messages.error(request, 'Insufficient remaining budget to approve this request.')
-                return redirect('department_pr_request')
             allocation.spent = (allocation.spent or 0) + (purchase_request.total_amount or 0)
             allocation.save(update_fields=['spent', 'updated_at'])
             purchase_request.pr_status = 'Submitted'
             purchase_request.submitted_status = 'Partially Approved'
             purchase_request.approved_by_admin = True
+            purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at', 'approved_by_admin'])
             messages.success(request, 'Purchase Request approved successfully.')
         elif action == 'reject':
-            purchase_request.pr_status = 'Submitted'
-            purchase_request.submitted_status = 'Rejected'
-
-        purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at', 'approved_by_admin'])
+            try:
+                allocations = PurchaseRequestAllocation.objects.filter(purchase_request=purchase_request).select_related('pre_line_item')
+                
+                total_released = Decimal('0')
+                released_details = []
+                
+                for pr_allocation in allocations:
+                    line_item = pr_allocation.pre_line_item
+                    allocated_amount = pr_allocation.allocated_amount
+                    
+                    line_item.consumed_amount -= allocated_amount
+                    line_item.save()
+                    
+                    total_released += allocated_amount
+                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
+                    
+                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
+                    
+                # Delete allocations after reversal
+                allocations.delete()
+                
+                # if allocation:
+                #     allocation.spent = max(0, (allocation.spent or 0) - (purchase_request.total_amount or 0))
+                #     allocation.save(update_fields=['spent', 'updated_at'])
+                
+                purchase_request.pr_status = 'Submitted'
+                purchase_request.submitted_status = 'Rejected'
+                
+                purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at'])
+                
+                log_audit_trail(
+                    request=request,
+                    action='REJECT',
+                    model_name='PurchaseRequest',
+                    record_id=purchase_request.id,
+                    detail=f'Rejected PR {purchase_request.pr_no} and released ₱{total_released} budget. Details: {", ".join(released_details)}'
+                )
+                
+                messages.warning(request, "Purchase Request rejected")
+                messages.success(request, f'Released ₱{total_released:,.2f} back to budget.')
+                
+            except Exception as e:
+                print(f"DEBUG ERROR: {e}")
+                messages.error(request, f"Error processing rejection: {e}")
+                return redirect('department_pr_request')
 
     return redirect('department_pr_request')
 
