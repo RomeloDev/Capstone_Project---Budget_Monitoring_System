@@ -84,13 +84,13 @@
                                     {% endif %}
                                 </td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm flex gap-2">
-                                    <a href="{% url 'admin_preview_activity_design' ad.id %}" class="inline-flex items-center rounded-md bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-200">View Details</a>
+                                    <a href="{% url 'admin_preview_activity_design' ad.id %}" class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-blue-50 hover:bg-blue-700">View Details</a>
                                     
                                     {% if ad.status == 'Pending' %}
                                         <form action="{% url "handle_activity_design_request" ad.id %}" method="post">
                                             {% csrf_token %}
-                                            <button type="submit" name="action" value="approve" class="inline-flex items-center rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-200">Approve</button>
-                                            <button type="submit" name="action" value="reject" class="inline-flex items-center rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-200">Reject</button>
+                                            <button type="submit" name="action" value="approve" class="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-green-50 hover:bg-green-700">Approve</button>
+                                            <button type="submit" name="action" value="reject" class="inline-flex items-center rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-red-50 hover:bg-red-700">Reject</button>
                                         </form>
                                     {% endif %}
                                 </td>

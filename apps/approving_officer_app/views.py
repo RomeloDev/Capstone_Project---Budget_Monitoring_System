@@ -447,6 +447,7 @@ def ao_preview_activity_design(request, pk: int):
 @role_required('officer', login_url='/')
 def handle_activity_design_action(request, pk: int):
     activity = get_object_or_404(ActivityDesign, pk=pk)
+    
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'approve':

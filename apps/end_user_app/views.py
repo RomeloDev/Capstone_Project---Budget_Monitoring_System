@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations
 from decimal import Decimal
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -167,18 +167,6 @@ def purchase_request_form(request):
                             'error_type': 'insufficient_budget'
                         })
                     
-                    # RESERVE THE BUDGET (Optional - for better UX)
-                    # remaining_to_reserve = purchase_request_obj.total_amount
-                    # for item in available_items:
-                    #     if remaining_to_reserve <= 0:
-                    #         break
-                        
-                    #     reservation_amount = min(item.remaining_amount, remaining_to_reserve)
-                    #     if reservation_amount > 0:
-                    #         # You could add a "reserved_amount" field to track this
-                    #         # item.reserved_amount += reservation_amount
-                    #         remaining_to_reserve -= reservation_amount
-                    
                     remaining_to_allocate = purchase_request_obj.total_amount
                     allocations_made = []
                     
@@ -239,136 +227,6 @@ def purchase_request_form(request):
                     'error': error_message,
                     'error_type': 'budget_validation_error'
                 })
-
-        # Source of fund linkage (encoded as preId|itemKey|QUARTER|amount)
-        # sof_encoded = request.POST.get('source_of_fund')
-        # if sof_encoded:
-        #     try:
-        #         # pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
-        #         # pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
-        #         # purchase_request_obj.source_pre = pre_obj
-        #         # purchase_request_obj.source_item_key = item_key
-        #         # purchase_request_obj.source_quarter = quarter
-        #         # purchase_request_obj.source_amount = Decimal(amount_str)
-                
-        #         parts = sof_encoded.split('|', 2)
-        #         if len(parts) >= 3:
-        #             pre_id_str, item_key, quarters_data = parts
-        #             pre_obj = DepartmentPRE.objects.get(id=int(pre_id_str), submitted_by=request.user)
-                    
-        #             # Calculate total amount across all quarters
-        #             quarters = quarters_data.split('|')
-        #             total_amount = Decimal('0')
-        #             quarter_details = []
-                    
-        #             for quarter_info in quarters:
-        #                 if ':' in quarter_info:
-        #                     quarter, amount_str = quarter_info.split(':')
-        #                     amount = Decimal(amount_str)
-        #                     total_amount += amount
-        #                     quarter_details.append(f"{quarter.upper()}: ₱{amount}")
-                    
-        #             # Store for processing (first quarter for compatibility)
-        #             first_quarter_data = quarters[0].split(':')
-        #             if len(first_quarter_data) == 2:
-        #                 quarter, amount_str = first_quarter_data
-                        
-        #                 purchase_request_obj.source_pre = pre_obj
-        #                 purchase_request_obj.source_item_key = item_key
-        #                 purchase_request_obj.source_quarter = quarter  # Keep for compatibility
-        #                 purchase_request_obj.source_amount = Decimal(amount_str)  # Keep for compatibility
-                        
-        #                 # Friendly labels for known PRE item keys (fallback to humanized key)
-        #                 friendly_labels = {
-        #                     'travel_local': 'Traveling Expenses - Local',
-        #                     'travel_foreign': 'Traveling Expenses - Foreign',
-        #                     'training_expenses': 'Training Expenses',
-        #                     'office_supplies_expenses': 'Office Supplies Expenses',
-        #                     'accountable_form_expenses': 'Accountable Form Expenses',
-        #                     'agri_marine_supplies_expenses': 'Agricultural and Marine Supplies Expenses',
-        #                     'drugs_medicines': 'Drugs and Medicines',
-        #                     'med_dental_lab_supplies_expenses': 'Medical, Dental & Laboratory Supplies Expenses',
-        #                     'food_supplies_expenses': 'Food Supplies Expenses',
-        #                     'fuel_oil_lubricants_expenses': 'Fuel, Oil and Lubricants Expenses',
-        #                     'textbooks_instructional_materials_expenses': 'Textbooks and Instructional Materials Expenses',
-        #                     'construction_material_expenses': 'Construction Materials Expenses',
-        #                     'other_supplies_materials_expenses': 'Other Supplies & Materials Expenses',
-        #                     'semee_machinery': 'Semi-expendable - Machinery',
-        #                     'semee_office_equipment': 'Semi-expendable - Office Equipment',
-        #                     'semee_information_communication': 'Semi-expendable - ICT Equipment',
-        #                     'semee_communications_equipment': 'Semi-expendable - Communications Equipment',
-        #                     'semee_drr_equipment': 'Semi-expendable - Disaster Response and Rescue Equipment',
-        #                     'semee_medical_equipment': 'Semi-expendable - Medical Equipment',
-        #                     'semee_printing_equipment': 'Semi-expendable - Printing Equipment',
-        #                     'semee_sports_equipment': 'Semi-expendable - Sports Equipment',
-        #                     'semee_technical_scientific_equipment': 'Semi-expendable - Technical and Scientific Equipment',
-        #                     'semee_ict_equipment': 'Semi-expendable - ICT Equipment',
-        #                     'semee_other_machinery_equipment': 'Semi-expendable - Other Machinery and Equipment',
-        #                     'furniture_fixtures': 'Furniture and Fixtures',
-        #                     'books': 'Books',
-        #                     'water_expenses': 'Water Expenses',
-        #                     'electricity_expenses': 'Electricity Expenses',
-        #                     'postage_courier_services': 'Postage and Courier Services',
-        #                     'telephone_expenses': 'Telephone Expenses',
-        #                     'telephone_expenses_landline': 'Telephone Expenses (Landline)',
-        #                     'internet_subscription_expenses': 'Internet Subscription Expenses',
-        #                     'cable_satellite_telegraph_radio_expenses': 'Cable, Satellite, Telegraph & Radio Expenses',
-        #                     'awards_rewards_expenses': 'Awards/Rewards Expenses',
-        #                     'prizes': 'Prizes',
-        #                     'survey_expenses': 'Survey Expenses',
-        #                     'survey_research_exploration_development_expenses': 'Survey, Research, Exploration, and Development expenses',
-        #                     'legal_services': 'Legal Services',
-        #                     'auditing_services': 'Auditing Services',
-        #                     'consultancy_services': 'Consultancy Services',
-        #                     'other_professional_servies': 'Other Professional Services',
-        #                     'security_services': 'Security Services',
-        #                     'janitorial_services': 'Janitorial Services',
-        #                     'other_general_services': 'Other General Services',
-        #                     'environment/sanitary_services': 'Environment/Sanitary Services',
-        #                     'repair_maintenance_land_improvements': 'Repair & Maintenance - Land Improvements',
-        #                     'buildings': 'Buildings',
-        #                     'school_buildings': 'School Buildings',
-        #                     'hostel_dormitories': 'Hostels and Dormitories',
-        #                     'other_structures': 'Other Structures',
-        #                     'repair_maintenance_machinery': 'Repair & Maintenance - Machinery',
-        #                     'repair_maintenance_office_equipment': 'Repair & Maintenance - Office Equipment',
-        #                     'repair_maintenance_ict_equipment': 'Repair & Maintenance - ICT Equipment',
-        #                     'repair_maintenance_agri_forestry_equipment': 'Repair & Maintenance - Agricultural and Forestry Equipment',
-        #                     'repair_maintenance_marine_fishery_equipment': 'Repair & Maintenance - Marine and Fishery Equipment',
-        #                     'repair_maintenance_airport_equipment': 'Repair & Maintenance - Airport Equipment',
-        #                     'repair_maintenance_communication_equipment': 'Repair & Maintenance - Communication Equipment',
-        #                     'repair_maintenance_drre_equipment': 'Repair & Maintenance - Disaster, Response and Rescue Equipment',
-        #                     'repair_maintenance_medical_equipment': 'Repair & Maintenance - Medical Equipment',
-        #                     'repair_maintenance_printing_equipment': 'Repair & Maintenance - Printing Equipment',
-        #                     'repair_maintenance_sports_equipment': 'Repair & Maintenance - Sports Equipment',
-        #                     'repair_maintenance_technical_scientific_equipment': 'Repair & Maintenance - Technical and Scientific Equipment',
-        #                     'repair_maintenance_other_machinery_equipment': 'Repair & Maintenance - Other Machinery and Equipment',
-        #                     'repair_maintenance_motor': 'Repair & Maintenance - Motor Vehicles',
-        #                     'repair_maintenance_other_transportation_equipment': 'Repair & Maintenance - Other Transportation Equipment',
-        #                     'repair_maintenance_furniture_fixtures': 'Repair & Maintenance - Furniture & Fixtures',
-        #                     'repair_maintenance_semi_expendable_machinery_equipment': 'Repair & Maintenance - Semi-Expendable Machinery and Equipment',
-        #                     'repair_maintenance_other_property_plant_equipment': 'Repair & Maintenance - Other Property, Plant and Equipment',
-        #                     'taxes_duties_licenses': 'Taxes, Duties and Licenses',
-        #                     'fidelity_bond_premiums': 'Fidelity Bond Premiums',
-        #                     'insurance_expenses': 'Insurance Expenses',
-        #                     'labor_wages': 'Labor and Wages',
-        #                     'advertising_expenses': 'Advertising Expenses',
-        #                     'printing_publication_expenses': 'Printing and Publication Expenses',
-        #                     'representation_expenses': 'Representation Expenses',
-        #                     'transportation_delivery_expenses': 'Transportation and Delivery Expenses',
-        #                     'rent/lease_expenses': 'Rent/Lease Expenses',
-        #                     'membership_dues_contribute_to_org': 'Membership Dues and contributions to organizations',
-        #                     'subscription_expenses': 'Subscription Expenses',
-        #                     'website_maintenance': 'Website Maintenance',
-        #                     'other_maintenance_operating_expenses': 'Other Maintenance and Operating Expenses',
-        #                 }
-                        
-        #                 item_label = friendly_labels.get(item_key, item_key.replace('_', ' ').title())
-        #                 purchase_request_obj.source_of_fund_display = f"{item_label} - ₱{total_amount:,.2f}"
-        #                 purchase_request_obj.source_of_fund_details = ', '.join(quarter_details)
-        #     except Exception as e:
-        #         print(f"Error parsing source of fund: {e}")
-        #         pass
 
         # Mark as submitted
         purchase_request_obj.pr_status = 'Submitted'
@@ -1051,17 +909,26 @@ def preview_pre(request, pk: int):
 def activity_design_form(request):
     budget_allocations = BudgetAllocation.objects.select_related('approved_budget').filter(department=getattr(request.user, 'department', ''))
     
-    if request.method == 'POST':
-        # Save the main acitivity design data
-        
+    approved_pres = DepartmentPRE.objects.filter(
+            submitted_by=request.user,
+            approved_by_approving_officer=True,
+            approved_by_admin=True,
+        )
+    
+    source_of_fund_options = build_pre_source_options(approved_pres)
+    
+    if request.method == 'POST':    
         # Initialize variable to avoid scope issues
         item_key = None
         quarter = None
         source_amount_decimal = None
+        source_of_fund_display = None
         source_pre_instance = None
+        total_amount = Decimal(request.POST.get('total_amount', '0'))
+        budget_allocation_instance = None
+        allocations_to_make = []
         
         ba_id = request.POST.get('budget_allocation')
-        budget_allocation_instance = None
         if ba_id:
             try:
                 budget_allocation_instance = BudgetAllocation.objects.select_related('approved_budget').get(id=ba_id)
@@ -1073,11 +940,57 @@ def activity_design_form(request):
         sof_encoded = request.POST.get('source_of_fund')
         if sof_encoded:
             try:
-                pre_id_str, item_key, quarter, amount_str = sof_encoded.split('|', 3)
-                source_amount_decimal = Decimal(amount_str)
-                if source_amount_decimal <= 0:
-                    raise Exception
-                source_pre_instance = DepartmentPRE.objects.get(id=int(pre_id_str))
+                parts = sof_encoded.split('|', 2)
+                if len(parts) >= 3:
+                    pre_id_str, item_key, quarters_data = parts
+                    # DepartmentPRE object instance
+                    source_pre_instance = DepartmentPRE.objects.get(id=int(pre_id_str))
+                    
+                    # Validate budget availability
+                    all_items = PRELineItemBudget.objects.filter(
+                        pre=source_pre_instance,
+                        item_key=item_key
+                    )
+                    
+                    available_items = [item for item in all_items if item.remaining_amount > 0]
+                    
+                    if not available_items:
+                        messages.error(request, "No budget available for the selected source of fund. All quarters consumed.")
+                        return redirect('activity_design_form')
+                    
+                    total_available = sum(item.remaining_amount for item in available_items)
+                    
+                    if total_available < total_amount:
+                        messages.error(f"Insufficient budget. Available: ₱{total_available:,.2f}, Required: ₱{total_amount:,.2f}")
+                        return redirect('activity_design_form')
+                    
+                    remaining_to_allocate = total_amount
+                    
+                    for item in available_items:
+                        if remaining_to_allocate <= 0:
+                            break
+                        
+                        allocation_amount = min(item.remaining_amount, remaining_to_allocate)
+                        if allocation_amount > 0:
+                            allocations_to_make.append({
+                                'item': item,
+                                'amount': allocation_amount
+                            })
+                            remaining_to_allocate -= allocation_amount
+                            
+                    # Prepare source information
+                    quarters = quarters_data.split('|')
+                    if quarters:
+                        first_quarter_data = quarters[0].split(':')
+                        if len(first_quarter_data) == 2:
+                            quarter, amount_str = first_quarter_data
+                            source_amount_decimal = Decimal(amount_str)
+                            
+                    # Calculate display value
+                    total_amount_display = sum(Decimal(q.split(':')[1]) for q in quarters if ':' in q)
+                    item_label = FRIENDLY_LABELS.get(item_key, item_key.replace('_', ' ').title())
+                    source_of_fund_display = f"{item_label} - ₱{total_amount_display:,.2f}"
+
             except (Exception, ValueError, DepartmentPRE.DoesNotExist):
                 source_pre_instance = None
                 messages.error(request, f"Invalid source of fund format or {Exception.message}.")
@@ -1096,13 +1009,30 @@ def activity_design_form(request):
             materials_needed=request.POST.get('materials_needed'),
             budget_allocation=budget_allocation_instance,
             evaluation_plan=request.POST.get('evaluation_outcomes'),
-            source_pre=source_pre_instance if sof_encoded else None,
-            source_item_key=item_key if sof_encoded else None,
-            source_quarter=quarter if sof_encoded else None,
-            source_amount=source_amount_decimal if sof_encoded else None,
+            source_pre=source_pre_instance,
+            source_item_key=item_key,
+            source_quarter=quarter,
+            source_amount=source_amount_decimal,
+            total_amount=total_amount,
+            source_of_fund_display=source_of_fund_display,
             requested_by=request.user,
         )
         
+        # Execute budget allocations (now we have the activity object)
+        for allocation_data in allocations_to_make:
+            item = allocation_data['item']
+            amount = allocation_data['amount']
+            
+            # Update consumed amount
+            item.consumed_amount += amount
+            item.save()
+            
+            # CReate tracking record
+            ActivityDesignAllocations.objects.create(
+                activity_design=activity,
+                pre_line_item=item,
+                allocated_amount=amount
+            )
         
         # Save sessions (many-to-one)
         session_contents = request.POST.getlist('sessions[]')
@@ -1147,6 +1077,16 @@ def activity_design_form(request):
         #     date=datetime.strptime(request.POST.get('univ_date'), "%Y-%m-%d").date() if request.POST.get('univ_date') else None,
         #     remarks=request.POST.get('univ_remarks')
         # )
+        
+        
+        # Log audit trail
+        log_audit_trail(
+            request=request,
+            action='CREATE',
+            model_name='ActivityDesign',
+            record_id=activity.id,
+            detail=f'Created activity design: {activity.title_of_activity}',
+        )
         
         # Show message success 
         messages.success(request, "Activity Design submitted successfully.")

@@ -1042,16 +1042,28 @@ def handle_activity_design_request(request, pk:int):
             if allocation is None:
                 messages.error(request, 'No budget allocation linked to this activity design.')
                 return redirect('department_activity_design')
-            if allocation.remaining_budget < (activity_design.source_amount or 0):
-                messages.error(request, 'Insufficient remaining budget to approve this activity design.')
-                return redirect('department_activity_design')
-            allocation.spent = (allocation.spent or 0) + (activity_design.source_amount or 0)
-            allocation.save(update_fields=['spent', 'updated_at'])
+            
             activity_design.status = 'Partially Approved'
             activity_design.approved_by_admin = True
+            
+            log_audit_trail(
+                request=request,
+                action='APPROVE',
+                model_name='ActivityDesign',
+                record_id=activity_design.id,
+                detail=f'Activity Design id: {activity_design.id} have been Partially Approved by Admin'
+            )
         elif action == 'reject':
             activity_design.status = 'Rejected'
             activity_design.approved_by_admin = False
+            
+            log_audit_trail(
+                request=request,
+                action='REJECT',
+                model_name='ActivityDesign',
+                record_id=activity_design.id,
+                detail=f'Activity Design id: {activity_design.id} have been Rejected by Admin'
+            )
 
         activity_design.save(update_fields=['status', 'updated_at', 'approved_by_admin'])
 

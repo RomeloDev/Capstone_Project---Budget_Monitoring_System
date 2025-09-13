@@ -282,6 +282,9 @@ class ActivityDesign(models.Model):
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, null=True, blank=True)
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="activity_design_request")
     
+    # Store the original source of fund selection for display
+    source_of_fund_display = models.CharField(max_length=500, null=True, blank=True)
+    
     def __str__(self):
         return self.title_of_activity
     
@@ -321,3 +324,25 @@ class UniversityApproval(models.Model):
     position = models.CharField(max_length=255)
     date = models.DateField(null=True, blank=True)
     remarks = models.TextField(blank=True, null=True)
+    
+    
+class ActivityDesignAllocations(models.Model):
+    """Tracks how an activity design is allocated across multiple PRE quarters"""
+    
+    activity_design = models.ForeignKey(
+        'ActivityDesign', 
+        on_delete=models.CASCADE, 
+        related_name='quarter_allocations'
+    )
+    pre_line_item = models.ForeignKey(
+        'PRELineItemBudget', 
+        on_delete=models.CASCADE
+    )
+    allocated_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['activity_design', 'pre_line_item']
+    
+    def __str__(self):
+        return f"Activity {self.activity_design.id} - {self.pre_line_item.item_key} {self.pre_line_item.quarter.upper()}: ₱{self.allocated_amount}"
