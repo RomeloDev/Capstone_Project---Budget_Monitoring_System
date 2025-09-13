@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign, PurchaseRequestAllocation
+from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign, PurchaseRequestAllocation, ActivityDesignAllocations
 from apps.admin_panel.models import BudgetAllocation
 from django.contrib import messages
 from django.contrib.humanize.templatetags.humanize import intcomma
@@ -450,11 +450,54 @@ def handle_activity_design_action(request, pk: int):
     
     if request.method == 'POST':
         action = request.POST.get('action')
+        
+        allocation = activity.budget_allocation
         if action == 'approve':
+            # Ensure there is an associated budget allocation
+            if allocation is None:
+                messages.error(request, 'No budget allocation linked to this activity design.')
+                return redirect('ao_activity_design_page')
+            
+            # Check remaining budget before approval
+            remaining_budget = allocation.remaining_budget
+            if remaining_budget is not None and remaining_budget < (activity.total_amount or 0):
+                messages.error(request, 'Insufficient remaining budget to approve this activity design.')
+                return redirect('ao_activity_design_page')
+            
+            # Apply spend
+            allocation.spent = (allocation.spent or 0) + (activity.total_amount or 0)
+            allocation.save(update_fields=['spent', 'updated_at'])
+            
             activity.status = 'Approved'
             activity.approved_by_approving_officer = True
             messages.success(request, f'Activity Design with ID {activity.id} has been approved successfully.')
         elif action == 'reject':
+            try:
+                allocations = ActivityDesignAllocations.objects.filter(activity_design=activity).select_related('pre_line_item')
+                
+                total_released = Decimal('0')
+                released_details = []
+                
+                for ad_allocation in allocations:
+                    line_item = ad_allocation.pre_line_item
+                    allocated_amount = ad_allocation.allocated_amount
+                    
+                    line_item.consumed_amount -= allocated_amount
+                    line_item.save()
+                    
+                    total_released += allocated_amount
+                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
+                    
+                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
+                    
+                # Delete allocations after reversal
+                allocations.delete()
+                
+            except Exception as e:
+                print(f"DEBUG ERROR: {e}")
+                messages.error(request, f"Error processing rejection: {e}")
+                return redirect('ao_activity_design_page')
+            
             activity.status = 'Rejected'
             activity.approved_by_approving_officer = False
             messages.error(request, f'Activity Design with ID {activity.id} has been rejected.')
@@ -464,6 +507,6 @@ def handle_activity_design_action(request, pk: int):
             action=action.upper(),
             model_name='ActivityDesign',
             record_id=activity.id,
-            detail=f"Approving Officer {action} an Activity Design with ID {activity.id} from department {activity.requested_by.department}."
+            detail=f"Approving Officer {action.upper()} an Activity Design with ID {activity.id} from department {activity.requested_by.department}."
         )
     return redirect('ao_activity_design_page')
