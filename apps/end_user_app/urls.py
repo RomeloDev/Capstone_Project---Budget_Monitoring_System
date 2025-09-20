@@ -19,4 +19,5 @@ urlpatterns = [
     path('preview_activity_design/<int:pk>', views.preview_activity_design, name='preview_activity_design'),
     path('load_source_of_fund/', views.load_source_of_fund, name='load_source_of_fund'),
     path('view_budget/budget_details/<int:budget_id>/', views.budget_details, name='budget_details'),
+    path('pre_budget_realignment/', views.pre_budget_realignment, name='pre_budget_realignment'),
 ]

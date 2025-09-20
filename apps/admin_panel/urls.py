@@ -20,4 +20,6 @@ urlpatterns = [
     path('department_activity_design/', views.department_activity_design, name='department_activity_design'),
     path('handle_activity_design/<int:pk>/', views.handle_activity_design_request, name='handle_activity_design_request'),
     path('admin-preview-activity-design/<int:pk>/', views.admin_preview_activity_design, name='admin_preview_activity_design'),
+    path('pre_budget_realignment/', views.pre_budget_realignment_admin, name='pre_budget_realignment_admin'),
+    path('pre_budget_realignment/<int:pk>/action/', views.handle_pre_realignment_admin_action, name='handle_pre_realignment_admin_action'),
 ]

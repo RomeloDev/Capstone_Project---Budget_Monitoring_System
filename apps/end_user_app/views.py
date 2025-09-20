@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations, PREBudgetRealignment
 from decimal import Decimal
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -1245,4 +1245,148 @@ def budget_details(request, budget_id):
     }
     
     return render(request, 'end_user_app/budget_details.html', context)
+     
+@role_required('end_user', login_url='/')
+def pre_budget_realignment(request):
+    """PRE-based budget realignment form"""
+    
+    # Get user's approved PREs
+    approved_pres = DepartmentPRE.objects.filter(
+        submitted_by=request.user,
+        approved_by_approving_officer=True,
+        approved_by_admin=True,
+    ).order_by('-created_at')
+    
+    # Build available budget categories
+    available_categories = []
+    
+    for pre in approved_pres:
+        line_items = PRELineItemBudget.objects.filter(pre=pre)
         
+        # Group by item_key and calculate totals
+        category_totals = {}
+        for item in line_items:
+            if item.item_key not in category_totals:
+                category_totals[item.item_key] = {
+                    'pre_id': pre.id,
+                    'item_key': item.item_key,
+                    'label': FRIENDLY_LABELS.get(item.item_key, item.item_key.replace('_', ' ').title()),
+                    'total_allocated': Decimal('0'),
+                    'total_consumed': Decimal('0'),
+                    'total_remaining': Decimal('0'),
+                    'quarters': []
+                }
+            
+            category_totals[item.item_key]['total_allocated'] += item.allocated_amount
+            category_totals[item.item_key]['total_consumed'] += item.consumed_amount
+            category_totals[item.item_key]['total_remaining'] += item.remaining_amount
+            category_totals[item.item_key]['quarters'].append({
+                'quarter': item.quarter,
+                'allocated': item.allocated_amount,
+                'consumed': item.consumed_amount,
+                'remaining': item.remaining_amount
+            })
+            
+        # Add categories with remaining budget
+        for item_key, data in category_totals.items():
+            if data['total_remaining'] > 0:
+                available_categories.append({
+                    'value': f"{data['pre_id']}|{item_key}",
+                    'label': f"{data['label']} - ₱{data['total_remaining']:,.2f} available",
+                    'remaining': data['total_remaining'],
+                    'pre_id': data['pre_id'],
+                    'item_key': item_key
+                })
+                
+    if request.method == 'POST':
+        source_encoded = request.POST.get('source_category')
+        target_encoded = request.POST.get('target_category')
+        amount = Decimal(request.POST.get('amount', '0'))
+        reason = request.POST.get('reason', '').strip()
+        
+        # Validation
+        if not source_encoded or not target_encoded:
+            messages.error(request, "Please select both source and target categories.")
+            return redirect('pre_budget_realignment')
+        
+        if source_encoded == target_encoded:
+            messages.error(request, "Source and target categories cannot be the same.")
+            return redirect('pre_budget_realignment')
+        
+        if amount <= 0:
+            messages.error(request, "Amount must be greater than zero.")
+            return redirect('pre_budget_realignment')
+        
+        if not reason:
+            messages.error(request, "Please provide a reason for the realignment.")
+            return redirect('pre_budget_realignment')
+        
+        try:
+            # Parse source and target
+            source_pre_id, source_item_key = source_encoded.split('|')
+            target_pre_id, target_item_key = target_encoded.split('|')
+            
+            source_pre = DepartmentPRE.objects.get(id=source_pre_id, submitted_by=request.user)
+            target_pre = DepartmentPRE.objects.get(id=target_pre_id, submitted_by=request.user)
+            
+            # Validate source has sufficient funds
+            source_items = PRELineItemBudget.objects.filter(
+                pre=source_pre,
+                item_key=source_item_key
+            )
+            
+            total_available = sum(item.remaining_amount for item in source_items)
+            
+            if total_available < amount:
+                messages.error(request, f"Insufficient funds. Available: ₱{total_available:,.2f}, Requested: ₱{amount:,.2f}")
+                return redirect('pre_budget_realignment')
+            
+            # Validate target category exists
+            target_items = PRELineItemBudget.objects.filter(
+                pre=target_pre,
+                item_key=target_item_key
+            )
+            
+            if not target_items.exists():
+                messages.error(request, "Target category not found in your PRE.")
+                return redirect('pre_budget_realignment')
+            
+            # Create realignment request
+            realignment = PREBudgetRealignment.objects.create(
+                requested_by=request.user,
+                source_pre=source_pre,
+                source_item_key=source_item_key,
+                target_pre=target_pre,
+                target_item_key=target_item_key,
+                amount=amount,
+                reason=reason,
+                source_item_display=FRIENDLY_LABELS.get(source_item_key, source_item_key.replace('_', ' ').title()),
+                target_item_display=FRIENDLY_LABELS.get(target_item_key, target_item_key.replace('_', ' ').title()),
+            )
+            
+            # Log audit trail
+            log_audit_trail(
+                request=request,
+                action='CREATE',
+                model_name='PREBudgetRealignment',
+                record_id=realignment.id,
+                detail=f'Requested budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{amount:,.2f})',
+            )
+            
+            messages.success(request, f"Budget realignment request submitted successfully. Request ID: {realignment.id}")
+            return redirect('pre_budget_realignment')
+            
+        except (ValueError, DepartmentPRE.DoesNotExist) as e:
+            messages.error(request, f"Invalid selection: {str(e)}")
+            return redirect('pre_budget_realignment')
+        except Exception as e:
+            messages.error(request, f"An error occurred: {str(e)}")
+            return redirect('pre_budget_realignment')
+    
+    # GET request - render form
+    context = {
+        'available_categories': available_categories,
+        'approved_pres': approved_pres,
+    }
+    
+    return render(request, "end_user_app/pre_budget_realignment.html", context)

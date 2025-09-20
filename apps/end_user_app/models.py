@@ -346,3 +346,63 @@ class ActivityDesignAllocations(models.Model):
     
     def __str__(self):
         return f"Activity {self.activity_design.id} - {self.pre_line_item.item_key} {self.pre_line_item.quarter.upper()}: ₱{self.allocated_amount}"
+    
+class PREBudgetRealignment(models.Model):
+    """PRE-based budget realignment between expense categories"""
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+    
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="pre_realignment_requests")
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pre_realignment_approvals")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    reason = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Source (Where funds come FROM)
+    source_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.CASCADE,
+        related_name='source_realignments'
+    )
+    source_item_key = models.CharField(max_length=255)
+    source_quarter = models.CharField(max_length=10, null=True, blank=True)
+    
+    target_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.CASCADE,
+        related_name='target_realignments'
+    )
+    target_item_key = models.CharField(max_length=255)
+    target_quarter = models.CharField(max_length=10, null=True, blank=True)
+    
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    source_item_display = models.CharField(max_length=500, null=True, blank=True)
+    target_item_display = models.CharField(max_length=500, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Realignment: {self.source_item_display} → {self.target_item_display} (₱{self.amount:,.2f})"
+    
+    @property
+    def can_be_approved(self):
+        """Check if realignment can still be approved"""
+        if self.status != 'Pending':
+            return False
+        
+        # Check if source still has sufficient funds
+        source_items = PRELineItemBudget.objects.filter(
+            pre=self.source_pre,
+            item_key=self.source_item_key
+        )
+        
+        if self.source_quarter:
+            source_items = source_items.filter(quarter=self.source_quarter)
+        
+        total_available = sum(item.remaining_amount for item in source_items)
+        return total_available >= self.amount

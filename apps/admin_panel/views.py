@@ -6,7 +6,7 @@ from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
-from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign, PRELineItemBudget, PurchaseRequestAllocation
+from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations, PREBudgetRealignment
 from apps.users.models import User
 from django.db import transaction
 from django.db.models import Sum
@@ -380,25 +380,25 @@ def handle_departments_request(request, request_id):
             messages.success(request, 'Purchase Request approved successfully.')
         elif action == 'reject':
             try:
-                # allocations = PurchaseRequestAllocation.objects.filter(purchase_request=purchase_request).select_related('pre_line_item')
+                allocations = PurchaseRequestAllocation.objects.filter(purchase_request=purchase_request).select_related('pre_line_item')
                 
-                # total_released = Decimal('0')
-                # released_details = []
+                total_released = Decimal('0')
+                released_details = []
                 
-                # for pr_allocation in allocations:
-                #     line_item = pr_allocation.pre_line_item
-                #     allocated_amount = pr_allocation.allocated_amount
+                for pr_allocation in allocations:
+                    line_item = pr_allocation.pre_line_item
+                    allocated_amount = pr_allocation.allocated_amount
                     
-                #     line_item.consumed_amount -= allocated_amount
-                #     line_item.save()
+                    line_item.consumed_amount -= allocated_amount
+                    line_item.save()
                     
-                #     total_released += allocated_amount
-                #     released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
+                    total_released += allocated_amount
+                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
                     
-                #     print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
+                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
                     
-                # # Delete allocations after reversal
-                # allocations.delete()
+                # Delete allocations after reversal
+                allocations.delete()
                 
                 purchase_request.pr_status = 'Submitted'
                 purchase_request.submitted_status = 'Rejected'
@@ -414,7 +414,7 @@ def handle_departments_request(request, request_id):
                 )
                 
                 messages.error(request, f"Purchase Request PR-{purchase_request.pr_no} has been Rejected")
-                # messages.success(request, f'Released ₱{total_released:,.2f} back to budget.')
+                messages.success(request, f'Released ₱{total_released:,.2f} back to budget.')
                 
             except Exception as e:
                 print(f"DEBUG ERROR: {e}")
@@ -1054,6 +1054,32 @@ def handle_activity_design_request(request, pk:int):
                 detail=f'Activity Design id: {activity_design.id} have been Partially Approved by Admin'
             )
         elif action == 'reject':
+            try:
+                allocations = ActivityDesignAllocations.objects.filter(activity_design=activity_design).select_related('pre_line_item')
+                
+                total_released = Decimal('0')
+                released_details = []
+                
+                for ad_allocation in allocations:
+                    line_item = ad_allocation.pre_line_item
+                    allocated_amount = ad_allocation.allocated_amount
+                    
+                    line_item.consumed_amount -= allocated_amount
+                    line_item.save()
+                    
+                    total_released += allocated_amount
+                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
+                    
+                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
+                    
+                # Delete allocations after reversal
+                allocations.delete()
+                
+            except Exception as e:
+                print(f"DEBUG ERROR: {e}")
+                messages.error(request, f"Error processing rejection: {e}")
+                return redirect('ao_activity_design_page')
+            
             activity_design.status = 'Rejected'
             activity_design.approved_by_admin = False
             
@@ -1068,3 +1094,136 @@ def handle_activity_design_request(request, pk:int):
         activity_design.save(update_fields=['status', 'updated_at', 'approved_by_admin'])
 
     return redirect('department_activity_design')
+
+
+@role_required('admin', login_url='/admin/')
+def pre_budget_realignment_admin(request):
+    """Admin view for PRE budget realignment requests"""
+    
+    # Get all realignment requests
+    realignment_requests = PREBudgetRealignment.objects.select_related(
+        'requested_by', 'approved_by', 'source_pre', 'target_pre'
+    ).order_by('-created_at')
+    
+    # Filter by status if provided
+    status_filter = request.GET.get('status')
+    if status_filter:
+        realignment_requests = realignment_requests.filter(status=status_filter)
+    
+    context = {
+        'realignment_requests': realignment_requests,
+        'status_filter': status_filter,
+        'status_choices': PREBudgetRealignment.STATUS_CHOICES,
+    }
+    
+    return render(request, 'admin_panel/pre_budget_realignment.html', context)
+
+@role_required('admin', login_url='/admin/')
+def handle_pre_realignment_admin_action(request, pk):
+    """Handle approve/reject actions for PRE realignment requests"""
+    
+    realignment = get_object_or_404(PREBudgetRealignment, pk=pk)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'approve':
+            try:
+                with transaction.atomic():
+                    # Validate that source still has sufficient funds
+                    if not realignment.can_be_approved:
+                        messages.error(request, "Cannot approve: insufficient funds in source category.")
+                        return redirect('pre_budget_realignment_admin')
+                    
+                    # Get source line items
+                    source_items = PRELineItemBudget.objects.filter(
+                        pre=realignment.source_pre,
+                        item_key=realignment.source_item_key
+                    ).order_by('quarter')
+                    
+                    # Get or create target line items
+                    target_items = PRELineItemBudget.objects.filter(
+                        pre=realignment.target_pre,
+                        item_key=realignment.target_item_key
+                    ).order_by('quarter')
+                    
+                    # Deduct from source (FIFO - First In, First Out)
+                    remaining_to_deduct = realignment.amount
+                    
+                    for source_item in source_items:
+                        if remaining_to_deduct <= 0:
+                            break
+                        
+                        deduction = min(source_item.remaining_amount, remaining_to_deduct)
+                        if deduction > 0:
+                            source_item.allocated_amount -= deduction
+                            source_item.save()
+                            remaining_to_deduct -= deduction
+                    
+                    # Add to target (distribute across quarters proportionally)
+                    if target_items.exists():
+                        total_target_allocated = sum(item.allocated_amount for item in target_items)
+                        
+                        if total_target_allocated > 0:
+                            # Distribute proportionally
+                            for target_item in target_items:
+                                proportion = target_item.allocated_amount / total_target_allocated
+                                addition = realignment.amount * proportion
+                                target_item.allocated_amount += addition
+                                target_item.save()
+                        else:
+                            # Equal distribution across quarters
+                            addition_per_quarter = realignment.amount / target_items.count()
+                            for target_item in target_items:
+                                target_item.allocated_amount += addition_per_quarter
+                                target_item.save()
+                    else:
+                        # Create new line items if they don't exist
+                        quarters = ['q1', 'q2', 'q3', 'q4']
+                        addition_per_quarter = realignment.amount / len(quarters)
+                        
+                        for quarter in quarters:
+                            PRELineItemBudget.objects.create(
+                                pre=realignment.target_pre,
+                                item_key=realignment.target_item_key,
+                                quarter=quarter,
+                                allocated_amount=addition_per_quarter,
+                                consumed_amount=Decimal('0')
+                            )
+                    
+                    # Update realignment status
+                    realignment.status = 'approved'
+                    realignment.approved_by = request.user
+                    realignment.save()
+                    
+                    # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='APPROVE',
+                        model_name='PREBudgetRealignment',
+                        record_id=realignment.id,
+                        detail=f'Approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
+                    )
+                    
+                    messages.success(request, f'Budget realignment approved successfully.')
+                    
+            except Exception as e:
+                messages.error(request, f'Error approving realignment: {str(e)}')
+        
+        elif action == 'reject':
+            realignment.status = 'rejected'
+            realignment.approved_by = request.user
+            realignment.save()
+            
+            # Log audit trail
+            log_audit_trail(
+                request=request,
+                action='REJECT',
+                model_name='PREBudgetRealignment',
+                record_id=realignment.id,
+                detail=f'Rejected budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
+            )
+            
+            messages.success(request, 'Budget realignment rejected.')
+    
+    return redirect('pre_budget_realignment_admin')

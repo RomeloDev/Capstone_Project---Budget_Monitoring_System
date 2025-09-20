@@ -1,5 +1,7 @@
 {% extends "admin_base_template/dashboard.html" %}
 
+{% load pagination_tags %}
+
 {% block title %}Audit Trail{% endblock title %}
 
 {% block main-content %}
@@ -124,43 +126,72 @@
 
         <!-- Pagination -->
         {% if page_obj.has_other_pages %}
+        {% get_page_range page_obj as page_range %}
         <div class="mt-4 flex items-center justify-between">
+            <!-- Mobile pagination (unchanged) -->
             <div class="flex flex-1 justify-between sm:hidden">
                 {% if page_obj.has_previous %}
-                    <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">Previous</a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.action %}&action={{ request.GET.action }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                    class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">Previous</a>
                 {% endif %}
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">Next</a>
+                    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.action %}&action={{ request.GET.action }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                    class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">Next</a>
                 {% endif %}
             </div>
+            
+            <!-- Desktop pagination -->
             <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                 <div>
                     <p class="text-sm text-gray-800">
-                        Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                        Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} 
+                        ({{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} records)
                     </p>
                 </div>
                 <div>
                     <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                        <!-- Previous button -->
                         {% if page_obj.has_previous %}
-                            <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-800 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">Previous</a>
+                            <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.action %}&action={{ request.GET.action }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                            class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-800 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">Previous</a>
                         {% endif %}
-                        
-                        {% for i in page_obj.paginator.page_range %}
+
+                        <!-- First page if not in range -->
+                        {% should_show_first_ellipsis page_obj page_range as show_first_ellipsis %}
+                        {% if show_first_ellipsis %}
+                            <a href="?page=1{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.action %}&action={{ request.GET.action }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                            class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">1</a>
+                            <span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-500">...</span>
+                        {% endif %}
+
+                        <!-- Page range -->
+                        {% for i in page_range %}
                             {% if page_obj.number == i %}
                                 <span class="relative z-10 inline-flex items-center bg-blue-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">{{ i }}</span>
                             {% else %}
-                                <a href="?page={{ i }}" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">{{ i }}</a>
+                                <a href="?page={{ i }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.action %}&action={{ request.GET.action }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                                class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">{{ i }}</a>
                             {% endif %}
                         {% endfor %}
-                        
+
+                        <!-- Last page if not in range -->
+                        {% should_show_last_ellipsis page_obj page_range as show_last_ellipsis %}
+                        {% if show_last_ellipsis %}
+                            <span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-500">...</span>
+                            <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.action %}&action={{ request.GET.action }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                            class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">{{ page_obj.paginator.num_pages }}</a>
+                        {% endif %}
+
+                        <!-- Next button -->
                         {% if page_obj.has_next %}
-                            <a href="?page={{ page_obj.next_page_number }}" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-800 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">Next</a>
+                            <a href="?page={{ page_obj.next_page_number }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.action %}&action={{ request.GET.action }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                            class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-800 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50 focus:z-20 focus:outline-offset-0">Next</a>
                         {% endif %}
                     </nav>
                 </div>
             </div>
         </div>
-        {% endif %}
+{% endif %}
 
     {% comment %} <form method="get" class="flex flex-col md:flex-row md:items-end flex-wrap gap-4">
 
