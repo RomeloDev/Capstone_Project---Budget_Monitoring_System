@@ -1105,6 +1105,14 @@ def pre_budget_realignment_admin(request):
         'requested_by', 'approved_by', 'source_pre', 'target_pre'
     ).order_by('-created_at')
     
+    status_counts = {
+        'total': realignment_requests.count(),
+        'pending': realignment_requests.filter(status='Pending').count(),
+        'approved': realignment_requests.filter(status='Approved').count(),
+        'partially_approved': realignment_requests.filter(status='Partially Approved').count(),
+        'rejected': realignment_requests.filter(status='Rejected').count(),
+    }
+    
     # Filter by status if provided
     status_filter = request.GET.get('status')
     if status_filter:
@@ -1114,6 +1122,7 @@ def pre_budget_realignment_admin(request):
         'realignment_requests': realignment_requests,
         'status_filter': status_filter,
         'status_choices': PREBudgetRealignment.STATUS_CHOICES,
+        'status_counts': status_counts,
     }
     
     return render(request, 'admin_panel/pre_budget_realignment.html', context)
@@ -1127,91 +1136,25 @@ def handle_pre_realignment_admin_action(request, pk):
     if request.method == 'POST':
         action = request.POST.get('action')
         
-        if action == 'approve':
-            try:
-                with transaction.atomic():
-                    # Validate that source still has sufficient funds
-                    if not realignment.can_be_approved:
-                        messages.error(request, "Cannot approve: insufficient funds in source category.")
-                        return redirect('pre_budget_realignment_admin')
-                    
-                    # Get source line items
-                    source_items = PRELineItemBudget.objects.filter(
-                        pre=realignment.source_pre,
-                        item_key=realignment.source_item_key
-                    ).order_by('quarter')
-                    
-                    # Get or create target line items
-                    target_items = PRELineItemBudget.objects.filter(
-                        pre=realignment.target_pre,
-                        item_key=realignment.target_item_key
-                    ).order_by('quarter')
-                    
-                    # Deduct from source (FIFO - First In, First Out)
-                    remaining_to_deduct = realignment.amount
-                    
-                    for source_item in source_items:
-                        if remaining_to_deduct <= 0:
-                            break
-                        
-                        deduction = min(source_item.remaining_amount, remaining_to_deduct)
-                        if deduction > 0:
-                            source_item.allocated_amount -= deduction
-                            source_item.save()
-                            remaining_to_deduct -= deduction
-                    
-                    # Add to target (distribute across quarters proportionally)
-                    if target_items.exists():
-                        total_target_allocated = sum(item.allocated_amount for item in target_items)
-                        
-                        if total_target_allocated > 0:
-                            # Distribute proportionally
-                            for target_item in target_items:
-                                proportion = target_item.allocated_amount / total_target_allocated
-                                addition = realignment.amount * proportion
-                                target_item.allocated_amount += addition
-                                target_item.save()
-                        else:
-                            # Equal distribution across quarters
-                            addition_per_quarter = realignment.amount / target_items.count()
-                            for target_item in target_items:
-                                target_item.allocated_amount += addition_per_quarter
-                                target_item.save()
-                    else:
-                        # Create new line items if they don't exist
-                        quarters = ['q1', 'q2', 'q3', 'q4']
-                        addition_per_quarter = realignment.amount / len(quarters)
-                        
-                        for quarter in quarters:
-                            PRELineItemBudget.objects.create(
-                                pre=realignment.target_pre,
-                                item_key=realignment.target_item_key,
-                                quarter=quarter,
-                                allocated_amount=addition_per_quarter,
-                                consumed_amount=Decimal('0')
-                            )
-                    
-                    # Update realignment status
-                    realignment.status = 'approved'
-                    realignment.approved_by = request.user
-                    realignment.save()
-                    
-                    # Log audit trail
-                    log_audit_trail(
-                        request=request,
-                        action='APPROVE',
-                        model_name='PREBudgetRealignment',
-                        record_id=realignment.id,
-                        detail=f'Approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
-                    )
-                    
-                    messages.success(request, f'Budget realignment approved successfully.')
-                    
-            except Exception as e:
-                messages.error(request, f'Error approving realignment: {str(e)}')
+        if action == 'partial_approve':
+            realignment.status='Partially Approved'
+            realignment.approved_by_admin = True
+            realignment.partial_approved_by = request.user
+            realignment.save()
+            
+            # Log audit trail
+            log_audit_trail(
+                request=request,
+                action='PARTIAL_APPROVE',
+                model_name='PREBudgetRealignment',
+                record_id=realignment.id,
+                detail=f'Partially approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
+            )
+            
+            messages.success(request, f'Budget realignment partially approved.')
         
         elif action == 'reject':
-            realignment.status = 'rejected'
+            realignment.status = 'Rejected'
             realignment.approved_by = request.user
             realignment.save()
             

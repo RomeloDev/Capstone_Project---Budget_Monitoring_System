@@ -55,7 +55,7 @@
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Pending</p>
                         <p class="text-2xl font-semibold text-gray-900">
-                            {{ realignment_requests|dictsort:"status"|dictsortreversed:"status"|slice:":1"|length|default:0 }}
+                            {{ status_counts.pending | intcomma }}
                         </p>
                     </div>
                 </div>
@@ -71,7 +71,7 @@
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Approved</p>
                         <p class="text-2xl font-semibold text-gray-900">
-                            {% for req in realignment_requests %}{% if req.status == 'approved' %}1{% endif %}{% empty %}0{% endfor %}
+                            {{ status_counts.approved | intcomma }}
                         </p>
                     </div>
                 </div>
@@ -87,7 +87,7 @@
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Rejected</p>
                         <p class="text-2xl font-semibold text-gray-900">
-                            {% for req in realignment_requests %}{% if req.status == 'rejected' %}1{% endif %}{% empty %}0{% endfor %}
+                            {{ status_counts.rejected | intcomma }}
                         </p>
                     </div>
                 </div>
@@ -219,21 +219,21 @@
                                 <div class="text-sm font-semibold text-gray-900">
                                     ₱{{ request.amount|floatformat:2|intcomma }}
                                 </div>
-                                {% if request.can_be_approved and request.status == 'pending' %}
+                                {% if request.can_be_approved and request.status == 'Pending' %}
                                 <div class="text-xs text-green-600">✓ Funds available</div>
-                                {% elif request.status == 'pending' %}
+                                {% elif request.status == 'Pending' %}
                                 <div class="text-xs text-red-600">⚠ Insufficient funds</div>
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                    {% if request.status == 'pending' %}bg-yellow-100 text-yellow-800
-                                    {% elif request.status == 'approved' %}bg-green-100 text-green-800
-                                    {% elif request.status == 'rejected' %}bg-red-100 text-red-800
+                                    {% if request.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                                    {% elif request.status == 'Approved' %}bg-green-100 text-green-800
+                                    {% elif request.status == 'Rejected' %}bg-red-100 text-red-800
                                     {% else %}bg-gray-100 text-gray-800{% endif %}">
                                     {{ request.get_status_display }}
                                 </span>
-                                {% if request.approved_by and request.status != 'pending' %}
+                                {% if request.approved_by and request.status != 'Pending' %}
                                 <div class="text-xs text-gray-500 mt-1">
                                     by {{ request.approved_by.get_full_name|default:request.approved_by.username }}
                                 </div>
@@ -251,10 +251,10 @@
                                 <form method="post" action="{% url 'handle_pre_realignment_admin_action' request.id %}" class="inline-block">
                                     {% csrf_token %}
                                     {% if request.can_be_approved %}
-                                    <button type="submit" name="action" value="approve" 
+                                    <button type="submit" name="action" value="partial_approve" 
                                             onclick="return confirm('Are you sure you want to approve this realignment request?')"
                                             class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition duration-200">
-                                        Approve
+                                        PartialApprove
                                     </button>
                                     {% else %}
                                     <button type="button" disabled

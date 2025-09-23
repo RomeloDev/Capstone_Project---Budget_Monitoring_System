@@ -14,4 +14,6 @@ urlpatterns = [
     path('activity_design/', views.activity_design_page, name='ao_activity_design_page'),
     path('preview-activity-design/<int:pk>/', views.ao_preview_activity_design, name='ao_preview_activity_design'),
     path('handle_activity_design_action/<int:pk>/', views.handle_activity_design_action, name='handle_activity_design_action'),
+    path('pre_budget_realignment/', views.pre_budget_realignment_requests, name='ao_pre_budget_realignment_requests'),
+    path('pre_realignment/<int:pk>/action/', views.handle_pre_realignment_action, name='ao_handle_pre_realignment_action'),
 ]

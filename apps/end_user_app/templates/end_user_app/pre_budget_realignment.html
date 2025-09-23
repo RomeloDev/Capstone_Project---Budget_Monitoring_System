@@ -5,7 +5,6 @@
 
 {% block main-content %}
 <main class="content">
-    <div class="max-w-4xl mx-auto">
         <header class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900 mb-2">PRE Budget Realignment</h1>
             <p class="text-gray-600">
@@ -13,6 +12,8 @@
                 Transfer funds from categories with surplus to those that need additional budget.
             </p>
         </header>
+
+    <div class="max-w-4xl mx-auto">
 
         <!-- Available Categories Overview -->
         {% if available_categories %}
@@ -29,6 +30,7 @@
         </section>
         {% endif %}
 
+
         <!-- Messages -->
         {% if messages %}
         <section class="mt-6">
@@ -39,6 +41,29 @@
             {% endfor %}
         </section>
         {% endif %}
+
+        <!-- Navigation and Actions -->
+        <section class="mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <nav class="text-sm text-gray-600">
+                        <a href="{% url 'user_dashboard' %}" class="hover:text-blue-600">Dashboard</a>
+                        <span class="mx-2">›</span>
+                        <span class="text-gray-900">Budget Realignment</span>
+                    </nav>
+                </div>
+                <div class="flex space-x-3">
+                    <a href="{% url 'realignment_history' %}" 
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-gray-50 rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        View History
+                    </a>
+                </div>
+            </div>
+        </section>
+
 
         <!-- Realignment Form -->
         <section class="bg-white p-6 rounded-lg shadow-md">

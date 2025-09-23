@@ -352,6 +352,7 @@ class PREBudgetRealignment(models.Model):
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Approved', 'Approved'),
+        ('Partially Approved', 'Partially Approved'),
         ('Rejected', 'Rejected'),
     ]
     
@@ -361,6 +362,11 @@ class PREBudgetRealignment(models.Model):
     reason = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # Approval tracking
+    approved_by_approving_officer = models.BooleanField(default=False, null=True, blank=True)
+    approved_by_admin = models.BooleanField(default=False, null=True, blank=True)
+    partial_approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pre_realignment_partial_approvals") 
     
     # Source (Where funds come FROM)
     source_pre = models.ForeignKey(
@@ -392,7 +398,7 @@ class PREBudgetRealignment(models.Model):
     @property
     def can_be_approved(self):
         """Check if realignment can still be approved"""
-        if self.status != 'Pending':
+        if self.status != 'Pending' and self.status != 'Partially Approved':
             return False
         
         # Check if source still has sufficient funds
@@ -406,3 +412,55 @@ class PREBudgetRealignment(models.Model):
         
         total_available = sum(item.remaining_amount for item in source_items)
         return total_available >= self.amount
+    
+    @property
+    def source_available_budget(self):
+        """Get total available budget for source category"""
+        source_items = PRELineItemBudget.objects.filter(
+            pre=self.source_pre,
+            item_key=self.source_item_key
+        )
+        
+        if self.source_quarter:
+            source_items = source_items.filter(quarter=self.source_quarter)
+        
+        return sum(item.remaining_amount for item in source_items)
+    
+    @property
+    def target_current_budget(self):
+        """Get current allocated budget for target category"""
+        target_items = PRELineItemBudget.objects.filter(
+            pre=self.target_pre,
+            item_key=self.target_item_key
+        )
+        
+        if self.target_quarter:
+            target_items = target_items.filter(quarter=self.target_quarter)
+        
+        return sum(item.allocated_amount for item in target_items)
+    
+    @property
+    def source_total_allocated(self):
+        """Get total allocated budget for source category"""
+        source_items = PRELineItemBudget.objects.filter(
+            pre=self.source_pre,
+            item_key=self.source_item_key
+        )
+        
+        if self.source_quarter:
+            source_items = source_items.filter(quarter=self.source_quarter)
+        
+        return sum(item.allocated_amount for item in source_items)
+    
+    @property
+    def source_total_consumed(self):
+        """Get total consumed budget for source category"""
+        source_items = PRELineItemBudget.objects.filter(
+            pre=self.source_pre,
+            item_key=self.source_item_key
+        )
+        
+        if self.source_quarter:
+            source_items = source_items.filter(quarter=self.source_quarter)
+        
+        return sum(item.consumed_amount for item in source_items)

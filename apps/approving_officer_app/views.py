@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign, PurchaseRequestAllocation, ActivityDesignAllocations
+from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign, PurchaseRequestAllocation, ActivityDesignAllocations, PRELineItemBudget, PREBudgetRealignment
 from apps.admin_panel.models import BudgetAllocation
 from django.contrib import messages
 from django.contrib.humanize.templatetags.humanize import intcomma
@@ -9,22 +9,107 @@ from decimal import Decimal
 from apps.users.models import User
 from apps.admin_panel.utils import log_audit_trail
 from apps.users.utils import role_required
+from django.db import transaction
 
 # Create your views here.
 @role_required('officer', login_url='/')
 def dashboard(request):
     try:
-        pending_request = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='pending').count()
-        approved_request = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='approved').count()
-        rejected_request = PurchaseRequest.objects.filter(pr_status='submitted', submitted_status='rejected').count()
-    except PurchaseRequest.DoesNotExist:
-        pending_request = 0
-        approved_request = 0
-        rejected_request = 0
-    return render(request, 'approving_officer_app/dashboard.html',{
-        'pending_request': pending_request,
-        'approved_request': approved_request,
-        'rejected_request': rejected_request,
+        # Purchase Requests (Partially Approved by Admin)
+        pending_purchase_requests = PurchaseRequest.objects.filter(
+            pr_status='Submitted', 
+            submitted_status='Partially Approved', 
+            approved_by_admin=True, 
+            approved_by_approving_officer=False
+        ).count()
+        
+        # PRE Requests (Partially Approved by Admin)
+        pending_pre_requests = DepartmentPRE.objects.filter(
+            status='Partially Approved', 
+            approved_by_approving_officer=False, 
+            approved_by_admin=True
+        ).count()
+        
+        # Activity Designs (Partially Approved by Admin)
+        pending_activity_designs = ActivityDesign.objects.filter(
+            status='Partially Approved',
+            approved_by_admin=True,
+            approved_by_approving_officer=False
+        ).count()
+        
+        # Budget Realignments (Pending or Partially Approved)
+        pending_realignments = PREBudgetRealignment.objects.filter(
+            status__in=['Pending', 'Partially Approved'],
+            approved_by_approving_officer=False
+        ).count()
+        
+        # Recent Activities (last 7 days)
+        from datetime import datetime, timedelta
+        week_ago = datetime.now() - timedelta(days=7)
+        
+        recent_activities = []
+        
+        # Recent Purchase Requests
+        recent_prs = PurchaseRequest.objects.filter(
+            updated_at__gte=week_ago,
+            pr_status='Submitted'
+        ).select_related('requested_by').order_by('-updated_at')[:5]
+        
+        for pr in recent_prs:
+            recent_activities.append({
+                'type': 'PurchaseRequest',
+                'type_display': 'Purchase Request',
+                'request_id': f'PR-{pr.pr_no}',
+                'department': pr.requested_by.department if pr.requested_by else 'Unknown',
+                'description': pr.entity_name,
+                'amount': pr.total_amount,
+                'status': pr.submitted_status,
+                'date': pr.updated_at,
+                'view_url': f'/approving_officer/preview-purchase-request/{pr.id}/'
+            })
+        
+        # Recent PRE Requests
+        recent_pres = DepartmentPRE.objects.filter(
+            created_at__gte=week_ago
+        ).select_related('submitted_by').order_by('-created_at')[:5]
+        
+        for pre in recent_pres:
+            recent_activities.append({
+                'type': 'DepartmentPRE',
+                'type_display': 'PRE Request',
+                'request_id': f'PRE-{pre.id}',
+                'department': pre.department,
+                'description': f'PRE Submission by {pre.submitted_by.get_full_name() if pre.submitted_by else "Unknown"}',
+                'amount': None,
+                'status': pre.status,
+                'date': pre.created_at,
+                'view_url': f'/approving_officer/pre/{pre.id}/'
+            })
+        
+        # Sort by date
+        recent_activities.sort(key=lambda x: x['date'], reverse=True)
+        recent_activities = recent_activities[:10]  # Limit to 10 most recent
+        
+        # Recent Approvals by this officer
+        recent_approvals = []
+        # You can add logic here to track recent approvals
+        
+    except Exception as e:
+        print(f"Dashboard error: {e}")
+        pending_purchase_requests = 0
+        pending_pre_requests = 0
+        pending_activity_designs = 0
+        pending_realignments = 0
+        recent_activities = []
+        recent_approvals = []
+    
+    return render(request, 'approving_officer_app/dashboard.html', {
+        'pending_purchase_requests': pending_purchase_requests,
+        'pending_pre_requests': pending_pre_requests,
+        'pending_activity_designs': pending_activity_designs,
+        'pending_realignments': pending_realignments,
+        'recent_activities': recent_activities,
+        'recent_approvals': recent_approvals,
     })
 
 @role_required('officer', login_url='/')
@@ -510,3 +595,137 @@ def handle_activity_design_action(request, pk: int):
             detail=f"Approving Officer {action.upper()} an Activity Design with ID {activity.id} from department {activity.requested_by.department}."
         )
     return redirect('ao_activity_design_page')
+
+@role_required('approving_officer', login_url='/')
+def pre_budget_realignment_requests(request):
+    """Approving Officer view for PRE budget realignment requests"""
+    
+    # Get all realignment requests for the approving officer's department
+    realignment_requests = PREBudgetRealignment.objects.select_related(
+        'requested_by', 'approved_by', 'source_pre', 'target_pre', 'partial_approved_by'
+    ).all(
+    ).order_by('-created_at')
+    
+    # Filter by status if provided
+    status_filter = request.GET.get('status')
+    if status_filter:
+        realignment_requests = realignment_requests.filter(status=status_filter)
+    
+    context = {
+        'realignment_requests': realignment_requests,
+        'status_filter': status_filter,
+        'status_choices': PREBudgetRealignment.STATUS_CHOICES,
+    }
+    
+    return render(request, 'approving_officer_app/pre_budget_realignment.html', context)
+
+@role_required('approving_officer', login_url='/')
+def handle_pre_realignment_action(request, pk):
+    """Handle approve/reject actions for PRE realignment requests by Approving Officer"""
+    
+    realignment = get_object_or_404(PREBudgetRealignment, pk=pk)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'approve':
+            try:
+                with transaction.atomic():
+                    # Validate that source still has sufficient funds
+                    if not realignment.can_be_approved:
+                        messages.error(request, "Cannot approve: insufficient funds in source category.")
+                        return redirect('ao_pre_budget_realignment_requests')
+                    
+                    # Get source line items
+                    source_items = PRELineItemBudget.objects.filter(
+                        pre=realignment.source_pre,
+                        item_key=realignment.source_item_key
+                    ).order_by('quarter')
+                    
+                    # Get or create target line items
+                    target_items = PRELineItemBudget.objects.filter(
+                        pre=realignment.target_pre,
+                        item_key=realignment.target_item_key
+                    ).order_by('quarter')
+                    
+                    # Deduct from source (FIFO - First In, First Out)
+                    remaining_to_deduct = realignment.amount
+                    
+                    for source_item in source_items:
+                        if remaining_to_deduct <= 0:
+                            break
+                        
+                        deduction = min(source_item.remaining_amount, remaining_to_deduct)
+                        if deduction > 0:
+                            source_item.allocated_amount -= deduction
+                            source_item.save()
+                            remaining_to_deduct -= deduction
+                    
+                    # Add to target (distribute across quarters proportionally)
+                    if target_items.exists():
+                        total_target_allocated = sum(item.allocated_amount for item in target_items)
+                        
+                        if total_target_allocated > 0:
+                            # Distribute proportionally
+                            for target_item in target_items:
+                                proportion = target_item.allocated_amount / total_target_allocated
+                                addition = realignment.amount * proportion
+                                target_item.allocated_amount += addition
+                                target_item.save()
+                        else:
+                            # Equal distribution across quarters
+                            addition_per_quarter = realignment.amount / target_items.count()
+                            for target_item in target_items:
+                                target_item.allocated_amount += addition_per_quarter
+                                target_item.save()
+                    else:
+                        # Create new line items if they don't exist
+                        quarters = ['q1', 'q2', 'q3', 'q4']
+                        addition_per_quarter = realignment.amount / len(quarters)
+                        
+                        for quarter in quarters:
+                            PRELineItemBudget.objects.create(
+                                pre=realignment.target_pre,
+                                item_key=realignment.target_item_key,
+                                quarter=quarter,
+                                allocated_amount=addition_per_quarter,
+                                consumed_amount=Decimal('0')
+                            )
+                    
+                    # Update realignment status - FULL APPROVAL
+                    realignment.status = 'Approved'
+                    realignment.approved_by_approving_officer = True
+                    realignment.approved_by = request.user
+                    realignment.save()
+                    
+                    # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='APPROVE',
+                        model_name='PREBudgetRealignment',
+                        record_id=realignment.id,
+                        detail=f'Approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
+                    )
+                    
+                    messages.success(request, f'Budget realignment approved successfully.')
+                    
+            except Exception as e:
+                messages.error(request, f'Error approving realignment: {str(e)}')
+        
+        elif action == 'reject':
+            realignment.status = 'Rejected'
+            realignment.approved_by = request.user
+            realignment.save()
+            
+            # Log audit trail
+            log_audit_trail(
+                request=request,
+                action='REJECT',
+                model_name='PREBudgetRealignment',
+                record_id=realignment.id,
+                detail=f'Rejected budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
+            )
+            
+            messages.success(request, 'Budget realignment rejected.')
+    
+    return redirect('ao_pre_budget_realignment_requests')

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
@@ -16,6 +17,8 @@ from datetime import datetime
 from apps.admin_panel.utils import log_audit_trail
 from apps.users.utils import role_required
 from .constants import FRIENDLY_LABELS
+from docxtpl import DocxTemplate
+import os
 
 # Create your views here.
 @role_required('end_user', login_url='/')
@@ -28,11 +31,13 @@ def user_dashboard(request):
         remaining_balance = total_budget - total_spent
         purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status='submitted')
         approved_requests_count = PurchaseRequest.objects.filter(requested_by=request.user, submitted_status='approved').count()
-    except BudgetAllocation.DoesNotExist or PurchaseRequest.DoesNotExist:
+        realignment_requests = PREBudgetRealignment.objects.filter(requested_by=request.user).order_by('-created_at')[:5]
+    except BudgetAllocation.DoesNotExist or PurchaseRequest.DoesNotExist or PREBudgetRealignment.DoesNotExist:
         budget = None
         total_budget = None
         remaining_balance = None
         purchase_requests = None
+        realignment_requests = None
         approved_requests_count = 0
         
     spent = total_budget - remaining_balance
@@ -40,15 +45,18 @@ def user_dashboard(request):
         usage_percentage = (spent / total_budget) * 100
     else:
         usage_percentage = 0
-
-    return render(request, 'end_user_app/dashboard.html', {
+        
+    context = {
         "total_budget": total_budget,
         "remaining_balance": remaining_balance,
         'purchase_requests': purchase_requests,
         'approved_requests_count': approved_requests_count,
         "spent": spent,
         "usage_percentage": usage_percentage,
-        })
+        'realignment_requests': realignment_requests
+    }
+
+    return render(request, 'end_user_app/dashboard.html', context)
 
 @role_required('end_user', login_url='/')
 def view_budget(request):
@@ -1390,3 +1398,122 @@ def pre_budget_realignment(request):
     }
     
     return render(request, "end_user_app/pre_budget_realignment.html", context)
+
+@role_required('end_user', login_url='/')
+def realignment_history(request):
+    """View for displaying user's budget realignment history"""
+    
+    # Get all realignment requests for the current user
+    realignment_requests = PREBudgetRealignment.objects.filter(
+        requested_by=request.user
+    ).select_related('source_pre', 'target_pre', 'approved_by').order_by('-created_at')
+    
+    # Add pagination
+    from django.core.paginator import Paginator
+    paginator = Paginator(realignment_requests, 10)  # Show 10 requests per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Filter by status if provided
+    status_filter = request.GET.get('status')
+    if status_filter:
+        realignment_requests = realignment_requests.filter(status=status_filter)
+        paginator = Paginator(realignment_requests, 10)
+        page_obj = paginator.get_page(page_number)
+    
+    # Calculate summary statistics
+    total_requests = realignment_requests.count()
+    pending_count = realignment_requests.filter(status='Pending').count()
+    approved_count = realignment_requests.filter(status='Approved').count()
+    rejected_count = realignment_requests.filter(status='Rejected').count()
+    
+    context = {
+        'page_obj': page_obj,
+        'realignment_requests': page_obj,
+        'status_filter': status_filter,
+        'status_choices': PREBudgetRealignment.STATUS_CHOICES,
+        'total_requests': total_requests,
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
+    }
+    
+    return render(request, "end_user_app/realignment_history.html", context)
+
+@role_required('end_user', login_url='/')
+def download_activity_design_word(request, pk):
+    """Generate and download Activity Design as Word document"""
+    
+    # Get the activity design
+    activity = get_object_or_404(
+        ActivityDesign.objects.prefetch_related('sessions').select_related('requested_by', 'source_pre'),
+        pk=pk,
+        requested_by=request.user  # Ensure user can only download their own
+    )
+    
+    try:
+        # Path to your Word template
+        template_path = r"C:\Users\John Romel Lucot\OneDrive\Desktop\Capstone project\bb_budget_monitoring_system\document_templates\activity_design_template.docx"
+        
+        # Load the template
+        doc = DocxTemplate(template_path)
+        
+        # Prepare context data
+        context = {
+            'title_of_activity': activity.title_of_activity or '',
+            'schedule_date': activity.schedule_date.strftime('%B %d, %Y') if activity.schedule_date else '',
+            'venue': activity.venue or '',
+            'rationale': activity.rationale or '',
+            'objectives': activity.objectives or '',
+            'methodology': activity.methodology or '',
+            'participants': activity.participants or '',
+            'resource_persons': activity.resource_persons or '',
+            'materials_needed': activity.materials_needed or '',
+            'evaluation_plan': activity.evaluation_plan or '',
+            'source_of_fund_display': activity.source_of_fund_display or 'Not specified',
+            'total_amount': f"{activity.total_amount:,.2f}" if activity.total_amount else '0.00',
+            'requested_by_name': activity.requested_by.get_full_name() if activity.requested_by else 'Unknown',
+            'date_prepared': datetime.now().strftime('%B %d, %Y'),
+            'sessions': [
+                {
+                    'order': session.order,
+                    'content': session.content
+                }
+                for session in activity.sessions.all().order_by('order')
+            ]
+        }
+        
+        # Render the template with context
+        doc.render(context, autoescape=True)
+        
+        # Generate filename
+        safe_title = "".join(c for c in activity.title_of_activity if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_title = safe_title.replace(' ', '_')[:50]  # Limit length
+        filename = f"Activity_Design_{safe_title}_{activity.id}.docx"
+        
+        # Create HTTP response
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        
+        # Save document to response
+        doc.save(response)
+        
+        # Log the download
+        log_audit_trail(
+            request=request,
+            action='DOWNLOAD',
+            model_name='ActivityDesign',
+            record_id=activity.id,
+            detail=f'Downloaded Word document for activity design: {activity.title_of_activity}',
+        )
+        
+        return response
+        
+    except FileNotFoundError:
+        messages.error(request, "Word template not found. Please contact administrator.")
+        return redirect('preview_activity_design', pk=pk)
+    except Exception as e:
+        messages.error(request, f"Error generating Word document: {str(e)}")
+        return redirect('preview_activity_design', pk=pk)

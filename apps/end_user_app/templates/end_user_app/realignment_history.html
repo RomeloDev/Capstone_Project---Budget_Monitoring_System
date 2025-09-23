@@ -1,0 +1,326 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Budget Realignment History{% endblock title %}
+
+{% block main-content %}
+<main class="content">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-8">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Budget Realignment History</h1>
+                    <p class="text-gray-600">Track all your submitted budget realignment requests and their status.</p>
+                </div>
+                <div class="flex space-x-3">
+                    <a href="{% url 'pre_budget_realignment' %}" 
+                       class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        New Request
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Breadcrumb -->
+            <nav class="text-sm text-gray-600 mt-4">
+                <a href="{% url 'user_dashboard' %}" class="hover:text-blue-600">Dashboard</a>
+                <span class="mx-2">›</span>
+                <a href="{% url 'pre_budget_realignment' %}" class="hover:text-blue-600">Budget Realignment</a>
+                <span class="mx-2">›</span>
+                <span class="text-gray-900">History</span>
+            </nav>
+        </header>
+
+        <!-- Summary Cards -->
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Total Requests</p>
+                        <p class="text-2xl font-semibold text-gray-900">{{ total_requests }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-500">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Pending</p>
+                        <p class="text-2xl font-semibold text-gray-900">{{ pending_count }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Approved</p>
+                        <p class="text-2xl font-semibold text-gray-900">{{ approved_count }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-red-100 text-red-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Rejected</p>
+                        <p class="text-2xl font-semibold text-gray-900">{{ rejected_count }}</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Filter Section -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Filter Requests</h2>
+            
+            <form method="get" class="flex flex-wrap gap-4 items-end">
+                <div class="flex-1 min-w-[200px]">
+                    <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select id="status" name="status" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="">All Statuses</option>
+                        {% for code, label in status_choices %}
+                            <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition duration-200">
+                        Filter
+                    </button>
+                    <a href="{% url 'realignment_history' %}" class="ml-2 bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition duration-200">
+                        Clear
+                    </a>
+                </div>
+            </form>
+        </section>
+
+        <!-- Requests Table -->
+        <section class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-800">Your Realignment Requests</h2>
+                <p class="text-sm text-gray-600 mt-1">Complete history of all your budget realignment requests</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Request Details
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Source → Target
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for request in page_obj %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">
+                                    <div class="font-medium">Request #{{ request.id }}</div>
+                                    <div class="text-gray-500">{{ request.created_at|date:"M d, Y H:i" }}</div>
+                                    {% if request.updated_at != request.created_at %}
+                                    <div class="text-xs text-gray-400">Updated: {{ request.updated_at|date:"M d, Y H:i" }}</div>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            FROM: {{ request.source_item_display|truncatechars:25 }}
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            TO: {{ request.target_item_display|truncatechars:25 }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    ₱{{ request.amount|floatformat:2|intcomma }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    {% if request.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                                    {% elif request.status == 'Approved' %}bg-green-100 text-green-800
+                                    {% elif request.status == 'Rejected' %}bg-red-100 text-red-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ request.get_status_display }}
+                                </span>
+                                {% if request.approved_by and request.status != 'Pending' %}
+                                <div class="text-xs text-gray-500 mt-1">
+                                    by {{ request.approved_by.get_full_name|default:request.approved_by.username }}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <button onclick="showDetails({{ request.id }})" 
+                                        class="text-blue-600 hover:text-blue-900 transition duration-200">
+                                    View Details
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- Hidden Details Row -->
+                        <tr id="details-{{ request.id }}" class="hidden bg-gray-50">
+                            <td colspan="5" class="px-6 py-4">
+                                <div class="bg-white p-4 rounded-lg border">
+                                    <h4 class="font-semibold text-gray-900 mb-3">Request Details</h4>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <h5 class="font-medium text-gray-700 mb-2">Source Information</h5>
+                                            <div class="text-sm text-gray-600 space-y-1">
+                                                <div><strong>PRE ID:</strong> {{ request.source_pre.id }}</div>
+                                                <div><strong>Category:</strong> {{ request.source_item_display }}</div>
+                                                <div><strong>Item Key:</strong> {{ request.source_item_key }}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <h5 class="font-medium text-gray-700 mb-2">Target Information</h5>
+                                            <div class="text-sm text-gray-600 space-y-1">
+                                                <div><strong>PRE ID:</strong> {{ request.target_pre.id }}</div>
+                                                <div><strong>Category:</strong> {{ request.target_item_display }}</div>
+                                                <div><strong>Item Key:</strong> {{ request.target_item_key }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-4">
+                                        <h5 class="font-medium text-gray-700 mb-2">Reason</h5>
+                                        <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded">{{ request.reason }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <p class="text-lg font-medium">No realignment requests found</p>
+                                    <p class="text-sm">
+                                        <a href="{% url 'pre_budget_realignment' %}" class="text-blue-600 hover:text-blue-800">Submit your first request</a>
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {% if page_obj.has_previous %}
+                        <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Previous
+                        </a>
+                    {% endif %}
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Next
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                            ({{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} requests)
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if page_obj.has_previous %}
+                                <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    Previous
+                                </a>
+                            {% endif %}
+                            
+                            {% for i in page_obj.paginator.page_range %}
+                                {% if page_obj.number == i %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-blue-50 text-sm font-medium text-blue-600">
+                                        {{ i }}
+                                    </span>
+                                {% else %}
+                                    <a href="?page={{ i }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                        {{ i }}
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_obj.has_next %}
+                                <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    Next
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</main>
+
+<script>
+function showDetails(requestId) {
+    const detailsRow = document.getElementById(`details-${requestId}`);
+    if (detailsRow.classList.contains('hidden')) {
+        // Hide all other details rows
+        document.querySelectorAll('[id^="details-"]').forEach(row => {
+            row.classList.add('hidden');
+        });
+        // Show this details row
+        detailsRow.classList.remove('hidden');
+    } else {
+        detailsRow.classList.add('hidden');
+    }
+}
+</script>
+{% endblock main-content %}

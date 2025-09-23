@@ -1,68 +1,354 @@
 {% extends "approving_officer_base_template/dashboard.html" %}
+{% load humanize %}
 
-{% block title %}
-    Approving Officer Dashboard
-{% endblock %}
+{% block title %}Approving Officer Dashboard{% endblock %}
 
 {% block main-content %}
-<h1 class="text-3xl font-bold mb-6">Dashboard</h1>
+<!-- Header Section -->
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">Approving Officer Dashboard</h1>
+    <p class="text-gray-600">Welcome back! Manage and review all department requests requiring your approval.</p>
+</div>
 
-<!-- Stat Cards -->
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-    <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded-lg shadow">
-        <p class="text-lg font-semibold text-yellow-800">Pending Requests</p>
-        <p class="text-3xl font-bold text-yellow-900 mt-2">{{ pending_request|default:"0"}}</p>
+<!-- Quick Stats Overview -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+    <!-- Purchase Requests -->
+    <div class="bg-gradient-to-br from-blue-100 to-blue-200 border-l-4 border-blue-500 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-blue-800 uppercase tracking-wide">Purchase Requests</p>
+                <p class="text-3xl font-bold text-blue-900 mt-2">{{ pending_purchase_requests|default:"0" }}</p>
+                <p class="text-xs text-blue-700 mt-1">Pending Approval</p>
+            </div>
+            <div class="p-3 bg-blue-500 rounded-full">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div class="bg-green-100 border-l-4 border-green-500 p-4 rounded-lg shadow">
-        <p class="text-lg font-semibold text-green-800">Approved Requests</p>
-        <p class="text-3xl font-bold text-green-900 mt-2">{{ approved_request|default:"0" }}</p>
+
+    <!-- PRE Requests -->
+    <div class="bg-gradient-to-br from-purple-100 to-purple-200 border-l-4 border-purple-500 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-purple-800 uppercase tracking-wide">PRE Requests</p>
+                <p class="text-3xl font-bold text-purple-900 mt-2">{{ pending_pre_requests|default:"0" }}</p>
+                <p class="text-xs text-purple-700 mt-1">Pending Approval</p>
+            </div>
+            <div class="p-3 bg-purple-500 rounded-full">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2z"></path>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div class="bg-red-100 border-l-4 border-red-500 p-4 rounded-lg shadow">
-        <p class="text-lg font-semibold text-red-800">Rejected Requests</p>
-        <p class="text-3xl font-bold text-red-900 mt-2">{{ rejected_request|default:"0"}}</p>
+
+    <!-- Activity Designs -->
+    <div class="bg-gradient-to-br from-green-100 to-green-200 border-l-4 border-green-500 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-green-800 uppercase tracking-wide">Activity Designs</p>
+                <p class="text-3xl font-bold text-green-900 mt-2">{{ pending_activity_designs|default:"0" }}</p>
+                <p class="text-xs text-green-700 mt-1">Pending Approval</p>
+            </div>
+            <div class="p-3 bg-green-500 rounded-full">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Budget Realignments -->
+    <div class="bg-gradient-to-br from-orange-100 to-orange-200 border-l-4 border-orange-500 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-orange-800 uppercase tracking-wide">Budget Realignments</p>
+                <p class="text-3xl font-bold text-orange-900 mt-2">{{ pending_realignments|default:"0" }}</p>
+                <p class="text-xs text-orange-700 mt-1">Pending Approval</p>
+            </div>
+            <div class="p-3 bg-orange-500 rounded-full">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Recent Activity Table -->
-<h2 class="text-2xl font-bold mb-4">Recent Activity</h2>
-<div class="overflow-x-auto">
-    <table class="min-w-full bg-white border border-gray-800">
-        <thead class="bg-gray-200 border-b border-gray-800">
-            <tr>
-                <th class="py-2 px-4 border-b text-left">Request ID</th>
-                <th class="py-2 px-4 border-b text-left">Department</th>
-                <th class="py-2 px-4 border-b text-left">Entity Name</th>
-                <th class="py-2 px-4 border-b text-left">Amount</th>
-                <th class="py-2 px-4 border-b text-left">Action</th>
-                <th class="py-2 px-4 border-b text-left">Date</th>
-            </tr>
-        </thead>
-        <tbody class="bg-white border-b-2 border-gray-800">
-            <tr>
-                <td class="py-2 px-4 border-b">REQ-004</td>
-                <td class="py-2 px-4 border-b">MFO1_CCIS</td>
-                <td class="py-2 px-4 border-b">Laptop</td>
-                <td class="py-2 px-4 border-b">&#8369;18,000</td>
-                <td class="py-2 px-4 border-b text-green-700 font-semibold">Approved</td>
-                <td class="py-2 px-4 border-b">April 7, 2025</td>
-            </tr>
-            <tr>
-                <td class="py-2 px-4 border-b">REQ-003</td>
-                <td class="py-2 px-4 border-b">MFO1_CTAS</td>
-                <td class="py-2 px-4 border-b">Printer Ink</td>
-                <td class="py-2 px-4 border-b">&#8369;2,000</td>
-                <td class="py-2 px-4 border-b text-red-600 font-semibold">Rejected</td>
-                <td class="py-2 px-4 border-b">April 6, 2025</td>
-            </tr>
-            <tr>
-                <td class="py-2 px-4 border-b">REQ-002</td>
-                <td class="py-2 px-4 border-b">MFO1_CCJ</td>
-                <td class="py-2 px-4 border-b">Office Chairs</td>
-                <td class="py-2 px-4 border-b">&#8369;10,000</td>
-                <td class="py-2 px-4 border-b text-green-700 font-semibold">Approved</td>
-                <td class="py-2 px-4 border-b">April 5, 2025</td>
-            </tr>
-        </tbody>
-    </table>
+<!-- Quick Actions Section -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+    <a href="{% url 'cd_department_request' %}" class="group bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-blue-300 transition-all duration-300">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors duration-300">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">Purchase Requests</h3>
+                <p class="text-sm text-gray-600">Review department purchase requests</p>
+            </div>
+        </div>
+    </a>
+
+    <a href="{% url 'ao_department_pre_list' %}" class="group bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-purple-300 transition-all duration-300">
+        <div class="flex items-center">
+            <div class="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors duration-300">
+                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors duration-300">PRE Requests</h3>
+                <p class="text-sm text-gray-600">Review department PRE submissions</p>
+            </div>
+        </div>
+    </a>
+
+    <a href="{% url 'ao_activity_design_page' %}" class="group bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-green-300 transition-all duration-300">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors duration-300">
+                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors duration-300">Activity Designs</h3>
+                <p class="text-sm text-gray-600">Review activity design proposals</p>
+            </div>
+        </div>
+    </a>
+
+    <a href="{% url 'ao_pre_budget_realignment_requests' %}" class="group bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg hover:border-orange-300 transition-all duration-300">
+        <div class="flex items-center">
+            <div class="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors duration-300">
+                <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900 group-hover:text-orange-600 transition-colors duration-300">Budget Realignments</h3>
+                <p class="text-sm text-gray-600">Review budget realignment requests</p>
+            </div>
+        </div>
+    </a>
 </div>
+
+<!-- Recent Activity Section -->
+<div class="bg-white rounded-lg shadow-md border border-gray-200 mb-8">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+            <h2 class="text-xl font-bold text-gray-900">Recent Activity</h2>
+            <div class="flex space-x-2">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Last 7 days
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="min-w-full bg-white border border-gray-800">
+            <thead class="bg-gray-200 border-b border-gray-800">
+                <tr>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Request Type</th>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Request ID</th>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Department</th>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Description</th>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Amount</th>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Status</th>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Date</th>
+                    <th class="py-3 px-4 border-b text-left font-semibold text-gray-700">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white border-b-2 border-gray-800">
+                {% if recent_activities %}
+                    {% for activity in recent_activities %}
+                    <tr class="hover:bg-gray-50 transition-colors duration-200">
+                        <td class="py-3 px-4 border-b">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if activity.type == 'PurchaseRequest' %}bg-blue-100 text-blue-800
+                                {% elif activity.type == 'DepartmentPRE' %}bg-purple-100 text-purple-800
+                                {% elif activity.type == 'ActivityDesign' %}bg-green-100 text-green-800
+                                {% elif activity.type == 'PREBudgetRealignment' %}bg-orange-100 text-orange-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ activity.type_display }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 border-b font-medium">{{ activity.request_id }}</td>
+                        <td class="py-3 px-4 border-b">{{ activity.department }}</td>
+                        <td class="py-3 px-4 border-b">{{ activity.description|truncatechars:40 }}</td>
+                        <td class="py-3 px-4 border-b font-semibold">
+                            {% if activity.amount %}₱{{ activity.amount|floatformat:2|intcomma }}{% else %}N/A{% endif %}
+                        </td>
+                        <td class="py-3 px-4 border-b">
+                            {% if activity.status == 'Pending' %}
+                                <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-medium">Pending</span>
+                            {% elif activity.status == 'Partially Approved' %}
+                                <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium">Partially Approved</span>
+                            {% elif activity.status == 'Approved' %}
+                                <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium">Approved</span>
+                            {% else %}
+                                <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-sm font-medium">Rejected</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4 border-b text-sm text-gray-600">{{ activity.date|date:"M d, Y" }}</td>
+                        <td class="py-3 px-4 border-b">
+                            <a href="{{ activity.view_url }}" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition duration-200 text-sm">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="py-8 text-center text-gray-500">
+                            <div class="flex flex-col items-center">
+                                <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <p class="text-lg font-medium">No recent activity</p>
+                                <p class="text-sm">New requests will appear here when submitted by departments.</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Department Summary -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- Pending Requests by Type -->
+    <div class="bg-white rounded-lg shadow-md border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Pending Requests by Type</h3>
+            <p class="text-sm text-gray-600">Overview of requests awaiting your approval</p>
+        </div>
+        <div class="p-6">
+            <div class="space-y-4">
+                <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-blue-100 rounded">
+                            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <span class="ml-3 font-medium text-gray-900">Purchase Requests</span>
+                    </div>
+                    <span class="text-2xl font-bold text-blue-600">{{ pending_purchase_requests|default:"0" }}</span>
+                </div>
+                
+                <div class="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-purple-100 rounded">
+                            <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2z"></path>
+                            </svg>
+                        </div>
+                        <span class="ml-3 font-medium text-gray-900">PRE Requests</span>
+                    </div>
+                    <span class="text-2xl font-bold text-purple-600">{{ pending_pre_requests|default:"0" }}</span>
+                </div>
+                
+                <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-green-100 rounded">
+                            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <span class="ml-3 font-medium text-gray-900">Activity Designs</span>
+                    </div>
+                    <span class="text-2xl font-bold text-green-600">{{ pending_activity_designs|default:"0" }}</span>
+                </div>
+                
+                <div class="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-orange-100 rounded">
+                            <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                            </svg>
+                        </div>
+                        <span class="ml-3 font-medium text-gray-900">Budget Realignments</span>
+                    </div>
+                    <span class="text-2xl font-bold text-orange-600">{{ pending_realignments|default:"0" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Approvals -->
+    <div class="bg-white rounded-lg shadow-md border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Recent Approvals</h3>
+            <p class="text-sm text-gray-600">Your latest approval decisions</p>
+        </div>
+        <div class="p-6">
+            {% if recent_approvals %}
+                <div class="space-y-4">
+                    {% for approval in recent_approvals %}
+                    <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                        <div class="flex items-center">
+                            <div class="p-2 {% if approval.action == 'Approved' %}bg-green-100{% else %}bg-red-100{% endif %} rounded">
+                                {% if approval.action == 'Approved' %}
+                                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {% else %}
+                                <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                {% endif %}
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-gray-900">{{ approval.type }} {{ approval.request_id }}</p>
+                                <p class="text-xs text-gray-600">{{ approval.department }}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm font-semibold {% if approval.action == 'Approved' %}text-green-600{% else %}text-red-600{% endif %}">
+                                {{ approval.action }}
+                            </p>
+                            <p class="text-xs text-gray-500">{{ approval.date|date:"M d" }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-8">
+                    <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p class="text-gray-500">No recent approvals</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Priority Alerts -->
+{% if urgent_requests %}
+<div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-8">
+    <div class="flex items-center mb-4">
+        <svg class="w-6 h-6 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+        </svg>
+        <h3 class="text-lg font-semibold text-red-800">Urgent Requests</h3>
+    </div>
+    <div class="space-y-2">
+        {% for urgent in urgent_requests %}
+        <div class="flex items-center justify-between bg-white p-3 rounded border border-red-200">
+            <span class="text-sm text-gray-900">{{ urgent.type }} {{ urgent.request_id }} - {{ urgent.description|truncatechars:30 }}</span>
+            <a href="{{ urgent.view_url }}" class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition duration-200">
+                Review Now
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}
