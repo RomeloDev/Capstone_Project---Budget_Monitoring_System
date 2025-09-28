@@ -1,121 +1,482 @@
 {% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
 
 {% block title %}
-    Purchase Requests
+    Purchase Requests & Activity Designs
 {% endblock title %}
 
 {% block main-content %}
-    <main class="content">
-        <header>
-            <h1 class="font-semibold text-[2rem]">Purchase Request and Activity Design Page</h1>
-            <p>Compile and manage your department's purchase requests and activity design.</p>
-        </header>
+<main class="content space-y-8">
+    <!-- Header Section -->
+    <header class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Purchase Request and Activity Design Management</h1>
+        <p class="text-gray-600">Compile and manage your department's purchase requests and activity designs.</p>
+    </header>
 
-        <!-- New Purchase Request Button -->
-        <section class="new-request">
-            <div class="new-request-container">
-                <h2 class="font-semibold text-[1.3rem]">Create a Request:</h2>
-                <p>Select a form:</p>
-                <div class="buttons">
-                    <button class="new-request-btn" onclick="window.location.href = '{% url "purchase_request_form" %}'">Procurable PR</button>
-                    <button class="new-request-btn" onclick="window.location.href = '{% url "activity_design_form" %}'">Non-Procurable AD</button>
+    <!-- Quick Actions Section -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Create New Request</h2>
+        <p class="text-gray-600 mb-4">Select the type of request you want to create:</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a href="{% url 'purchase_request_form' %}" 
+               class="group flex items-center p-4 border-2 border-blue-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all duration-200">
+                <div class="flex-shrink-0">
+                    <div class="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors duration-200">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-200">Procurable PR</h3>
+                    <p class="text-sm text-gray-600">Create purchase request for procurable items</p>
+                </div>
+            </a>
+
+            <a href="{% url 'activity_design_form' %}" 
+               class="group flex items-center p-4 border-2 border-green-200 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all duration-200">
+                <div class="flex-shrink-0">
+                    <div class="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors duration-200">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors duration-200">Non-Procurable AD</h3>
+                    <p class="text-sm text-gray-600">Create activity design for non-procurable requests</p>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- Purchase Requests Table -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-gray-900">Purchase Requests</h2>
+                <div class="flex items-center space-x-2">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Procurable Items
+                    </span>
+                    <span class="text-sm text-gray-500">{{ purchase_requests|length }} total</span>
                 </div>
             </div>
-        </section>
-
-        <!-- Purchase Requests Table -->
-        <section class="purchase-requests">
-            <h2 class="font-semibold text-[1.4rem]">Recent Purchase Requests</h2>
-            <table>
-                <thead>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
                     <tr>
-                        <th>PR No.</th>
-                        <th>Entity Name</th>
-                        <th>Fund Cluster</th>
-                        <th>Office/Section</th>
-                        <th>Date Requested</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PR No.</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entity Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fund Cluster</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Office/Section</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Requested</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="bg-white divide-y divide-gray-200">
                     {% for purchase in purchase_requests %}
-                        <tr>
-                            <td>{{ purchase.pr_no }}</td>
-                            <td>{{ purchase.entity_name }}</td>
-                            <td>{{ purchase.fund_cluster }}</td>
-                            <td>{{ purchase.office_section }}</td>
-                            <td>{{ purchase.created_at }}</td>
-                            <td class="py-2 px-4 border-b">
+                        <tr class="hover:bg-gray-50 transition-colors duration-200">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">PR-{{ purchase.pr_no }}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900 font-medium">{{ purchase.entity_name|truncatechars:40 }}</div>
+                                {% if purchase.source_of_fund_display %}
+                                <div class="text-xs text-gray-500">{{ purchase.source_of_fund_display|truncatechars:40 }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ purchase.fund_cluster|default:"Not specified" }}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900">{{ purchase.office_section|default:"Not specified" }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    {% if purchase.total_amount %}
+                                        ₱{{ purchase.total_amount|floatformat:2|intcomma }}
+                                    {% else %}
+                                        <span class="text-gray-400">Not calculated</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ purchase.created_at|date:"M d, Y" }}</div>
+                                <div class="text-xs text-gray-500">{{ purchase.created_at|time:"H:i" }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
                                 {% if purchase.submitted_status == 'Pending' %}
-                                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-md">Pending</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Pending
+                                    </span>
                                 {% elif purchase.submitted_status == 'Approved' %}
-                                    <span class="px-3 py-1 rounded-full bg-blue-100 text-green-700 text-md">Approved</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Approved
+                                    </span>
                                 {% elif purchase.submitted_status == 'Partially Approved' %}
-                                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-md">Partially Approved</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Partially Approved
+                                    </span>
                                 {% else %}
-                                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-md">Rejected</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Rejected
+                                    </span>
                                 {% endif %}
                             </td>
-                            <td>
-                                <button class="view-btn">
-                                    <a href="{% url "end_user_preview_purchase_request" purchase.id %}">View Details</a>
-                                </button>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                <a href="{% url 'end_user_preview_purchase_request' purchase.id %}" 
+                                   class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 transition duration-200">
+                                    View Details
+                                </a>
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6">No purchase requests found.</td>
+                            <td colspan="8" class="px-6 py-8 text-center text-gray-500">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <p class="text-lg font-medium">No purchase requests found</p>
+                                    <p class="text-sm">
+                                        <a href="{% url 'purchase_request_form' %}" class="text-blue-600 hover:text-blue-800">Create your first purchase request</a>
+                                    </p>
+                                </div>
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </section>
+        </div>
+    </section>
 
-        <!-- Activity Design Table -->
-        {% comment %} <section class="purchase-requests">
-            <h2 class="font-semibold text-[1.4rem]">Recent Activity Design Requests</h2>
-            <table>
-                <thead>
+    {% comment %} <!-- Activity Designs Table -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-gray-900">Activity Designs</h2>
+                <div class="flex items-center space-x-2">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Non-Procurable Items
+                    </span>
+                    <span class="text-sm text-gray-500">{{ activity_designs|length }} total</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
                     <tr>
-                        <th>PR No.</th>
-                        <th>Entity Name</th>
-                        <th>Fund Cluster</th>
-                        <th>Office/Section</th>
-                        <th>Date Requested</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity Title</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Venue</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Submitted</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for purchase in purchase_requests %}
-                        <tr>
-                            <td>{{ purchase.pr_no }}</td>
-                            <td>{{ purchase.entity_name }}</td>
-                            <td>{{ purchase.fund_cluster }}</td>
-                            <td>{{ purchase.office_section }}</td>
-                            <td>{{ purchase.created_at }}</td>
-                            <td class="py-2 px-4 border-b">
-                                {% if purchase.submitted_status == 'pending' %}
-                                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-md">Pending</span>
-                                {% elif purchase.submitted_status == 'approved' %}
-                                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-md">Approved</span>
-                                {% else %}
-                                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-md">Rejected</span>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for activity in activity_designs %}
+                        <tr class="hover:bg-gray-50 transition-colors duration-200">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">AD-{{ activity.id }}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900 font-medium">{{ activity.title_of_activity|truncatechars:50 }}</div>
+                                {% if activity.source_of_fund_display %}
+                                <div class="text-xs text-gray-500">{{ activity.source_of_fund_display|truncatechars:40 }}</div>
                                 {% endif %}
                             </td>
-                            <td>
-                                <button class="view-btn">
-                                    <a href="{% url "preview_purchase_request" purchase.id %}">View Details</a></button>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">
+                                    {{ activity.schedule_date|date:"M d, Y"|default:"Not set" }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900">{{ activity.venue|truncatechars:25|default:"Not set" }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    {% if activity.total_amount %}
+                                        ₱{{ activity.total_amount|floatformat:2|intcomma }}
+                                    {% else %}
+                                        <span class="text-gray-400">Not specified</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ activity.created_at|date:"M d, Y" }}</div>
+                                <div class="text-xs text-gray-500">{{ activity.created_at|time:"H:i" }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if activity.status == 'Pending' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Pending
+                                    </span>
+                                {% elif activity.status == 'Approved' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Approved
+                                    </span>
+                                {% elif activity.status == 'Partially Approved' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Partially Approved
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Rejected
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                {% if purchase.id %}
+    <a href="{% url 'end_user_preview_purchase_request' purchase.id %}" 
+       class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 transition duration-200">
+        View Details
+    </a>
+    {% else %}
+    <span class="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded text-gray-500 bg-gray-100 cursor-not-allowed">
+        Invalid Record
+    </span>
+    {% endif %}
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6">No purchase requests found.</td>
+                            <td colspan="8" class="px-6 py-8 text-center text-gray-500">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <p class="text-lg font-medium">No purchase requests found</p>
+                                    <p class="text-sm">
+                                        <a href="{% url 'purchase_request_form' %}" class="text-blue-600 hover:text-blue-800">Create your first purchase request</a>
+                                    </p>
+                                </div>
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </section> {% endcomment %}
-    </main>
+        </div>
+    </section> {% endcomment %}
+
+    <!-- Activity Designs Table -->
+    <section class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-gray-900">Activity Designs</h2>
+                <div class="flex items-center space-x-2">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Non-Procurable Items
+                    </span>
+                    <span class="text-sm text-gray-500">{{ activity_designs|length }} total</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity Title</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Venue</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Submitted</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for activity in activity_designs %}
+                        <tr class="hover:bg-gray-50 transition-colors duration-200">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">AD-{{ activity.id }}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900 font-medium">{{ activity.title_of_activity|truncatechars:50 }}</div>
+                                {% if activity.source_of_fund_display %}
+                                <div class="text-xs text-gray-500">{{ activity.source_of_fund_display|truncatechars:40 }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">
+                                    {{ activity.schedule_date|date:"M d, Y"|default:"Not set" }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900">{{ activity.venue|truncatechars:25|default:"Not set" }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    {% if activity.total_amount %}
+                                        ₱{{ activity.total_amount|floatformat:2|intcomma }}
+                                    {% else %}
+                                        <span class="text-gray-400">Not specified</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ activity.created_at|date:"M d, Y" }}</div>
+                                <div class="text-xs text-gray-500">{{ activity.created_at|time:"H:i" }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if activity.status == 'Pending' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Pending
+                                    </span>
+                                {% elif activity.status == 'Approved' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Approved
+                                    </span>
+                                {% elif activity.status == 'Partially Approved' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Partially Approved
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3"/>
+                                        </svg>
+                                        Rejected
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                <a href="{% url 'preview_activity_design' activity.id %}" 
+                                   class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 transition duration-200">
+                                    View Details
+                                </a>
+                                {% if activity.status == 'Approved' %}
+                                <a href="{% url 'download_activity_design_word' activity.id %}" 
+                                   class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 transition duration-200">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-4-4m4 4l4-4m-6 4h8m-8 0H4a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1"></path>
+                                    </svg>
+                                    Download
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="px-6 py-8 text-center text-gray-500">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <p class="text-lg font-medium">No activity designs found</p>
+                                    <p class="text-sm">
+                                        <a href="{% url 'activity_design_form' %}" class="text-blue-600 hover:text-blue-800">Create your first activity design</a>
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Summary Statistics -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Purchase Requests Summary -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Purchase Requests Summary
+            </h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-700 font-medium">Total Submitted:</span>
+                    <span class="text-xl font-bold text-gray-900">{{ purchase_requests|length }}</span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
+                    <span class="text-gray-700 font-medium">Pending:</span>
+                    <span class="text-xl font-bold text-yellow-600">
+                        {% for pr in purchase_requests %}{% if pr.submitted_status == 'Pending' %}1{% endif %}{% empty %}0{% endfor %}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                    <span class="text-gray-700 font-medium">Approved:</span>
+                    <span class="text-xl font-bold text-green-600">
+                        {% for pr in purchase_requests %}{% if pr.submitted_status == 'Approved' %}1{% endif %}{% empty %}0{% endfor %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Designs Summary -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                Activity Designs Summary
+            </h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-700 font-medium">Total Submitted:</span>
+                    <span class="text-xl font-bold text-gray-900">{{ activity_designs|length }}</span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
+                    <span class="text-gray-700 font-medium">Pending:</span>
+                    <span class="text-xl font-bold text-yellow-600">
+                        {% for ad in activity_designs %}{% if ad.status == 'Pending' %}1{% endif %}{% empty %}0{% endfor %}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                    <span class="text-gray-700 font-medium">Approved:</span>
+                    <span class="text-xl font-bold text-green-600">
+                        {% for ad in activity_designs %}{% if ad.status == 'Approved' %}1{% endif %}{% empty %}0{% endfor %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
 {% endblock main-content %}

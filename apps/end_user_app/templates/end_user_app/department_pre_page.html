@@ -33,10 +33,14 @@
                         <td class="px-4 py-2 text-sm">{{ budget.approved_budget.title }}</td>
                         <td class="px-4 py-2 text-sm">{{ budget.approved_budget.period }}</td>
                         <td class="px-4 py-2 text-sm">{{ budget.allocated_at|date:"M d, Y" }}</td>
-                        <td class="px-4 py-2 text-center">
+                        <td class="px-2 py-2 text-center">
                             <a href="{% url 'department_pre_form' budget.id %}"
                             class="bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 transition">
                                 Compile PRE
+                            </a>
+                            <a href=""
+                            class="bg-blue-600 text-white ml-5 px-3 py-1.5 rounded hover:bg-blue-700 transition">
+                                Upload PRE (Excel)
                             </a>
                         </td>
                     </tr>

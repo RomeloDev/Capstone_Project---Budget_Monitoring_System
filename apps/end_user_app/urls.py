@@ -21,6 +21,7 @@ urlpatterns = [
     path('view_budget/budget_details/<int:budget_id>/', views.budget_details, name='budget_details'),
     path('pre_budget_realignment/', views.pre_budget_realignment, name='pre_budget_realignment'),
     path('realignment_history/', views.realignment_history, name='realignment_history'),
-    path('download_activity_design/<int:pk>/', views.download_activity_design_word, name='download_activity_design_word')
-    
+    path('download_activity_design/<int:pk>/', views.download_activity_design_word, name='download_activity_design_word'),
+    path('inspect_excel_template/', views.inspect_excel_template, name='inspect_excel_template'), 
+    path('download_pre_excel/<int:pk>/', views.download_pre_excel, name='download_pre_excel'),
 ]

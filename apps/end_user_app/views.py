@@ -18,7 +18,12 @@ from apps.admin_panel.utils import log_audit_trail
 from apps.users.utils import role_required
 from .constants import FRIENDLY_LABELS
 from docxtpl import DocxTemplate
+from openpyxl import load_workbook
 import os
+from io import BytesIO
+import shutil
+import xlwings as xw
+import tempfile
 
 # Create your views here.
 @role_required('end_user', login_url='/')
@@ -72,10 +77,27 @@ def view_budget(request):
 @role_required('end_user', login_url='/')
 def purchase_request(request):
     try:
-        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status="Submitted").select_related('source_pre')
+        # ✅ Existing: Get Purchase Requests
+        purchase_requests = PurchaseRequest.objects.filter(
+            requested_by=request.user, 
+            pr_status="Submitted"
+        ).select_related('source_pre').order_by('-created_at')
+        
+        # ✅ NEW: Get Activity Designs for the same user
+        activity_designs = ActivityDesign.objects.filter(
+            requested_by=request.user
+        ).select_related('source_pre', 'budget_allocation').order_by('-created_at')
+        
     except PurchaseRequest.DoesNotExist:
         purchase_requests = None
-    return render(request, 'end_user_app/purchase_request.html', {'purchase_requests': purchase_requests})
+    except ActivityDesign.DoesNotExist:
+        activity_designs = None
+    
+    # ✅ Pass both datasets to template
+    return render(request, 'end_user_app/purchase_request.html', {
+        'purchase_requests': purchase_requests,
+        'activity_designs': activity_designs,  # Add this line
+    })
 
 @role_required('end_user', login_url='/')
 def settings(request):
@@ -1517,3 +1539,492 @@ def download_activity_design_word(request, pk):
     except Exception as e:
         messages.error(request, f"Error generating Word document: {str(e)}")
         return redirect('preview_activity_design', pk=pk)
+    
+# This views is for inspecting the excel template and its structure
+def inspect_excel_template(request):
+    """Inspect the Excel template structure"""
+    
+    try:
+        template_path = r"c:\Users\John Romel Lucot\OneDrive\Desktop\Capstone project\bb_budget_monitoring_system\excel_templates\Departmental-PRE.xlsx"
+        wb = load_workbook(template_path)
+        ws = wb.active
+        
+        inspection_data = []
+        inspection_data.append(f"Sheet name: {ws.title}")
+        inspection_data.append(f"Max row: {ws.max_row}")
+        inspection_data.append(f"Max column: {ws.max_column}")
+        inspection_data.append("")
+        
+        # Inspect first 30 rows and 10 columns
+        for row in range(1, 31):
+            row_data = []
+            for col in range(1, 11):  # A to J columns
+                cell = ws.cell(row=row, column=col)
+                if cell.value:
+                    col_letter = chr(64 + col)  # Convert to letter (A, B, C...)
+                    row_data.append(f"{col_letter}{row}: '{cell.value}'")
+            
+            if row_data:
+                inspection_data.append(f"Row {row}: {' | '.join(row_data)}")
+        
+        # Return as plain text response for easy reading
+        return HttpResponse(
+            "\n".join(inspection_data),
+            content_type="text/plain"
+        )
+        
+    except Exception as e:
+        return HttpResponse(f"Error inspecting template: {e}", content_type="text/plain")
+    
+
+# This views is for downloading the PRE as an Excel document but uses openpyxl
+@role_required('end_user', login_url='/')
+def download_pre_excel(request, pk):
+    """Generate and download PRE as Excel - CORRECT SHEET VERSION"""
+    
+    pre = get_object_or_404(
+        DepartmentPRE.objects.select_related('submitted_by'),
+        pk=pk,
+        submitted_by=request.user
+    )
+    
+    try:
+        template_path = r"c:\Users\John Romel Lucot\OneDrive\Desktop\Capstone project\bb_budget_monitoring_system\excel_templates\Departmental-PRE.xlsx"
+        
+        if not os.path.exists(template_path):
+            raise FileNotFoundError(f"Excel template not found")
+        
+        # Create temporary copy
+        with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_file:
+            shutil.copy2(template_path, temp_file.name)
+            temp_path = temp_file.name
+        
+        def to_decimal(value):
+            try:
+                return Decimal(str(value)) if value not in (None, "") else Decimal('0')
+            except Exception:
+                return Decimal('0')
+        
+        payload = pre.data or {}
+        
+        # ✅ Open Excel with xlwings
+        app = xw.App(visible=False)
+        wb = app.books.open(temp_path)
+        
+        # ✅ CRITICAL FIX: Select the correct sheet
+        print(f"=== SHEET SELECTION ===")
+        print(f"Available sheets: {[sheet.name for sheet in wb.sheets]}")
+        
+        try:
+            ws = wb.sheets["Departmental PRE (2)"]  # ✅ Correct sheet
+            print(f"Selected sheet: {ws.name}")
+        except Exception as e:
+            print(f"Could not find 'Departmental PRE (2)' sheet: {e}")
+            # Fallback to second sheet by index
+            ws = wb.sheets[1] if len(wb.sheets) > 1 else wb.sheets[0]
+            print(f"Using fallback sheet: {ws.name}")
+        
+        # ✅ Update department name
+        print(f"=== UPDATING DEPARTMENT ===")
+        try:
+            old_dept = ws.range('C5').value
+            ws.range('C5').value = pre.department
+            new_dept = ws.range('C5').value
+            print(f"Department: '{old_dept}' -> '{new_dept}'")
+        except Exception as e:
+            print(f"Department update error: {e}")
+        
+        # ✅ Budget data mapping
+        budget_items_mapping = {
+            # Personnel Services Section
+            'basic_salary': 15,
+            'honoraria': 16,
+            'overtime_pay': 17,
+            
+            # MOOE Section
+            'travel_local': 23,
+            'travel_foreign': 24,
+            'training_expenses': 26,
+            'office_supplies_expenses': 28,
+            'accountable_form_expenses': 29,
+            'agri_marine_supplies_expenses': 30,
+            'drugs_medicines': 31,
+            'med_dental_lab_supplies_expenses': 32,
+            'food_supplies_expenses': 33,
+            'fuel_oil_lubricants_expenses': 39,
+            'textbooks_instructional_materials_expenses': 40,
+            'construction_material_expenses': 41,
+            'other_supplies_materials_expenses': 42,
+            'semee_machinery': 44,
+            'semee_office_equipment': 45,
+            'semee_information_communication': 46,
+            'semee_communications_equipment': 47,
+            'semee_drr_equipment': 48,
+            'semee_medical_equipment': 49,
+            'semee_printing_equipment': 50,
+            'semee_sports_equipment': 51,
+            'semee_technical_scientific_equipment': 52,
+            'semee_ict_equipment': 53,
+            'semee_other_machinery_equipment': 54,
+            'furniture_fixtures': 56,
+            'books': 57,
+            'water_expenses': 59,
+            'electricity_expenses': 60,
+            'postage_courier_services': 62,
+            'telephone_expenses': 63,
+            'telephone_expenses_landline': 64,
+            'internet_subscription_expenses': 65,
+            'cable_satellite_telegraph_radio_expenses': 66,
+            'awards_rewards_expenses': 72,
+            'prizes': 73,
+            'survey_expenses': 75,
+            'survey_research_exploration_development_expenses': 76,
+            'legal_services': 78,
+            'auditing_services': 79,
+            'consultancy_services': 80,
+            'other_professional_servies': 81,
+            'security_services': 83,
+            'janitorial_services': 84,
+            'other_general_services': 85,
+            'environment/sanitary_services': 86,
+            'repair_maintenance_land_improvements': 88,
+            'buildings': 90,
+            'school_buildings': 91,
+            'hostel_dormitories': 92,
+            'other_structures': 93,
+            'repair_maintenance_machinery': 95,
+            'repair_maintenance_office_equipment': 96,
+            'repair_maintenance_ict_equipment': 97,
+            'repair_maintenance_agri_forestry_equipment': 98,
+            'repair_maintenance_marine_fishery_equipment': 99,
+            'repair_maintenance_airport_equipment': 100,
+            'repair_maintenance_communication_equipment': 101,
+            'repair_maintenance_drre_equipment': 102,
+            'repair_maintenance_medical_equipment': 103,
+            'repair_maintenance_printing_equipment': 104,
+            'repair_maintenance_sports_equipment': 105,
+            'repair_maintenance_technical_scientific_equipment': 106,
+            'repair_maintenance_other_machinery_equipment': 107,
+            'repair_maintenance_motor': 109,
+            'repair_maintenance_other_transportation_equipment': 110,
+            'repair_maintenance_furniture_fixtures': 111,
+            'repair_maintenance_semi_expendable_machinery_equipment': 112,
+            'repair_maintenance_other_property_plant_equipment': 113,
+            'taxes_duties_licenses': 115,
+            'fidelity_bond_premiums': 116,
+            'insurance_expenses': 117,
+            'labor_wages': 119,
+            'advertising_expenses': 121,
+            'printing_publication_expenses': 122,
+            'representation_expenses': 123,
+            'transportation_delivery_expenses': 124,
+            'rent/lease_expenses': 125,
+            'membership_dues_contribute_to_org': 126,
+            'subscription_expenses': 127,
+            'website_maintenance': 129,
+            'other_maintenance_operating_expenses': 130,
+            
+            # Capital Outlays Section
+            'land': 136,
+            'land_improvements_aqua_structure': 138,
+            'water_supply_systems': 140,
+            'power_supply_systems': 141,
+            'other_infra_assets': 142,
+            'bos_building': 144,
+            'bos_school_buildings': 145,
+            'bos_hostels_dorm': 146,
+            'other_structures': 147,
+            'me_machinery': 149,
+            'me_office_equipment': 150,
+            'me_ict_equipment': 151,
+            'me_communication_equipment': 152,
+            'me_drre': 153,
+            'me_medical_equipment': 154,
+            'me_printing_equipment': 155,
+            'me_sports_equipment': 156,
+            'me_technical_scientific_equipment': 157,
+            'me_other_machinery_equipment': 158,
+            'te_motor': 160,
+            'te_other_transpo_equipment': 161,
+            'ffb_furniture_fixtures': 163,
+            'ffb_books': 164,
+            'cp_land_improvements': 166,
+            'cp_infra_assets': 167,
+            'cp_building_other_structures': 168,
+            'cp_leased_assets': 169,
+            'cp_leased_assets_improvements': 170,
+            'ia_computer_software': 172,
+            'ia_websites': 173,
+            'ia_other_tangible_assets': 174,
+        }
+        
+        # ✅ Fill budget data
+        print(f"=== UPDATING BUDGET DATA ===")
+        updates_made = 0
+        
+        for item_key, row_num in budget_items_mapping.items():
+            try:
+                # Get quarterly values
+                q1 = to_decimal(payload.get(f"{item_key}_q1"))
+                q2 = to_decimal(payload.get(f"{item_key}_q2"))
+                q3 = to_decimal(payload.get(f"{item_key}_q3"))
+                q4 = to_decimal(payload.get(f"{item_key}_q4"))
+                total = q1 + q2 + q3 + q4
+                
+                if total > 0:
+                    print(f"Updating {item_key} (Row {row_num}): Q1={q1}, Q2={q2}, Q3={q3}, Q4={q4}")
+                    
+                    # Update quarterly data
+                    if q1 > 0:
+                        ws.range(f'E{row_num}').value = float(q1)
+                    if q2 > 0:
+                        ws.range(f'F{row_num}').value = float(q2)
+                    if q3 > 0:
+                        ws.range(f'G{row_num}').value = float(q3)
+                    if q4 > 0:
+                        ws.range(f'H{row_num}').value = float(q4)
+                    if total > 0:
+                        ws.range(f'I{row_num}').value = float(total)
+                    
+                    updates_made += 1
+                    
+            except Exception as e:
+                print(f"Error updating {item_key}: {e}")
+                continue
+        
+        print(f"Total updates made: {updates_made}")
+        
+        # ✅ Fill certification section
+        try:
+            # Search for certification fields
+            for row in range(130, 200):
+                try:
+                    cell_value = ws.range(f'A{row}').value
+                    if cell_value:
+                        cell_value_lower = str(cell_value).lower()
+                        
+                        if 'prepared' in cell_value_lower and 'by' in cell_value_lower:
+                            if pre.prepared_by_name:
+                                ws.range(f'C{row}').value = pre.prepared_by_name
+                                print(f"Updated prepared by at row {row}")
+                        elif 'certified' in cell_value_lower and 'by' in cell_value_lower:
+                            if pre.certified_by_name:
+                                ws.range(f'C{row}').value = pre.certified_by_name
+                                print(f"Updated certified by at row {row}")
+                        elif 'approved' in cell_value_lower and 'by' in cell_value_lower:
+                            if pre.approved_by_name:
+                                ws.range(f'C{row}').value = pre.approved_by_name
+                                print(f"Updated approved by at row {row}")
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"Could not update certification: {e}")
+        
+        # ✅ Save and close
+        print("Saving workbook...")
+        wb.save()
+        wb.close()
+        app.quit()
+        
+        # Read the file
+        with open(temp_path, 'rb') as f:
+            file_content = f.read()
+        
+        # Clean up
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+        
+        # Generate filename
+        safe_dept = "".join(c for c in pre.department if c.isalnum() or c in (' ', '-', '_')).replace(' ', '_')
+        filename = f"PRE_{safe_dept}_{pre.id}_{pre.created_at.strftime('%Y%m%d')}.xlsx"
+        
+        # Create response
+        response = HttpResponse(
+            file_content,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        
+        # Log the download
+        log_audit_trail(
+            request=request,
+            action='DOWNLOAD',
+            model_name='DepartmentPRE',
+            record_id=pre.id,
+            detail=f'Downloaded Excel document for PRE: {pre.department}',
+        )
+        
+        return response
+        
+    except Exception as e:
+        messages.error(request, f"Error generating Excel document: {str(e)}")
+        print(f"DEBUG: Excel generation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect('preview_pre', pk=pk)
+
+
+# This views is for downloading the PRE into excel format but this one uses xlwings
+# @role_required('end_user', login_url='/')
+# def download_pre_excel(request, pk):
+#     """Debug version - Generate and download PRE as Excel with detailed logging"""
+    
+#     pre = get_object_or_404(
+#         DepartmentPRE.objects.select_related('submitted_by'),
+#         pk=pk,
+#         submitted_by=request.user
+#     )
+    
+#     try:
+#         template_path = r"c:\Users\John Romel Lucot\OneDrive\Desktop\Capstone project\bb_budget_monitoring_system\excel_templates\Departmental-PRE.xlsx"
+        
+#         if not os.path.exists(template_path):
+#             raise FileNotFoundError(f"Excel template not found at {template_path}")
+        
+#         # Create temporary copy
+#         with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_file:
+#             shutil.copy2(template_path, temp_file.name)
+#             temp_path = temp_file.name
+        
+#         def to_decimal(value):
+#             try:
+#                 return Decimal(str(value)) if value not in (None, "") else Decimal('0')
+#             except Exception:
+#                 return Decimal('0')
+        
+#         payload = pre.data or {}
+        
+#         # ✅ DEBUG: Print PRE data to understand what we have
+#         print(f"=== PRE DATA DEBUG ===")
+#         print(f"PRE ID: {pre.id}")
+#         print(f"Department: {pre.department}")
+#         print(f"Payload keys: {list(payload.keys()) if payload else 'No payload'}")
+        
+#         # Print some sample data
+#         if payload:
+#             for key, value in list(payload.items())[:10]:  # First 10 items
+#                 print(f"  {key}: {value}")
+        
+#         # Open with xlwings
+#         app = xw.App(visible=False)
+#         wb = app.books.open(temp_path)
+#         ws = wb.sheets[0]
+        
+#         # ✅ DEBUG: Test basic cell update first
+#         print(f"=== TESTING BASIC UPDATES ===")
+#         try:
+#             # Test department update
+#             old_dept = ws.range('C5').value
+#             ws.range('C5').value = pre.department
+#             new_dept = ws.range('C5').value
+#             print(f"Department update: '{old_dept}' -> '{new_dept}'")
+#         except Exception as e:
+#             print(f"Error updating department: {e}")
+        
+#         # ✅ DEBUG: Test a few budget items with detailed logging
+#         test_items = {
+#             'basic_salary': 15,
+#             'travel_local': 23,
+#             'office_supplies_expenses': 28,
+#             'food_supplies_expenses': 33,
+#         }
+        
+#         print(f"=== TESTING BUDGET DATA UPDATES ===")
+#         for item_key, row_num in test_items.items():
+#             try:
+#                 # Get quarterly values
+#                 q1 = to_decimal(payload.get(f"{item_key}_q1"))
+#                 q2 = to_decimal(payload.get(f"{item_key}_q2"))
+#                 q3 = to_decimal(payload.get(f"{item_key}_q3"))
+#                 q4 = to_decimal(payload.get(f"{item_key}_q4"))
+#                 total = q1 + q2 + q3 + q4
+                
+#                 print(f"Item: {item_key} (Row {row_num})")
+#                 print(f"  Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Total: {total}")
+                
+#                 # Check current cell values
+#                 current_e = ws.range(f'E{row_num}').value
+#                 current_f = ws.range(f'F{row_num}').value
+#                 current_g = ws.range(f'G{row_num}').value
+#                 current_h = ws.range(f'H{row_num}').value
+#                 current_i = ws.range(f'I{row_num}').value
+                
+#                 print(f"  Current cells: E={current_e}, F={current_f}, G={current_g}, H={current_h}, I={current_i}")
+                
+#                 # Update cells if we have data
+#                 if q1 > 0:
+#                     ws.range(f'E{row_num}').value = float(q1)
+#                     print(f"  Updated E{row_num} = {float(q1)}")
+#                 if q2 > 0:
+#                     ws.range(f'F{row_num}').value = float(q2)
+#                     print(f"  Updated F{row_num} = {float(q2)}")
+#                 if q3 > 0:
+#                     ws.range(f'G{row_num}').value = float(q3)
+#                     print(f"  Updated G{row_num} = {float(q3)}")
+#                 if q4 > 0:
+#                     ws.range(f'H{row_num}').value = float(q4)
+#                     print(f"  Updated H{row_num} = {float(q4)}")
+#                 if total > 0:
+#                     ws.range(f'I{row_num}').value = float(total)
+#                     print(f"  Updated I{row_num} = {float(total)}")
+                
+#                 # Verify the updates
+#                 new_e = ws.range(f'E{row_num}').value
+#                 new_f = ws.range(f'F{row_num}').value
+#                 new_g = ws.range(f'G{row_num}').value
+#                 new_h = ws.range(f'H{row_num}').value
+#                 new_i = ws.range(f'I{row_num}').value
+                
+#                 print(f"  After update: E={new_e}, F={new_f}, G={new_g}, H={new_h}, I={new_i}")
+#                 print("  ---")
+                
+#             except Exception as e:
+#                 print(f"Error updating {item_key}: {e}")
+#                 continue
+        
+#         # ✅ Save and close
+#         print(f"=== SAVING FILE ===")
+#         wb.save()
+#         wb.close()
+#         app.quit()
+        
+#         # Read the saved file
+#         with open(temp_path, 'rb') as f:
+#             file_content = f.read()
+        
+#         # Clean up
+#         try:
+#             os.unlink(temp_path)
+#         except:
+#             pass
+        
+#         # Generate filename
+#         safe_dept = "".join(c for c in pre.department if c.isalnum() or c in (' ', '-', '_')).replace(' ', '_')
+#         filename = f"PRE_{safe_dept}_{pre.id}_{pre.created_at.strftime('%Y%m%d')}.xlsx"
+        
+#         # Create response
+#         response = HttpResponse(
+#             file_content,
+#             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+#         )
+#         response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        
+#         # Log the download
+#         log_audit_trail(
+#             request=request,
+#             action='DOWNLOAD',
+#             model_name='DepartmentPRE',
+#             record_id=pre.id,
+#             detail=f'Downloaded Excel document for PRE: {pre.department}',
+#         )
+        
+#         return response
+        
+#     except Exception as e:
+#         messages.error(request, f"Error generating Excel document: {str(e)}")
+#         print(f"DEBUG: xlwings error: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return redirect('preview_pre', pk=pk)

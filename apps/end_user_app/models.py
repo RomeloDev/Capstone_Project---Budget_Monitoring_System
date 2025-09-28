@@ -2,6 +2,7 @@ import decimal
 from django.db import models
 from apps.users.models import User
 from decimal import Decimal
+from django.core.validators import FileExtensionValidator
 
 # Create your models here
 class PurchaseRequest(models.Model):
@@ -182,6 +183,16 @@ class DepartmentPRE(models.Model):
 
     # Full raw payload keyed by the input names (e.g. "basic_salary_q1", etc.)
     data = models.JSONField()
+    
+    uploaded_file = models.FileField(upload_to='pre_uploads/%Y/%m/',
+        null=True, 
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['xlsx'])],
+        help_text="Upload PRE Excel file (.xlsx format only)")
+    
+    is_valid = models.BooleanField(default=False)
+    validation_errors = models.JSONField(default=dict, blank=True)
+    file_uploaded_at = models.DateTimeField(null=True, blank=True)
 
     # Signatories (free-text names provided by the user on the form)
     prepared_by_name = models.CharField(max_length=255, blank=True, null=True)
