@@ -15,6 +15,13 @@
             <button id="filterBtn" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded hover:bg-blue-50 transition-colors">
                 Filter
             </button>
+            <a href="{% url 'bulk_export_budgets' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" 
+            class="bg-green-600 text-white font-semibold px-4 py-2 rounded hover:bg-green-700 transition-colors inline-flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Bulk Export
+            </a>
             <button id="addBudgetBtn" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded hover:bg-blue-50 transition-colors">
                 Add Approved Budget
             </button>
@@ -36,6 +43,34 @@
             </div>
         {% endif %}
 
+        <!-- Year Filter Section -->
+        <section class="bg-white rounded-lg shadow-md p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">Budget Summary</h3>
+                    <p class="text-sm text-gray-600">View budget statistics for a specific year</p>
+                </div>
+                <form method="GET" action="{% url 'institutional_funds' %}" class="flex items-center gap-3">
+                    <label for="summary_year" class="text-sm font-medium text-gray-700">Select Year:</label>
+                    <select name="summary_year" 
+                            id="summary_year" 
+                            onchange="this.form.submit()"
+                            class="border border-gray-300 rounded px-4 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All Years</option>
+                        {% for year in available_years %}
+                            <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if selected_year != 'all' %}
+                        <a href="{% url 'institutional_funds' %}" 
+                        class="text-sm text-blue-600 hover:text-blue-800 underline">
+                            Clear Filter
+                        </a>
+                    {% endif %}
+                </form>
+            </div>
+        </section>
+
         <!-- Dashboard Summary Cards -->
         <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <!-- Total Approved Budget Card -->
@@ -44,7 +79,9 @@
                     <div>
                         <p class="text-sm font-medium text-gray-600">Total Approved Budget</p>
                         <p class="text-3xl font-bold text-gray-900">₱{{ total_approved_budget|default:"0"|floatformat:0|intcomma }}</p>
-                        <p class="text-xs text-gray-500 mt-1">All time</p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            {% if selected_year == 'all' %}All time{% else %}For {{ selected_year }}{% endif %}
+                        </p>
                     </div>
                     <div class="p-3 bg-blue-100 rounded-full">
                         <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,7 +113,9 @@
                     <div>
                         <p class="text-sm font-medium text-gray-600">Total Budget Entries</p>
                         <p class="text-3xl font-bold text-gray-900">{{ total_budget_count|default:"0" }}</p>
-                        <p class="text-xs text-gray-500 mt-1">Approved budgets</p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            {% if selected_year == 'all' %}All budgets{% else %}{{ selected_year }} budgets{% endif %}
+                        </p>
                     </div>
                     <div class="p-3 bg-purple-100 rounded-full">
                         <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,8 +144,19 @@
 
         <!-- Budget History Table -->
         <section class="bg-white rounded-lg p-6 shadow-md">
-            <header class="mb-4">
-                <h2 class="text-2xl font-bold text-gray-800">Approved Budget History</h2>
+            <header class="mb-4 flex justify-between items-center">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">Approved Budget History</h2>
+                    {% if request.GET.fiscal_year or request.GET.amount_min or request.GET.amount_max or request.GET.date_from or request.GET.date_to or request.GET.search %}
+                        <p class="text-sm text-gray-600 mt-1">
+                            Showing filtered results 
+                            <a href="{% url 'institutional_funds' %}{% if request.GET.summary_year %}?summary_year={{ request.GET.summary_year }}{% endif %}" 
+                            class="text-blue-600 hover:underline ml-2">
+                                Clear filters
+                            </a>
+                        </p>
+                    {% endif %}
+                </div>
             </header>
 
             <div class="overflow-x-auto rounded-lg">
@@ -115,11 +165,12 @@
                         <tr>
                             <th class="py-2 px-4">ID</th>
                             <th class="py-2 px-4">Title</th>
-                            <th class="py-2 px-4">Period</th>
+                            <th class="py-2 px-4">Fiscal Year</th>
                             <th class="py-2 px-4">Amount</th>
                             <th class="py-2 px-4">Remaining Balance</th>
+                            <th class="py-2 px-4">Documents</th>
                             <th class="py-2 px-4">Created At</th>
-                            <th class="py-2 px-4">Updated At</th>
+                            <th class="py-2 px-4">Actions</th> <!-- New column -->
                         </tr>
                     </thead>
                     <tbody class="text-gray-700">
@@ -127,19 +178,67 @@
                         <tr class="hover:bg-gray-50">
                             <td class="py-2 px-4 border-b">{{ budget.id }}</td>
                             <td class="py-2 px-4 border-b">{{ budget.title }}</td>
-                            <td class="py-2 px-4 border-b">{{ budget.period }}</td>
-                            <td class="py-2 px-4 border-b">&#8369;{{ budget.amount|intcomma }}</td>
-                            <td class="py-2 px-4 border-b">&#8369;{{ budget.remaining_budget|intcomma }}</td>
+                            <td class="py-2 px-4 border-b">{{ budget.fiscal_year }}</td>
+                            <td class="py-2 px-4 border-b">₱{{ budget.amount|intcomma }}</td>
+                            <td class="py-2 px-4 border-b">₱{{ budget.remaining_budget|intcomma }}</td>
+                            <td class="py-2 px-4 border-b">
+                                {% if budget.supporting_documents.exists %}
+                                    <button onclick="showDocuments({{ budget.id }})" 
+                                            class="text-blue-600 hover:underline font-medium">
+                                        {{ budget.get_documents_count }} document(s)
+                                    </button>
+                                {% else %}
+                                    <span class="text-gray-400">No documents</span>
+                                {% endif %}
+                            </td>
                             <td class="py-2 px-4 border-b">{{ budget.created_at|date:"M d, Y g:i A" }}</td>
-                            <td class="py-2 px-4 border-b">{{ budget.updated_at|date:"M d, Y g:i A" }}</td>
+                            <td class="py-2 px-4 border-b">
+                                <div class="flex gap-2">
+                                    <!-- Print Button -->
+                                    <a href="{% url 'export_budget_excel' budget.id %}" 
+                                    class="inline-flex items-center px-3 py-1 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition-colors"
+                                    title="Export to Excel">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                                        </svg>
+                                        Print
+                                    </a>
+                                    
+                                    <!-- Edit Button (placeholder for future) -->
+                                    <button onclick="editBudget({{ budget.id }})" 
+                                            class="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+                                            title="Edit Budget">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                        </svg>
+                                        Edit
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="py-4 px-4 text-center border-b text-gray-500">No Approved Budgets Yet</td>
+                            <td colspan="8" class="py-4 px-4 text-center border-b text-gray-500">No Approved Budgets Yet</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Add Documents Modal at the bottom of your template, before closing body tag -->
+            <div id="documentsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+                <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+                    <!-- Modal Header -->
+                    <div class="bg-blue-600 text-white px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0">
+                        <h2 class="text-xl font-bold">Supporting Documents</h2>
+                        <button onclick="closeDocumentsModal()" class="text-white hover:text-blue-200 text-2xl font-bold">&times;</button>
+                    </div>
+                    
+                    <!-- Modal Content -->
+                    <div id="documentsContent" class="p-6">
+                        <!-- Documents will be loaded here via JavaScript -->
+                    </div>
+                </div>
             </div>
 
             <!-- Pagination -->
@@ -197,38 +296,97 @@
         
         <!-- Modal Content -->
         <div class="p-6">
-            <p class="text-gray-600 mb-6">Set the approved budget for a specific quarter or year.</p>
+            <p class="text-gray-600 mb-6">Set the approved budget for a specific fiscal year with supporting documentation.</p>
             
-            <form method="POST" action="{% url "institutional_funds" %}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form method="POST" action="{% url 'institutional_funds' %}" enctype="multipart/form-data" class="space-y-4">
                 {% csrf_token %}
-
+                
+                <!-- Title -->
                 <div>
-                    <label for="title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input type="text" name="title" id="title" placeholder="e.g., FY 2025 Q1 Budget" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <label for="title" class="block text-sm font-medium text-gray-700 mb-1">
+                        Title <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                        name="title" 
+                        id="title" 
+                        placeholder="e.g., Annual Budget 2026" 
+                        required
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                 </div>
 
+                <!-- Fiscal Year -->
                 <div>
-                    <label for="period" class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                    <select name="period" id="period" class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        <option value="" disabled selected>-- Select Period --</option>
-                        <option value="Q1">Q1</option>
-                        <option value="Q2">Q2</option>
-                        <option value="Q3">Q3</option>
-                        <option value="Q4">Q4</option>
-                        <option value="Full Year">Full Year</option>
+                    <label for="fiscal_year" class="block text-sm font-medium text-gray-700 mb-1">
+                        Fiscal Year <span class="text-red-500">*</span>
+                    </label>
+                    <select name="fiscal_year" 
+                            id="fiscal_year" 
+                            required
+                            class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="" disabled selected>-- Select Year --</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027">2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
                     </select>
                 </div>
 
-                <div class="md:col-span-2">
-                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Approved Budget (₱)</label>
-                    <input type="number" name="amount" id="amount" placeholder="Enter amount" required class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <!-- Amount -->
+                <div>
+                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">
+                        Approved Budget Amount (₱) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" 
+                        name="amount" 
+                        id="amount" 
+                        placeholder="Enter amount" 
+                        step="0.01"
+                        min="0"
+                        required 
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                 </div>
 
-                <div class="md:col-span-2 flex justify-end gap-3">
-                    <button type="button" id="cancelBudgetBtn" class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600">
+                <!-- Supporting Document -->
+                <div>
+                    <label for="supporting_documents" class="block text-sm font-medium text-gray-700 mb-1">
+                        Supporting Documents <span class="text-red-500">*</span>
+                    </label>
+                    <input type="file" 
+                        name="supporting_documents" 
+                        id="supporting_documents" 
+                        accept=".pdf,.doc,.docx,.xlsx,.xls"
+                        multiple
+                        required
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <p class="text-xs text-gray-500 mt-1">You can select multiple files. Accepted formats: PDF, Word, Excel (Max 10MB per file)</p>
+                    
+                    <!-- Multiple File Preview -->
+                    <div id="filesPreview" class="mt-3 space-y-2 hidden"></div>
+                </div>
+                <!-- Optional Description -->
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+                        Description (Optional)
+                    </label>
+                    <textarea name="description" 
+                            id="description" 
+                            rows="3"
+                            placeholder="Add any additional notes or description..."
+                            class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end gap-3 pt-4 border-t">
+                    <button type="button" 
+                            id="cancelBudgetBtn" 
+                            class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600 transition-colors">
                         Cancel
                     </button>
-                    <button type="submit" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700">
+                    <button type="submit" 
+                            class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700 transition-colors">
                         Submit Budget
                     </button>
                 </div>
@@ -248,57 +406,253 @@
         
         <!-- Modal Content -->
         <div class="p-6">
-            <p class="text-gray-600 mb-6">Filter the approved budgets based on the criteria below.</p>
+            <p class="text-gray-600 mb-6">Filter the approved budgets table based on the criteria below.</p>
             
-            <form method="GET" action="{% url "institutional_funds" %}" class="space-y-4">
+            <form method="GET" action="{% url 'institutional_funds' %}" class="space-y-4">
+                <!-- Preserve summary_year parameter when filtering -->
+                {% if request.GET.summary_year %}
+                    <input type="hidden" name="summary_year" value="{{ request.GET.summary_year }}">
+                {% endif %}
+                
+                <!-- Fiscal Year Filter -->
                 <div>
-                    <label for="filter_period" class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                    <select name="period" id="filter_period" class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        <option value="">-- All Periods --</option>
-                        <option value="Q1">Q1</option>
-                        <option value="Q2">Q2</option>
-                        <option value="Q3">Q3</option>
-                        <option value="Q4">Q4</option>
-                        <option value="Full Year">Full Year</option>
+                    <label for="filter_fiscal_year" class="block text-sm font-medium text-gray-700 mb-1">Fiscal Year</label>
+                    <select name="fiscal_year" id="filter_fiscal_year" class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="">-- All Years --</option>
+                        {% for year in available_years %}
+                            <option value="{{ year }}" {% if request.GET.fiscal_year == year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
+                <!-- Amount Range -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="filter_amount_min" class="block text-sm font-medium text-gray-700 mb-1">Min Amount (₱)</label>
-                        <input type="number" name="amount_min" id="filter_amount_min" placeholder="0" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <input type="number" 
+                               name="amount_min" 
+                               id="filter_amount_min" 
+                               placeholder="0" 
+                               value="{{ request.GET.amount_min }}"
+                               step="0.01"
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                     </div>
                     <div>
                         <label for="filter_amount_max" class="block text-sm font-medium text-gray-700 mb-1">Max Amount (₱)</label>
-                        <input type="number" name="amount_max" id="filter_amount_max" placeholder="No limit" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <input type="number" 
+                               name="amount_max" 
+                               id="filter_amount_max" 
+                               placeholder="No limit" 
+                               value="{{ request.GET.amount_max }}"
+                               step="0.01"
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                     </div>
                 </div>
 
+                <!-- Date Range -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="filter_date_from" class="block text-sm font-medium text-gray-700 mb-1">Date From</label>
-                        <input type="date" name="date_from" id="filter_date_from" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <label for="filter_date_from" class="block text-sm font-medium text-gray-700 mb-1">Created Date From</label>
+                        <input type="date" 
+                               name="date_from" 
+                               id="filter_date_from" 
+                               value="{{ request.GET.date_from }}"
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                     </div>
                     <div>
-                        <label for="filter_date_to" class="block text-sm font-medium text-gray-700 mb-1">Date To</label>
-                        <input type="date" name="date_to" id="filter_date_to" class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <label for="filter_date_to" class="block text-sm font-medium text-gray-700 mb-1">Created Date To</label>
+                        <input type="date" 
+                               name="date_to" 
+                               id="filter_date_to" 
+                               value="{{ request.GET.date_to }}"
+                               class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                     </div>
                 </div>
 
+                <!-- Search -->
                 <div>
-                    <label for="filter_search" class="block text-sm font-medium text-gray-700 mb-1">Search in Title</label>
-                    <input type="text" name="search" id="filter_search" placeholder="Enter keywords..." class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <label for="filter_search" class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input type="text" 
+                           name="search" 
+                           id="filter_search" 
+                           placeholder="Search in title, description, or fiscal year..." 
+                           value="{{ request.GET.search }}"
+                           class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <p class="text-xs text-gray-500 mt-1">Search across title, description, and fiscal year fields</p>
                 </div>
 
-                <div class="flex justify-end gap-3 pt-4">
-                    <button type="button" id="clearFilters" class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600">
-                        Clear Filters
-                    </button>
-                    <button type="button" id="cancelFilterBtn" class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600">
+                <!-- Active Filters Indicator -->
+                {% if request.GET.fiscal_year or request.GET.amount_min or request.GET.amount_max or request.GET.date_from or request.GET.date_to or request.GET.search %}
+                <div class="bg-blue-50 border border-blue-200 rounded p-3">
+                    <p class="text-sm font-medium text-blue-800">Active Filters:</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        {% if request.GET.fiscal_year %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                Year: {{ request.GET.fiscal_year }}
+                            </span>
+                        {% endif %}
+                        {% if request.GET.amount_min %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                Min: ₱{{ request.GET.amount_min }}
+                            </span>
+                        {% endif %}
+                        {% if request.GET.amount_max %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                Max: ₱{{ request.GET.amount_max }}
+                            </span>
+                        {% endif %}
+                        {% if request.GET.date_from %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                From: {{ request.GET.date_from }}
+                            </span>
+                        {% endif %}
+                        {% if request.GET.date_to %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                To: {{ request.GET.date_to }}
+                            </span>
+                        {% endif %}
+                        {% if request.GET.search %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                Search: "{{ request.GET.search }}"
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end gap-3 pt-4 border-t">
+                    <a href="{% url 'institutional_funds' %}{% if request.GET.summary_year %}?summary_year={{ request.GET.summary_year }}{% endif %}" 
+                       class="bg-red-500 text-white font-semibold px-6 py-2 rounded hover:bg-red-600 transition-colors">
+                        Clear All Filters
+                    </a>
+                    <button type="button" 
+                            id="cancelFilterBtn" 
+                            class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600 transition-colors">
                         Cancel
                     </button>
-                    <button type="submit" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700">
+                    <button type="submit" 
+                            class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700 transition-colors">
                         Apply Filters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Budget Modal -->
+<div id="editBudgetModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <!-- Modal Header -->
+        <div class="bg-blue-600 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
+            <h2 class="text-xl font-bold">Edit Approved Budget</h2>
+            <button id="closeEditBudgetModal" class="text-white hover:text-blue-200 text-2xl font-bold">&times;</button>
+        </div>
+        
+        <!-- Modal Content -->
+        <div class="p-6">
+            <p class="text-gray-600 mb-6">Update the approved budget information.</p>
+            
+            <form method="POST" action="" id="editBudgetForm" enctype="multipart/form-data" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="budget_id" id="edit_budget_id">
+                
+                <!-- Title -->
+                <div>
+                    <label for="edit_title" class="block text-sm font-medium text-gray-700 mb-1">
+                        Title <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           name="title" 
+                           id="edit_title" 
+                           required
+                           class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <!-- Fiscal Year (Now Editable) -->
+                <div>
+                    <label for="edit_fiscal_year" class="block text-sm font-medium text-gray-700 mb-1">
+                        Fiscal Year <span class="text-red-500">*</span>
+                    </label>
+                    <select name="fiscal_year" 
+                            id="edit_fiscal_year" 
+                            required
+                            class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="">-- Select Year --</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027">2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+
+                <!-- Amount -->
+                <div>
+                    <label for="edit_amount" class="block text-sm font-medium text-gray-700 mb-1">
+                        Approved Budget Amount (₱) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" 
+                           name="amount" 
+                           id="edit_amount" 
+                           step="0.01"
+                           min="0"
+                           required 
+                           class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <!-- Add New Documents -->
+                <div>
+                    <label for="edit_supporting_documents" class="block text-sm font-medium text-gray-700 mb-1">
+                        Add New Documents (Optional)
+                    </label>
+                    <input type="file" 
+                           name="supporting_documents" 
+                           id="edit_supporting_documents" 
+                           accept=".pdf,.doc,.docx,.xlsx,.xls"
+                           multiple
+                           class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <p class="text-xs text-gray-500 mt-1">Leave empty to keep existing documents only</p>
+                    
+                    <!-- New File Preview -->
+                    <div id="editFilesPreview" class="mt-3 space-y-2 hidden"></div>
+                </div>
+
+                <!-- Existing Documents -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Existing Documents
+                    </label>
+                    <div id="existingDocumentsList" class="space-y-2 mb-2">
+                        <!-- Existing documents will be listed here -->
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="edit_description" class="block text-sm font-medium text-gray-700 mb-1">
+                        Description (Optional)
+                    </label>
+                    <textarea name="description" 
+                              id="edit_description" 
+                              rows="3"
+                              class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end gap-3 pt-4 border-t">
+                    <button type="button" 
+                            id="cancelEditBudgetBtn" 
+                            class="bg-gray-500 text-white font-semibold px-6 py-2 rounded hover:bg-gray-600 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700 transition-colors">
+                        Update Budget
                     </button>
                 </div>
             </form>
@@ -314,7 +668,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeBudgetModal = document.getElementById('closeBudgetModal');
     const cancelBudgetBtn = document.getElementById('cancelBudgetBtn');
     
-    // Filter Modal Elements
+    // Filter Modal Controls remain the same
     const filterModal = document.getElementById('filterModal');
     const filterBtn = document.getElementById('filterBtn');
     const closeFilterModal = document.getElementById('closeFilterModal');
@@ -338,7 +692,7 @@ document.addEventListener('DOMContentLoaded', function() {
         filterModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
-    
+
     function closeFilterModalFunction() {
         filterModal.classList.add('hidden');
         document.body.style.overflow = 'auto';
@@ -353,6 +707,18 @@ document.addEventListener('DOMContentLoaded', function() {
     filterBtn.addEventListener('click', openFilterModal);
     closeFilterModal.addEventListener('click', closeFilterModalFunction);
     cancelFilterBtn.addEventListener('click', closeFilterModalFunction);
+
+    filterModal.addEventListener('click', function(e) {
+        if (e.target === filterModal) {
+            closeFilterModalFunction();
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !filterModal.classList.contains('hidden')) {
+            closeFilterModalFunction();
+        }
+    });
     
     // Clear Filters
     clearFilters.addEventListener('click', function() {
@@ -389,6 +755,392 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+});
+
+{% comment %} // File preview functionality
+document.getElementById('supporting_document').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const filePreview = document.getElementById('filePreview');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    
+    if (file) {
+        // Show preview
+        filePreview.classList.remove('hidden');
+        fileName.textContent = file.name;
+        
+        // Format file size
+        const size = file.size;
+        const formattedSize = size < 1024 * 1024 
+            ? (size / 1024).toFixed(2) + ' KB'
+            : (size / (1024 * 1024)).toFixed(2) + ' MB';
+        fileSize.textContent = formattedSize;
+    }
+});
+
+// Remove file
+document.getElementById('removeFile').addEventListener('click', function() {
+    const fileInput = document.getElementById('supporting_document');
+    fileInput.value = '';
+    document.getElementById('filePreview').classList.add('hidden');
+}); {% endcomment %}
+
+// Multiple file preview functionality
+document.getElementById('supporting_documents').addEventListener('change', function(e) {
+    const files = Array.from(e.target.files);
+    const filesPreview = document.getElementById('filesPreview');
+    
+    if (files.length > 0) {
+        filesPreview.classList.remove('hidden');
+        filesPreview.innerHTML = '';
+        
+        files.forEach((file, index) => {
+            const size = file.size < 1024 * 1024 
+                ? (file.size / 1024).toFixed(2) + ' KB'
+                : (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            
+            const ext = file.name.split('.').pop().toLowerCase();
+            let bgColor = 'bg-gray-50';
+            let textColor = 'text-gray-700';
+            
+            if (ext === 'pdf') {
+                bgColor = 'bg-red-50';
+                textColor = 'text-red-700';
+            } else if (ext === 'doc' || ext === 'docx') {
+                bgColor = 'bg-blue-50';
+                textColor = 'text-blue-700';
+            } else if (ext === 'xls' || ext === 'xlsx') {
+                bgColor = 'bg-green-50';
+                textColor = 'text-green-700';
+            }
+            
+            const fileItem = `
+                <div class="flex items-center gap-2 p-2 ${bgColor} rounded border border-gray-200">
+                    <span class="px-2 py-1 text-xs font-bold ${textColor} rounded">${ext.toUpperCase()}</span>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-700">${file.name}</p>
+                        <p class="text-xs text-gray-500">${size}</p>
+                    </div>
+                </div>
+            `;
+            filesPreview.innerHTML += fileItem;
+        });
+    } else {
+        filesPreview.classList.add('hidden');
+    }
+});
+
+// Store budget documents data with proper Django URLs
+const budgetDocuments = {
+    {% for budget in approved_budgets %}
+    {{ budget.id }}: [
+        {% for doc in budget.supporting_documents.all %}
+        {
+            id: {{ doc.id }},
+            name: "{{ doc.file_name|escapejs }}",
+            viewUrl: "{{ doc.document.url }}",
+            downloadUrl: "{% url 'download_document' doc.id %}",  // Django URL for download
+            format: "{{ doc.file_format }}",
+            size: "{{ doc.get_file_size_display }}",
+            uploaded: "{{ doc.uploaded_at|date:'M d, Y g:i A' }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
+
+function showDocuments(budgetId) {
+    const modal = document.getElementById('documentsModal');
+    const content = document.getElementById('documentsContent');
+    const docs = budgetDocuments[budgetId];
+    
+    if (!docs || docs.length === 0) {
+        content.innerHTML = '<p class="text-gray-500 text-center">No documents found.</p>';
+    } else {
+        let html = '<div class="space-y-3">';
+        
+        docs.forEach((doc, index) => {
+            let bgColor = 'bg-gray-50';
+            let badgeColor = 'bg-gray-100 text-gray-700';
+            
+            if (doc.format === 'pdf') {
+                bgColor = 'bg-red-50';
+                badgeColor = 'bg-red-100 text-red-700';
+            } else if (doc.format === 'doc' || doc.format === 'docx') {
+                bgColor = 'bg-blue-50';
+                badgeColor = 'bg-blue-100 text-blue-700';
+            } else if (doc.format === 'xls' || doc.format === 'xlsx') {
+                bgColor = 'bg-green-50';
+                badgeColor = 'bg-green-100 text-green-700';
+            }
+            
+            const canView = doc.format === 'pdf';
+            
+            html += `
+                <div class="flex items-center gap-3 p-4 ${bgColor} rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div class="flex-shrink-0">
+                        <span class="inline-block px-3 py-2 ${badgeColor} rounded font-bold text-sm">
+                            ${doc.format.toUpperCase()}
+                        </span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 truncate">${doc.name}</p>
+                        <p class="text-xs text-gray-500">${doc.size} • Uploaded ${doc.uploaded}</p>
+                    </div>
+                    <div class="flex-shrink-0 flex gap-2">
+                        ${canView ? `
+                            <a href="${doc.viewUrl}" 
+                               target="_blank"
+                               class="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                                View
+                            </a>
+                        ` : ''}
+                        <a href="${doc.downloadUrl}" 
+                           class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition-colors">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            Download
+                        </a>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        content.innerHTML = html;
+    }
+    
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDocumentsModal() {
+    const modal = document.getElementById('documentsModal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal when clicking outside
+document.getElementById('documentsModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDocumentsModal();
+    }
+});
+
+// Close with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDocumentsModal();
+    }
+});
+
+function closeDocumentsModal() {
+    const modal = document.getElementById('documentsModal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal when clicking outside
+document.getElementById('documentsModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDocumentsModal();
+    }
+});
+
+// Close with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDocumentsModal();
+    }
+});
+
+// Store budget data for editing
+const budgetsData = {
+    {% for budget in approved_budgets %}
+    {{ budget.id }}: {
+        id: {{ budget.id }},
+        title: "{{ budget.title|escapejs }}",
+        fiscal_year: "{{ budget.fiscal_year }}",
+        amount: {{ budget.amount }},
+        description: "{{ budget.description|escapejs }}",
+        documents: [
+            {% for doc in budget.supporting_documents.all %}
+            {
+                id: {{ doc.id }},
+                name: "{{ doc.file_name|escapejs }}",
+                format: "{{ doc.file_format }}",
+                size: "{{ doc.get_file_size_display }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
+
+// Edit Budget Function
+function editBudget(budgetId) {
+    const budget = budgetsData[budgetId];
+    if (!budget) {
+        alert('Budget not found!');
+        return;
+    }
+    
+    // Populate form fields
+    document.getElementById('edit_budget_id').value = budget.id;
+    document.getElementById('edit_title').value = budget.title;
+    
+    // Set fiscal year dropdown
+    const fiscalYearSelect = document.getElementById('edit_fiscal_year');
+    fiscalYearSelect.value = budget.fiscal_year;
+    
+    document.getElementById('edit_amount').value = budget.amount;
+    document.getElementById('edit_description').value = budget.description;
+    
+    // Display existing documents (rest of the code remains the same)
+    const existingDocsList = document.getElementById('existingDocumentsList');
+    if (budget.documents && budget.documents.length > 0) {
+        let docsHtml = '';
+        budget.documents.forEach(doc => {
+            let bgColor = 'bg-gray-50';
+            let badgeColor = 'bg-gray-100 text-gray-700';
+            
+            if (doc.format === 'pdf') {
+                bgColor = 'bg-red-50';
+                badgeColor = 'bg-red-100 text-red-700';
+            } else if (doc.format === 'doc' || doc.format === 'docx') {
+                bgColor = 'bg-blue-50';
+                badgeColor = 'bg-blue-100 text-blue-700';
+            } else if (doc.format === 'xls' || doc.format === 'xlsx') {
+                bgColor = 'bg-green-50';
+                badgeColor = 'bg-green-100 text-green-700';
+            }
+            
+            docsHtml += `
+                <div class="flex items-center gap-2 p-2 ${bgColor} rounded border border-gray-200">
+                    <span class="px-2 py-1 text-xs font-bold ${badgeColor} rounded">${doc.format.toUpperCase()}</span>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-700">${doc.name}</p>
+                        <p class="text-xs text-gray-500">${doc.size}</p>
+                    </div>
+                    <button type="button" 
+                            onclick="removeDocument(${doc.id})" 
+                            class="text-red-500 hover:text-red-700 text-sm font-medium">
+                        Remove
+                    </button>
+                </div>
+            `;
+        });
+        existingDocsList.innerHTML = docsHtml;
+    } else {
+        existingDocsList.innerHTML = '<p class="text-sm text-gray-500 italic">No existing documents</p>';
+    }
+    
+    // Clear new file input
+    document.getElementById('edit_supporting_documents').value = '';
+    document.getElementById('editFilesPreview').innerHTML = '';
+    document.getElementById('editFilesPreview').classList.add('hidden');
+    
+    // Open modal
+    document.getElementById('editBudgetModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+// Remove document function (will be handled in backend)
+function removeDocument(docId) {
+    if (confirm('Are you sure you want to remove this document?')) {
+        // Add hidden input to track documents to delete
+        const form = document.getElementById('editBudgetForm');
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'remove_documents[]';
+        input.value = docId;
+        form.appendChild(input);
+        
+        // Remove from UI
+        event.target.closest('div').remove();
+    }
+}
+
+// New file preview for edit modal
+document.getElementById('edit_supporting_documents').addEventListener('change', function(e) {
+    const files = Array.from(e.target.files);
+    const filesPreview = document.getElementById('editFilesPreview');
+    
+    if (files.length > 0) {
+        filesPreview.classList.remove('hidden');
+        filesPreview.innerHTML = '';
+        
+        files.forEach((file) => {
+            const size = file.size < 1024 * 1024 
+                ? (file.size / 1024).toFixed(2) + ' KB'
+                : (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            
+            const ext = file.name.split('.').pop().toLowerCase();
+            let bgColor = 'bg-gray-50';
+            let textColor = 'text-gray-700';
+            
+            if (ext === 'pdf') {
+                bgColor = 'bg-red-50';
+                textColor = 'text-red-700';
+            } else if (ext === 'doc' || ext === 'docx') {
+                bgColor = 'bg-blue-50';
+                textColor = 'text-blue-700';
+            } else if (ext === 'xls' || ext === 'xlsx') {
+                bgColor = 'bg-green-50';
+                textColor = 'text-green-700';
+            }
+            
+            const fileItem = `
+                <div class="flex items-center gap-2 p-2 ${bgColor} rounded border border-gray-200">
+                    <span class="px-2 py-1 text-xs font-bold ${textColor} rounded">${ext.toUpperCase()}</span>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-700">${file.name}</p>
+                        <p class="text-xs text-gray-500">${size}</p>
+                    </div>
+                    <span class="text-green-600 text-xs font-semibold">NEW</span>
+                </div>
+            `;
+            filesPreview.innerHTML += fileItem;
+        });
+    } else {
+        filesPreview.classList.add('hidden');
+    }
+});
+
+// Edit Modal Controls
+document.getElementById('closeEditBudgetModal').addEventListener('click', function() {
+    closeEditModal();
+});
+
+document.getElementById('cancelEditBudgetBtn').addEventListener('click', function() {
+    closeEditModal();
+});
+
+function closeEditModal() {
+    document.getElementById('editBudgetModal').classList.add('hidden');
+    document.body.style.overflow = 'auto';
+    document.getElementById('editBudgetForm').reset();
+}
+
+// Close on outside click
+document.getElementById('editBudgetModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeEditModal();
+    }
+});
+
+// Close with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (!document.getElementById('editBudgetModal').classList.contains('hidden')) {
+            closeEditModal();
+        }
+    }
 });
 </script>
 {% endblock  %}

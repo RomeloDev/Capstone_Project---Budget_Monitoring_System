@@ -22,4 +22,7 @@ urlpatterns = [
     path('admin-preview-activity-design/<int:pk>/', views.admin_preview_activity_design, name='admin_preview_activity_design'),
     path('pre_budget_realignment/', views.pre_budget_realignment_admin, name='pre_budget_realignment_admin'),
     path('pre_budget_realignment/<int:pk>/action/', views.handle_pre_realignment_admin_action, name='handle_pre_realignment_admin_action'),
+    path('download-document/<int:document_id>/', views.download_document, name='download_document'),
+    path('export-budget-excel/<int:budget_id>/', views.export_budget_excel, name='export_budget_excel'),
+    path('bulk-export-budgets/', views.bulk_export_budgets, name='bulk_export_budgets'),
 ]

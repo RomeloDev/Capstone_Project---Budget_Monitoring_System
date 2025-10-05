@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'apps.end_user_app',
     'apps.admin_panel',
     'apps.approving_officer_app',
+    'apps.budgets',
     
     #Tailwind library
     'tailwind',

@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta
+import decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
 from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, SupportingDocument
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
@@ -18,8 +21,14 @@ from .utils import log_audit_trail
 from django.db.models import Count
 from datetime import timedelta
 from apps.users.utils import role_required
-
-
+import mimetypes
+from django.http import FileResponse, Http404
+import os
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from django.http import HttpResponse
+from openpyxl.utils import get_column_letter
+from openpyxl import Workbook
+from django.db.models import Q
 
 # Create your views here.
 @role_required('admin', login_url='/admin/')
@@ -493,72 +502,263 @@ def budget_allocation(request):
 @role_required('admin', login_url='/admin/')
 def institutional_funds(request):
     if request.method == 'POST':
-        title = request.POST.get('title')
-        period = request.POST.get('period')
-        amount = request.POST.get('amount')
-       
-        # Validation
-        if not title or not period or not amount:
-            messages.error(request, "All fields are required.")
-            return redirect("institutional_funds")
+        action = request.POST.get('action', 'create')
+        
+        if action == 'edit':
+            # Handle Edit
+            budget_id = request.POST.get('budget_id')
+            title = request.POST.get('title')
+            fiscal_year = request.POST.get('fiscal_year')  # Now editable
+            amount = request.POST.get('amount')
+            description = request.POST.get('description', '')
+            new_documents = request.FILES.getlist('supporting_documents')
+            remove_doc_ids = request.POST.getlist('remove_documents[]')
+            
+            try:
+                budget = NewApprovedBudget.objects.get(id=budget_id)
+                
+                # Validate fiscal year
+                if not fiscal_year:
+                    messages.error(request, "Fiscal year is required.")
+                    return redirect("institutional_funds")
+                
+                # Check if fiscal year is being changed and if new fiscal year already exists
+                if budget.fiscal_year != fiscal_year:
+                    if NewApprovedBudget.objects.filter(fiscal_year=fiscal_year).exclude(id=budget_id).exists():
+                        messages.error(request, f"A budget for fiscal year {fiscal_year} already exists.")
+                        return redirect("institutional_funds")
+                
+                # Validate amount
+                amount = Decimal(amount)
+                if amount <= 0:
+                    messages.error(request, "Amount must be greater than zero.")
+                    return redirect("institutional_funds")
+                
+                # Update budget fields
+                budget.title = title
+                budget.fiscal_year = fiscal_year  # Now updating fiscal year
+                budget.amount = amount
+                budget.description = description
+                
+                # Recalculate remaining budget if amount changed
+                old_allocated = budget.amount - budget.remaining_budget
+                budget.remaining_budget = amount - old_allocated
+                
+                budget.save()
+                
+                # Remove documents marked for deletion
+                if remove_doc_ids:
+                    SupportingDocument.objects.filter(
+                        id__in=remove_doc_ids,
+                        approved_budget=budget
+                    ).delete()
+                
+                # Add new documents
+                if new_documents:
+                    allowed_formats = ['pdf', 'doc', 'docx', 'xls', 'xlsx']
+                    max_file_size = 10 * 1024 * 1024
+                    
+                    for doc in new_documents:
+                        if doc.size > max_file_size:
+                            messages.warning(request, f"File '{doc.name}' exceeds 10MB limit and was skipped.")
+                            continue
+                        
+                        ext = doc.name.split('.')[-1].lower()
+                        if ext not in allowed_formats:
+                            messages.warning(request, f"File '{doc.name}' has invalid format and was skipped.")
+                            continue
+                        
+                        SupportingDocument.objects.create(
+                            approved_budget=budget,
+                            document=doc,
+                            uploaded_by=request.user
+                        )
+                
+                messages.success(request, f"Budget '{title}' for FY {fiscal_year} updated successfully!")
+                
+                log_audit_trail(
+                    request=request,
+                    action='UPDATE',
+                    model_name='ApprovedBudget',
+                    record_id=budget.id,
+                    detail=f"Updated approved budget: {title} for fiscal year {fiscal_year}"
+                )
+                
+                return redirect("institutional_funds")
+                
+            except NewApprovedBudget.DoesNotExist:
+                messages.error(request, "Budget not found.")
+                return redirect("institutional_funds")
+            except Exception as e:
+                messages.error(request, f"Error updating budget: {str(e)}")
+                return redirect("institutional_funds")
+    
         else:
+            # Handle Create (existing code)
+            title = request.POST.get('title')
+            fiscal_year = request.POST.get('fiscal_year')
+            amount = request.POST.get('amount')
+            description = request.POST.get('description', '')
+            supporting_documents = request.FILES.getlist('supporting_documents')  # Multiple files
+            
+            # Validation
+            if not all([title, fiscal_year, amount]):
+                messages.error(request, "Title, Fiscal Year, and Amount are required.")
+                return redirect("institutional_funds")
+            
+            if not supporting_documents:
+                messages.error(request, "At least one supporting document is required.")
+                return redirect("institutional_funds")
+            
             try:
                 amount = Decimal(amount)
-            except (ValueError, TypeError):
+                if amount <= 0:
+                    messages.error(request, "Amount must be greater than zero.")
+                    return redirect("institutional_funds")
+            except (ValueError, TypeError, decimal.InvalidOperation):
                 messages.error(request, "Invalid amount entered.")
                 return redirect("institutional_funds")
-       
+            
+            # Check if budget for this fiscal year already exists
+            if NewApprovedBudget.objects.filter(fiscal_year=fiscal_year).exists():
+                messages.error(request, f"Approved budget for fiscal year {fiscal_year} already exists.")
+                return redirect("institutional_funds")
+            
+            # Validate files
+            allowed_formats = ['pdf', 'doc', 'docx', 'xls', 'xlsx']
+            max_file_size = 10 * 1024 * 1024  # 10MB
+            
+            for doc in supporting_documents:
+                # Check file size
+                if doc.size > max_file_size:
+                    messages.error(request, f"File '{doc.name}' exceeds 10MB limit.")
+                    return redirect("institutional_funds")
+                
+                # Check file format
+                ext = doc.name.split('.')[-1].lower()
+                if ext not in allowed_formats:
+                    messages.error(request, f"File '{doc.name}' has invalid format. Allowed: {', '.join(allowed_formats).upper()}")
+                    return redirect("institutional_funds")
+            
             # Create the approved budget
-            ApprovedBudget.objects.create(
-                title=title,
-                period=period,
-                amount=amount
-            )
-            messages.success(request, "Approved budget successfully added.")
-            log_audit_trail(
-                request=request,
-                action='CREATE',
-                model_name='ApprovedBudget',
-                record_id=None,  # No specific record ID for creation
-                detail=f"Created approved budget: {title} for period {period} with amount {intcomma(amount)}."
-            )
-            return redirect("institutional_funds")
+            try:
+                budget = NewApprovedBudget.objects.create(
+                    title=title,
+                    fiscal_year=fiscal_year,
+                    amount=amount,
+                    remaining_budget=amount,
+                    description=description,
+                    created_by=request.user
+                )
+                
+                # Create supporting document records for each uploaded file
+                document_count = 0
+                for doc in supporting_documents:
+                    SupportingDocument.objects.create(
+                        approved_budget=budget,
+                        document=doc,
+                        uploaded_by=request.user
+                    )
+                    document_count += 1
+                
+                messages.success(request, 
+                    f"Approved budget '{title}' for FY {fiscal_year} successfully added with {document_count} supporting document(s).")
+                
+                log_audit_trail(
+                    request=request,
+                    action='CREATE',
+                    model_name='ApprovedBudget',
+                    record_id=budget.id,
+                    detail=f"Created approved budget: {title} for fiscal year {fiscal_year} with amount ₱{intcomma(amount)}. Uploaded {document_count} supporting documents."
+                )
+                
+                return redirect("institutional_funds")
+                
+            except Exception as e:
+                messages.error(request, f"Error creating approved budget: {str(e)}")
+                return redirect("institutional_funds")
     
-    # Get all approved budgets ordered by creation date (newest first)
-    approved_budgets_list = ApprovedBudget.objects.order_by('-created_at')
+    # GET request - Display budgets
+    current_year = str(datetime.now().year)
     
-    # Calculate summary statistics
-    budget_stats = ApprovedBudget.objects.aggregate(
+    # Get year filter for summary cards (separate from table filters)
+    summary_year = request.GET.get('summary_year', current_year)
+    
+    # Get budgets for summary statistics
+    if summary_year == 'all':
+        summary_budgets = NewApprovedBudget.objects.all()
+    else:
+        summary_budgets = NewApprovedBudget.objects.filter(fiscal_year=summary_year)
+    
+    # Calculate summary statistics based on selected year
+    summary_stats = summary_budgets.aggregate(
         total_approved=Sum('amount'),
+        total_remaining=Sum('remaining_budget'),
         total_count=Count('id')
     )
     
-    total_approved_budget = budget_stats['total_approved'] or Decimal('0')
-    total_budget_count = budget_stats['total_count'] or 0
-    
-    # Calculate total remaining budget
-    total_remaining_budget = Decimal('0')
-    budget_utilization_rate = 0
-    
-    for budget in approved_budgets_list:
-        total_remaining_budget += budget.remaining_budget
+    total_approved_budget = summary_stats['total_approved'] or Decimal('0')
+    total_remaining_budget = summary_stats['total_remaining'] or Decimal('0')
+    total_budget_count = summary_stats['total_count'] or 0
     
     # Calculate utilization rate
+    budget_utilization_rate = 0
     if total_approved_budget > 0:
         total_allocated = total_approved_budget - total_remaining_budget
         budget_utilization_rate = round((total_allocated / total_approved_budget) * 100, 1)
     
+    # Get table budgets (with all table filters applied)
+    approved_budgets_list = NewApprovedBudget.objects.order_by('-created_at')
+    
+    # Apply table filters (keep your existing filter logic)
+    fiscal_year_filter = request.GET.get('fiscal_year')
+    amount_min = request.GET.get('amount_min')
+    amount_max = request.GET.get('amount_max')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    search_query = request.GET.get('search')
+    
+    if fiscal_year_filter:
+        approved_budgets_list = approved_budgets_list.filter(fiscal_year=fiscal_year_filter)
+    
+    if amount_min:
+        try:
+            approved_budgets_list = approved_budgets_list.filter(amount__gte=Decimal(amount_min))
+        except:
+            pass
+    
+    if amount_max:
+        try:
+            approved_budgets_list = approved_budgets_list.filter(amount__lte=Decimal(amount_max))
+        except:
+            pass
+    
+    if date_from:
+        approved_budgets_list = approved_budgets_list.filter(created_at__date__gte=date_from)
+    
+    if date_to:
+        approved_budgets_list = approved_budgets_list.filter(created_at__date__lte=date_to)
+    
+    if search_query:
+        from django.db.models import Q
+        approved_budgets_list = approved_budgets_list.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query) |
+            Q(fiscal_year__icontains=search_query)
+        )
+    
+    # Get available years for dropdown
+    available_years = NewApprovedBudget.objects.values_list('fiscal_year', flat=True).distinct().order_by('-fiscal_year')
+    
     # Pagination
-    paginator = Paginator(approved_budgets_list, 10)  # Show 10 budgets per page
+    paginator = Paginator(approved_budgets_list, 10)
     page_number = request.GET.get('page')
     
     try:
         approved_budgets = paginator.page(page_number)
     except PageNotAnInteger:
-        # If page is not an integer, deliver first page
         approved_budgets = paginator.page(1)
     except EmptyPage:
-        # If page is out of range, deliver last page of results
         approved_budgets = paginator.page(paginator.num_pages)
     
     context = {
@@ -567,9 +767,376 @@ def institutional_funds(request):
         'total_remaining_budget': total_remaining_budget,
         'total_budget_count': total_budget_count,
         'budget_utilization_rate': budget_utilization_rate,
+        'available_years': available_years,
+        'selected_year': summary_year,
+        'current_year': current_year,
     }
     
     return render(request, 'admin_panel/institutional_funds.html', context)
+
+@role_required('admin', login_url='/admin/')
+def download_document(request, document_id):
+    """Download supporting document with 'Save As' dialog"""
+    document = get_object_or_404(SupportingDocument, id=document_id)
+    
+    # Check if file exists
+    if not os.path.exists(document.document.path):
+        raise Http404("Document file not found")
+    
+    # Open the file
+    file_handle = open(document.document.path, 'rb')
+    
+    # Create response with attachment header to force download dialog
+    response = FileResponse(file_handle)
+    response['Content-Type'] = 'application/octet-stream'
+    response['Content-Disposition'] = f'attachment; filename="{document.file_name}"'
+    
+    return response
+
+@role_required('admin', login_url='/admin/')
+def export_budget_excel(request, budget_id):
+    """Export single approved budget to Excel"""
+    budget = get_object_or_404(NewApprovedBudget, id=budget_id)
+    
+    # Create workbook and worksheet
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Budget {budget.fiscal_year}"
+    
+    # Set column widths
+    ws.column_dimensions['A'].width = 25
+    ws.column_dimensions['B'].width = 40
+    
+    # Header styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    
+    # Border styling
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Title
+    ws.merge_cells('A1:B1')
+    title_cell = ws['A1']
+    title_cell.value = "APPROVED BUDGET REPORT"
+    title_cell.font = Font(bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    title_cell.fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    title_cell.font = Font(bold=True, color="FFFFFF", size=14)
+    
+    # Add some spacing
+    current_row = 3
+    
+    # Budget Information Section
+    ws[f'A{current_row}'] = "Budget Information"
+    ws[f'A{current_row}'].font = header_font
+    ws[f'A{current_row}'].fill = header_fill
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    current_row += 1
+    
+    # Budget details
+    budget_data = [
+        ("Title:", budget.title),
+        ("Fiscal Year:", budget.fiscal_year),
+        ("Approved Amount:", f"₱{budget.amount:,.2f}"),
+        ("Remaining Balance:", f"₱{budget.remaining_budget:,.2f}"),
+        ("Allocated Amount:", f"₱{budget.amount - budget.remaining_budget:,.2f}"),
+        ("Created By:", budget.created_by.get_full_name() if budget.created_by else "N/A"),
+        ("Created At:", budget.created_at.strftime("%B %d, %Y %I:%M %p")),
+        ("Description:", budget.description or "N/A"),
+    ]
+    
+    for label, value in budget_data:
+        ws[f'A{current_row}'] = label
+        ws[f'A{current_row}'].font = Font(bold=True)
+        ws[f'A{current_row}'].border = thin_border
+        
+        ws[f'B{current_row}'] = value
+        ws[f'B{current_row}'].border = thin_border
+        current_row += 1
+    
+    # Supporting Documents Section
+    current_row += 2
+    ws[f'A{current_row}'] = "Supporting Documents"
+    ws[f'A{current_row}'].font = header_font
+    ws[f'A{current_row}'].fill = header_fill
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    current_row += 1
+    
+    # Document headers
+    ws[f'A{current_row}'] = "File Name"
+    ws[f'A{current_row}'].font = Font(bold=True)
+    ws[f'A{current_row}'].fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    ws[f'A{current_row}'].border = thin_border
+    
+    ws[f'B{current_row}'] = "File Type"
+    ws[f'B{current_row}'].font = Font(bold=True)
+    ws[f'B{current_row}'].fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    ws[f'B{current_row}'].border = thin_border
+    current_row += 1
+    
+    # List documents
+    documents = budget.supporting_documents.all()
+    if documents.exists():
+        for doc in documents:
+            ws[f'A{current_row}'] = doc.file_name
+            ws[f'A{current_row}'].border = thin_border
+            
+            ws[f'B{current_row}'] = doc.file_format.upper()
+            ws[f'B{current_row}'].border = thin_border
+            current_row += 1
+    else:
+        ws[f'A{current_row}'] = "No documents attached"
+        ws.merge_cells(f'A{current_row}:B{current_row}')
+        ws[f'A{current_row}'].alignment = Alignment(horizontal='center')
+        ws[f'A{current_row}'].font = Font(italic=True, color="999999")
+        ws[f'A{current_row}'].border = thin_border
+    
+    # Footer
+    current_row += 2
+    ws[f'A{current_row}'] = f"Generated on: {budget.created_at.strftime('%B %d, %Y %I:%M %p')}"
+    ws[f'A{current_row}'].font = Font(italic=True, size=9, color="666666")
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    
+    # Prepare response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="Budget_{budget.fiscal_year}_{budget.title.replace(" ", "_")}.xlsx"'
+    
+    wb.save(response)
+    return response
+
+@role_required('admin', login_url='/admin/')
+def bulk_export_budgets(request):
+    """Export all approved budgets to Excel with filters applied"""
+    
+    # Get all budgets with same filters as the table view
+    budgets = NewApprovedBudget.objects.order_by('-created_at')
+    
+    # Apply filters from GET parameters
+    fiscal_year_filter = request.GET.get('fiscal_year')
+    amount_min = request.GET.get('amount_min')
+    amount_max = request.GET.get('amount_max')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    search_query = request.GET.get('search')
+    
+    if fiscal_year_filter:
+        budgets = budgets.filter(fiscal_year=fiscal_year_filter)
+    
+    if amount_min:
+        try:
+            budgets = budgets.filter(amount__gte=Decimal(amount_min))
+        except:
+            pass
+    
+    if amount_max:
+        try:
+            budgets = budgets.filter(amount__lte=Decimal(amount_max))
+        except:
+            pass
+    
+    if date_from:
+        budgets = budgets.filter(created_at__date__gte=date_from)
+    
+    if date_to:
+        budgets = budgets.filter(created_at__date__lte=date_to)
+    
+    if search_query:
+        budgets = budgets.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query) |
+            Q(fiscal_year__icontains=search_query)
+        )
+    
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Approved Budgets"
+    
+    # Set column widths
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 35
+    ws.column_dimensions['C'].width = 12
+    ws.column_dimensions['D'].width = 18
+    ws.column_dimensions['E'].width = 18
+    ws.column_dimensions['F'].width = 18
+    ws.column_dimensions['G'].width = 15
+    ws.column_dimensions['H'].width = 25
+    ws.column_dimensions['I'].width = 22
+    
+    # Title
+    ws.merge_cells('A1:I1')
+    title_cell = ws['A1']
+    title_cell.value = "APPROVED BUDGETS REPORT"
+    title_cell.font = Font(bold=True, size=16, color="FFFFFF")
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    title_cell.fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    ws.row_dimensions[1].height = 30
+    
+    # Export info
+    from django.utils import timezone
+    ws.merge_cells('A2:I2')
+    info_cell = ws['A2']
+    info_cell.value = f"Generated on: {timezone.now().strftime('%B %d, %Y %I:%M %p')} | Total Records: {budgets.count()}"
+    info_cell.font = Font(italic=True, size=10, color="666666")
+    info_cell.alignment = Alignment(horizontal='center')
+    
+    # Headers
+    headers = [
+        'ID', 
+        'Title', 
+        'Fiscal Year', 
+        'Amount (₱)', 
+        'Remaining Balance (₱)', 
+        'Allocated (₱)',
+        'Utilization %',
+        'Documents', 
+        'Created At'
+    ]
+    
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = thin_border
+    
+    ws.row_dimensions[4].height = 25
+    
+    # Data rows
+    row_num = 5
+    for budget in budgets:
+        allocated = budget.amount - budget.remaining_budget
+        utilization = (allocated / budget.amount * 100) if budget.amount > 0 else 0
+        
+        # Get document count and formats
+        docs = budget.supporting_documents.all()
+        doc_info = f"{docs.count()} file(s)"
+        if docs.exists():
+            formats = ", ".join(set([doc.file_format.upper() for doc in docs]))
+            doc_info = f"{docs.count()} file(s) ({formats})"
+        
+        row_data = [
+            budget.id,
+            budget.title,
+            budget.fiscal_year,
+            float(budget.amount),
+            float(budget.remaining_budget),
+            float(allocated),
+            round(utilization, 2),
+            doc_info,
+            budget.created_at.strftime('%b %d, %Y %I:%M %p')
+        ]
+        
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.value = value
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
+            
+            # Format currency columns
+            if col_num in [4, 5, 6]:
+                cell.number_format = '#,##0.00'
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+            
+            # Format percentage column
+            if col_num == 7:
+                cell.number_format = '0.00"%"'
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+            # Alternate row colors
+            if row_num % 2 == 0:
+                cell.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        
+        row_num += 1
+    
+    # Summary row
+    row_num += 1
+    summary_fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+    summary_font = Font(bold=True, size=11)
+    
+    # Calculate totals
+    total_amount = sum(float(b.amount) for b in budgets)
+    total_remaining = sum(float(b.remaining_budget) for b in budgets)
+    total_allocated = total_amount - total_remaining
+    avg_utilization = (total_allocated / total_amount * 100) if total_amount > 0 else 0
+    
+    ws.merge_cells(f'A{row_num}:C{row_num}')
+    summary_label = ws.cell(row=row_num, column=1)
+    summary_label.value = "TOTAL / AVERAGE"
+    summary_label.font = summary_font
+    summary_label.fill = summary_fill
+    summary_label.alignment = Alignment(horizontal='right', vertical='center')
+    summary_label.border = thin_border
+    
+    # Total amount
+    cell = ws.cell(row=row_num, column=4)
+    cell.value = total_amount
+    cell.font = summary_font
+    cell.fill = summary_fill
+    cell.number_format = '#,##0.00'
+    cell.alignment = Alignment(horizontal='right', vertical='center')
+    cell.border = thin_border
+    
+    # Total remaining
+    cell = ws.cell(row=row_num, column=5)
+    cell.value = total_remaining
+    cell.font = summary_font
+    cell.fill = summary_fill
+    cell.number_format = '#,##0.00'
+    cell.alignment = Alignment(horizontal='right', vertical='center')
+    cell.border = thin_border
+    
+    # Total allocated
+    cell = ws.cell(row=row_num, column=6)
+    cell.value = total_allocated
+    cell.font = summary_font
+    cell.fill = summary_fill
+    cell.number_format = '#,##0.00'
+    cell.alignment = Alignment(horizontal='right', vertical='center')
+    cell.border = thin_border
+    
+    # Average utilization
+    cell = ws.cell(row=row_num, column=7)
+    cell.value = round(avg_utilization, 2)
+    cell.font = summary_font
+    cell.fill = summary_fill
+    cell.number_format = '0.00"%"'
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.border = thin_border
+    
+    # Empty cells for remaining columns
+    for col in [8, 9]:
+        cell = ws.cell(row=row_num, column=col)
+        cell.fill = summary_fill
+        cell.border = thin_border
+    
+    # Prepare response
+    from datetime import datetime
+    filename = f"Approved_Budgets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    wb.save(response)
+    return response
 
 @role_required('admin', login_url='/admin/')
 def admin_logout(request):
