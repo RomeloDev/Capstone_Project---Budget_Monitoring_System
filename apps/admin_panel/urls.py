@@ -25,4 +25,6 @@ urlpatterns = [
     path('download-document/<int:document_id>/', views.download_document, name='download_document'),
     path('export-budget-excel/<int:budget_id>/', views.export_budget_excel, name='export_budget_excel'),
     path('bulk-export-budgets/', views.bulk_export_budgets, name='bulk_export_budgets'),
+    path('export-allocation-excel/<int:allocation_id>/', views.export_allocation_excel, name='export_allocation_excel'),
+    path('bulk-export-allocations/', views.bulk_export_allocations, name='bulk_export_allocations'),
 ]

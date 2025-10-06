@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
 from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, SupportingDocument
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, SupportingDocument, BudgetAllocation as NewBudgetAllocation
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
@@ -174,7 +174,8 @@ def register_account(request):
         username = request.POST.get('username')
         fullname = request.POST.get('fullname')
         email = request.POST.get('email')
-        department = request.POST.get('department')
+        mfo = request.POST.get('mfo')  # Main Department
+        department = request.POST.get('department')  # Sub-department
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm-password')
         position = request.POST.get('position')
@@ -183,22 +184,38 @@ def register_account(request):
         if password != confirm_password:
             return render(request, 'admin_panel/client_accounts.html', {'error': 'Passwords do not match'})
         
-        # Check if the department or username or email are already exists
+        # Check if the username or email already exists
         if User.objects.filter(username=username).exists():
             return render(request, 'admin_panel/client_accounts.html', {'error': 'Username already taken.'})
-
         if User.objects.filter(email=email).exists():
             return render(request, 'admin_panel/client_accounts.html', {'error': f'Email {email} already registered.'})
         
+        # Check if the department already exists (specific sub-department)
         if User.objects.filter(department=department).exists():
             return render(request, 'admin_panel/client_accounts.html', {'error': f'Department {department} already registered.'})
         
         if department == 'Approving-Officer':
-            approving_officer = User.objects.create_approving_officer(username=username, fullname=fullname, email=email, password=password)
+            approving_officer = User.objects.create_approving_officer(
+                username=username, 
+                fullname=fullname, 
+                email=email, 
+                password=password,
+                mfo=mfo
+            )
+            approving_officer.position = position
+            approving_officer.save()
             return render(request, "admin_panel/client_accounts.html", {'success': "Approving Officer Account registered successfully!"})
         else:
-            # Create and save the user
-            user = User.objects.create_user(username=username, fullname=fullname, email=email, password=password, department=department, position=position)
+            # Create and save the user with both mfo and department
+            user = User.objects.create_user(
+                username=username, 
+                fullname=fullname, 
+                email=email, 
+                password=password, 
+                department=department,
+                mfo=mfo,
+                position=position
+            )
             
             try:
                 end_users = User.objects.filter(is_staff=False)
@@ -434,70 +451,670 @@ def handle_departments_request(request, request_id):
 
 @role_required('admin', login_url='/admin/')
 def budget_allocation(request):
-    approved_budgets = ApprovedBudget.objects.all()
-    departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
+    """Handle budget allocation to departments and end users"""
     
     if request.method == 'POST':
-        department = request.POST.get('department')
-        approved_budget_id = request.POST.get('approved_budget')
-        amount = request.POST.get('amount')
+        action = request.POST.get('action', 'create')
         
-        # Validation
-        if not department or not approved_budget_id or not amount:
-            messages.error(request, "All fields are required.")
-            return redirect('budget_allocation')
+        if action == 'edit':
+            # Handle Edit
+            allocation_id = request.POST.get('allocation_id')
+            new_amount = request.POST.get('amount')
+            
+            try:
+                allocation = NewBudgetAllocation.objects.select_related('approved_budget').get(id=allocation_id)
+                new_amount = Decimal(new_amount)
+                
+                # Calculate amount already used
+                amount_used = (allocation.pre_amount_used + 
+                             allocation.pr_amount_used + 
+                             allocation.ad_amount_used)
+                
+                # Validation: new amount must be >= amount used
+                if new_amount < amount_used:
+                    messages.error(request, 
+                        f"New allocation amount (₱{new_amount:,.2f}) cannot be less than "
+                        f"amount already used (₱{amount_used:,.2f}).")
+                    return redirect('budget_allocation')
+                
+                # Calculate difference
+                old_amount = allocation.allocated_amount
+                difference = new_amount - old_amount
+                
+                # If increasing allocation, check if approved budget has enough balance
+                if difference > 0:
+                    if difference > allocation.approved_budget.remaining_budget:
+                        messages.error(request, 
+                            f"Cannot increase allocation. Approved budget only has "
+                            f"₱{allocation.approved_budget.remaining_budget:,.2f} remaining.")
+                        return redirect('budget_allocation')
+                    
+                    # Decrease approved budget's remaining balance
+                    allocation.approved_budget.remaining_budget -= difference
+                    allocation.approved_budget.save()
+                
+                # If decreasing allocation, return amount to approved budget
+                elif difference < 0:
+                    # Return the difference to approved budget
+                    allocation.approved_budget.remaining_budget += abs(difference)
+                    allocation.approved_budget.save()
+                
+                # Update allocation
+                allocation.allocated_amount = new_amount
+                allocation.remaining_balance = new_amount - amount_used
+                allocation.save()
+                
+                messages.success(request, 
+                    f"Successfully updated allocation for {allocation.end_user.get_full_name()}. "
+                    f"New amount: ₱{new_amount:,.2f} "
+                    f"({'increased' if difference > 0 else 'decreased' if difference < 0 else 'unchanged'} by ₱{abs(difference):,.2f})")
+                
+                log_audit_trail(
+                    request=request,
+                    action='UPDATE',
+                    model_name='BudgetAllocation',
+                    record_id=allocation.id,
+                    detail=f"Updated allocation for {allocation.end_user.get_full_name()} "
+                           f"from ₱{old_amount:,.2f} to ₱{new_amount:,.2f}"
+                )
+                
+                return redirect('budget_allocation')
+                
+            except NewBudgetAllocation.DoesNotExist:
+                messages.error(request, "Allocation not found.")
+                return redirect('budget_allocation')
+            except Exception as e:
+                messages.error(request, f"Error updating allocation: {str(e)}")
+                return redirect('budget_allocation')
         
-        try:
-            amount = float(amount)
-            if amount < 0:
-                raise ValueError("Amount cannot be negative.")
-        except ValueError:
-            messages.error(request, "Enter a valid non-negative amount.")
-            return redirect('budget_allocation')
-        
-        try:
-            approved_budget = ApprovedBudget.objects.get(id=approved_budget_id)
-        except ApprovedBudget.DoesNotExist:
-            messages.error(request, "Selected approved budget does not exist.")
-            return redirect('budget_allocation')
-        
-        # Prevent duplicate department allocations for same approved budget
-        existing = BudgetAllocation.objects.filter(department=department, approved_budget=approved_budget).exists()
-        if existing:
-            messages.warning(request, "This department already has an allocation under this budget.")
-            return redirect('budget_allocation')
-
-        # Save Allocations
-        BudgetAllocation.objects.create(
-            department=department,
-            approved_budget= approved_budget,
-            total_allocated = amount
-        )
-        
-        # Force update the approved budget’s updated_at field
-        approved_budget.updated_at = timezone.now()
-        approved_budget.save(update_fields=['updated_at'])
-        
-        
-        messages.success(request, "Budget successfully allocated.")
-        log_audit_trail(
-            request=request,
-            action='CREATE',
-            model_name='BudgetAllocation',
-            record_id=None,  # No specific record ID for creation
-            detail=f"Allocated {intcomma(amount)} to {department} from approved budget: {approved_budget.title}."
-        )
-        return redirect('budget_allocation')
+        else:
+            # Get form data
+            approved_budget_id = request.POST.get('approved_budget')
+            mfo = request.POST.get('mfo')
+            end_user_id = request.POST.get('end_user')
+            amount = request.POST.get('amount')
+            
+            # Validation
+            if not all([approved_budget_id, mfo, end_user_id, amount]):
+                messages.error(request, "All fields are required.")
+                return redirect('budget_allocation')
+            
+            try:
+                # Get approved budget
+                approved_budget = NewApprovedBudget.objects.get(id=approved_budget_id)
+                
+                # Get end user
+                end_user = User.objects.get(id=end_user_id)
+                
+                # Validate amount
+                amount = Decimal(amount)
+                if amount <= 0:
+                    messages.error(request, "Amount must be greater than zero.")
+                    return redirect('budget_allocation')
+                
+                # Check if approved budget has enough remaining balance
+                if amount > approved_budget.remaining_budget:
+                    messages.error(request, 
+                        f"Insufficient budget. Available: ₱{approved_budget.remaining_budget:,.2f}, "
+                        f"Requested: ₱{amount:,.2f}")
+                    return redirect('budget_allocation')
+                
+                # Check if allocation already exists for this user and budget
+                existing_allocation = NewBudgetAllocation.objects.filter(
+                    approved_budget=approved_budget,
+                    end_user=end_user
+                ).first()
+                
+                if existing_allocation:
+                    messages.warning(request, 
+                        f"Allocation already exists for {end_user.get_full_name()} "
+                        f"({end_user.department}) under {approved_budget.title}. "
+                        f"Please edit the existing allocation instead.")
+                    return redirect('budget_allocation')
+                
+                # Create allocation - use end_user's department field
+                allocation = NewBudgetAllocation.objects.create(
+                    approved_budget=approved_budget,
+                    department=end_user.department,  # Use end_user's department
+                    end_user=end_user,
+                    allocated_amount=amount,
+                    remaining_balance=amount
+                )
+                
+                # Update approved budget remaining balance
+                approved_budget.remaining_budget -= amount
+                approved_budget.save()
+                
+                messages.success(request, 
+                    f"Successfully allocated ₱{amount:,.2f} to {end_user.get_full_name()} "
+                    f"({end_user.department}) from {approved_budget.title}.")
+                
+                log_audit_trail(
+                    request=request,
+                    action='CREATE',
+                    model_name='BudgetAllocation',
+                    record_id=allocation.id,
+                    detail=f"Allocated ₱{amount:,.2f} to {end_user.get_full_name()} "
+                        f"- MFO: {mfo}, Department: {end_user.department} "
+                        f"from {approved_budget.title} (FY {approved_budget.fiscal_year})"
+                )
+                
+                return redirect('budget_allocation')
+                
+            except NewApprovedBudget.DoesNotExist:
+                messages.error(request, "Selected approved budget not found.")
+                return redirect('budget_allocation')
+            except User.DoesNotExist:
+                messages.error(request, "Selected end user not found.")
+                return redirect('budget_allocation')
+            except Exception as e:
+                messages.error(request, f"Error creating allocation: {str(e)}")
+                return redirect('budget_allocation')
     
-    # --- 📊 Load existing allocations for table view ---
-    allocations = (
-        BudgetAllocation.objects
-        .select_related('approved_budget')
-        .order_by('-allocated_at')
+    # GET request - Display allocations
+    current_year = str(datetime.now().year)
+    
+    # Get year filter for summary cards
+    summary_year = request.GET.get('summary_year', current_year)
+    
+    # Get allocations for summary statistics based on selected year
+    if summary_year == 'all':
+        summary_allocations = NewBudgetAllocation.objects.all()
+    else:
+        summary_allocations = NewBudgetAllocation.objects.filter(
+            approved_budget__fiscal_year=summary_year
+        )
+    
+    # Calculate summary statistics based on selected year
+    allocation_stats = summary_allocations.aggregate(
+        total_allocated=Sum('allocated_amount'),
+        total_remaining=Sum('remaining_balance'),
+        total_departments=Count('department', distinct=True)
     )
     
-    return render(request, "admin_panel/budget_allocation.html", {'approved_budgets': approved_budgets, 'departments': departments, 'budgets': allocations})
+    total_allocated = allocation_stats['total_allocated'] or Decimal('0')
+    total_remaining = allocation_stats['total_remaining'] or Decimal('0')
+    total_departments = allocation_stats['total_departments'] or 0
+    
+    # Calculate utilization rate
+    utilization_rate = 0
+    if total_allocated > 0:
+        total_used = total_allocated - total_remaining
+        utilization_rate = round((total_used / total_allocated) * 100, 1)
+    
+    # Get all allocations for the table (not filtered by year)
+    allocations_list = NewBudgetAllocation.objects.select_related(
+        'approved_budget', 'end_user'
+    ).order_by('-allocated_at')
+    
+    # Apply table filters
+    fiscal_year_filter = request.GET.get('fiscal_year')
+    mfo_filter = request.GET.get('mfo')
+    department_filter = request.GET.get('department')
+    amount_min = request.GET.get('amount_min')
+    amount_max = request.GET.get('amount_max')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    search_query = request.GET.get('search')
+    
+    if fiscal_year_filter:
+        allocations_list = allocations_list.filter(approved_budget__fiscal_year=fiscal_year_filter)
+    
+    if mfo_filter:
+        allocations_list = allocations_list.filter(end_user__mfo=mfo_filter)
+    
+    if department_filter:
+        allocations_list = allocations_list.filter(department__icontains=department_filter)
+    
+    if amount_min:
+        try:
+            allocations_list = allocations_list.filter(allocated_amount__gte=Decimal(amount_min))
+        except:
+            pass
+    
+    if amount_max:
+        try:
+            allocations_list = allocations_list.filter(allocated_amount__lte=Decimal(amount_max))
+        except:
+            pass
+    
+    if date_from:
+        allocations_list = allocations_list.filter(allocated_at__date__gte=date_from)
+    
+    if date_to:
+        allocations_list = allocations_list.filter(allocated_at__date__lte=date_to)
+    
+    if search_query:
+        allocations_list = allocations_list.filter(
+            Q(end_user__fullname__icontains=search_query) |
+            Q(end_user__username__icontains=search_query) |
+            Q(end_user__email__icontains=search_query)
+        )
+    
+    # Get data for dropdowns
+    approved_budgets = NewApprovedBudget.objects.filter(
+        is_active=True,
+        remaining_budget__gt=0
+    ).order_by('-fiscal_year')
+    
+    # Get unique MFOs from users
+    mfos = User.objects.filter(
+        mfo__isnull=False
+    ).exclude(mfo='').values_list('mfo', flat=True).distinct().order_by('mfo')
+    
+    # Get end users grouped by MFO
+    end_users_by_mfo = {}
+    for mfo in mfos:
+        users = User.objects.filter(
+            is_superuser=False,
+            is_admin=False,
+            mfo=mfo
+        ).order_by('department', 'fullname')
+        
+        if users.exists():
+            end_users_by_mfo[mfo] = list(users)
+    
+    # Get available years for dropdown (from approved budgets linked to allocations)
+    available_years = NewBudgetAllocation.objects.select_related('approved_budget').values_list(
+        'approved_budget__fiscal_year', flat=True
+    ).distinct().order_by('-approved_budget__fiscal_year')
+    
+    # Pagination
+    paginator = Paginator(allocations_list, 10)
+    page_number = request.GET.get('page')
+    
+    try:
+        allocations = paginator.page(page_number)
+    except PageNotAnInteger:
+        allocations = paginator.page(1)
+    except EmptyPage:
+        allocations = paginator.page(paginator.num_pages)
+    
+    context = {
+        'allocations': allocations,
+        'total_allocated': total_allocated,
+        'total_remaining': total_remaining,
+        'total_departments': total_departments,
+        'utilization_rate': utilization_rate,
+        'approved_budgets': approved_budgets,
+        'mfos': mfos,
+        'end_users_by_mfo': end_users_by_mfo,
+        'available_years': available_years,
+        'selected_year': summary_year,
+        'current_year': current_year,
+    }
+    
+    return render(request, 'admin_panel/budget_allocation.html', context)
 
+@role_required('admin', login_url='/admin/')
+def export_allocation_excel(request, allocation_id):
+    """Export single budget allocation to Excel"""
+    allocation = get_object_or_404(
+        NewBudgetAllocation.objects.select_related('approved_budget', 'end_user'), 
+        id=allocation_id
+    )
+    
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Allocation {allocation_id}"
+    
+    # Set column widths
+    ws.column_dimensions['A'].width = 30
+    ws.column_dimensions['B'].width = 40
+    
+    # Styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Title
+    ws.merge_cells('A1:B1')
+    title_cell = ws['A1']
+    title_cell.value = "BUDGET ALLOCATION REPORT"
+    title_cell.font = Font(bold=True, size=14, color="FFFFFF")
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    title_cell.fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    ws.row_dimensions[1].height = 30
+    
+    current_row = 3
+    
+    # Allocation ID
+    ws[f'A{current_row}'] = "Allocation ID"
+    ws[f'A{current_row}'].font = Font(bold=True)
+    ws[f'A{current_row}'].border = thin_border
+    ws[f'B{current_row}'] = allocation.id
+    ws[f'B{current_row}'].border = thin_border
+    current_row += 1
+    
+    # Approved Budget Section
+    current_row += 1
+    ws[f'A{current_row}'] = "APPROVED BUDGET INFORMATION"
+    ws[f'A{current_row}'].font = header_font
+    ws[f'A{current_row}'].fill = header_fill
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    current_row += 1
+    
+    budget_data = [
+        ("Budget Title:", allocation.approved_budget.title),
+        ("Fiscal Year:", allocation.approved_budget.fiscal_year),
+        ("Total Budget Amount:", f"₱{allocation.approved_budget.amount:,.2f}"),
+        ("Budget Remaining:", f"₱{allocation.approved_budget.remaining_budget:,.2f}"),
+    ]
+    
+    for label, value in budget_data:
+        ws[f'A{current_row}'] = label
+        ws[f'A{current_row}'].font = Font(bold=True)
+        ws[f'A{current_row}'].border = thin_border
+        ws[f'B{current_row}'] = value
+        ws[f'B{current_row}'].border = thin_border
+        current_row += 1
+    
+    # User Information Section
+    current_row += 1
+    ws[f'A{current_row}'] = "END USER INFORMATION"
+    ws[f'A{current_row}'].font = header_font
+    ws[f'A{current_row}'].fill = header_fill
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    current_row += 1
+    
+    user_data = [
+        ("Full Name:", allocation.end_user.fullname),
+        ("Username:", allocation.end_user.username),
+        ("Email:", allocation.end_user.email),
+        ("MFO:", allocation.end_user.mfo or "N/A"),
+        ("Department:", allocation.department),
+        ("Position:", allocation.end_user.position or "N/A"),
+    ]
+    
+    for label, value in user_data:
+        ws[f'A{current_row}'] = label
+        ws[f'A{current_row}'].font = Font(bold=True)
+        ws[f'A{current_row}'].border = thin_border
+        ws[f'B{current_row}'] = value
+        ws[f'B{current_row}'].border = thin_border
+        current_row += 1
+    
+    # Financial Information Section
+    current_row += 1
+    ws[f'A{current_row}'] = "FINANCIAL SUMMARY"
+    ws[f'A{current_row}'].font = header_font
+    ws[f'A{current_row}'].fill = header_fill
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    current_row += 1
+    
+    financial_data = [
+        ("Allocated Amount:", f"₱{allocation.allocated_amount:,.2f}"),
+        ("Remaining Balance:", f"₱{allocation.remaining_balance:,.2f}"),
+        ("PRE Amount Used:", f"₱{allocation.pre_amount_used:,.2f}"),
+        ("PR Amount Used:", f"₱{allocation.pr_amount_used:,.2f}"),
+        ("AD Amount Used:", f"₱{allocation.ad_amount_used:,.2f}"),
+    ]
+    
+    total_used = allocation.pre_amount_used + allocation.pr_amount_used + allocation.ad_amount_used
+    financial_data.append(("Total Amount Used:", f"₱{total_used:,.2f}"))
+    
+    # Calculate utilization rate
+    utilization_rate = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+    financial_data.append(("Utilization Rate:", f"{utilization_rate:.2f}%"))
+    
+    for label, value in financial_data:
+        ws[f'A{current_row}'] = label
+        ws[f'A{current_row}'].font = Font(bold=True)
+        ws[f'A{current_row}'].border = thin_border
+        ws[f'B{current_row}'] = value
+        ws[f'B{current_row}'].border = thin_border
+        
+        # Highlight total row
+        if "Total Amount Used" in label:
+            ws[f'A{current_row}'].fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+            ws[f'B{current_row}'].fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+            ws[f'B{current_row}'].font = Font(bold=True)
+        
+        current_row += 1
+    
+    # Timeline Section
+    current_row += 1
+    ws[f'A{current_row}'] = "TIMELINE"
+    ws[f'A{current_row}'].font = header_font
+    ws[f'A{current_row}'].fill = header_fill
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    current_row += 1
+    
+    ws[f'A{current_row}'] = "Allocated At:"
+    ws[f'A{current_row}'].font = Font(bold=True)
+    ws[f'A{current_row}'].border = thin_border
+    ws[f'B{current_row}'] = allocation.allocated_at.strftime("%B %d, %Y %I:%M %p")
+    ws[f'B{current_row}'].border = thin_border
+    current_row += 1
+    
+    # Footer
+    current_row += 2
+    ws[f'A{current_row}'] = f"Generated on: {allocation.allocated_at.strftime('%B %d, %Y %I:%M %p')}"
+    ws[f'A{current_row}'].font = Font(italic=True, size=9, color="666666")
+    ws.merge_cells(f'A{current_row}:B{current_row}')
+    
+    # Prepare response
+    filename = f"Budget_Allocation_{allocation.id}_{allocation.end_user.username}.xlsx"
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    wb.save(response)
+    return response
+
+@role_required('admin', login_url='/admin/')
+def bulk_export_allocations(request):
+    """Export all budget allocations to Excel"""
+    
+    # Get all allocations
+    allocations = NewBudgetAllocation.objects.select_related(
+        'approved_budget', 'end_user'
+    ).order_by('-allocated_at')
+    
+    # Apply filters if any (same as the table view)
+    summary_year = request.GET.get('summary_year')
+    if summary_year and summary_year != 'all':
+        allocations = allocations.filter(approved_budget__fiscal_year=summary_year)
+    
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Budget Allocations"
+    
+    # Set column widths
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 12
+    ws.column_dimensions['D'].width = 25
+    ws.column_dimensions['E'].width = 25
+    ws.column_dimensions['F'].width = 30
+    ws.column_dimensions['G'].width = 18
+    ws.column_dimensions['H'].width = 18
+    ws.column_dimensions['I'].width = 15
+    ws.column_dimensions['J'].width = 15
+    ws.column_dimensions['K'].width = 15
+    ws.column_dimensions['L'].width = 15
+    ws.column_dimensions['M'].width = 22
+    
+    # Title
+    ws.merge_cells('A1:M1')
+    title_cell = ws['A1']
+    title_cell.value = "BUDGET ALLOCATIONS REPORT"
+    title_cell.font = Font(bold=True, size=16, color="FFFFFF")
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    title_cell.fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    ws.row_dimensions[1].height = 30
+    
+    # Export info
+    from django.utils import timezone
+    ws.merge_cells('A2:M2')
+    info_cell = ws['A2']
+    info_cell.value = f"Generated on: {timezone.now().strftime('%B %d, %Y %I:%M %p')} | Total Records: {allocations.count()}"
+    info_cell.font = Font(italic=True, size=10, color="666666")
+    info_cell.alignment = Alignment(horizontal='center')
+    
+    # Headers
+    headers = [
+        'ID',
+        'Approved Budget',
+        'FY',
+        'MFO',
+        'Department',
+        'End User',
+        'Allocated (₱)',
+        'Remaining (₱)',
+        'PRE Used (₱)',
+        'PR Used (₱)',
+        'AD Used (₱)',
+        'Utilization %',
+        'Allocated At'
+    ]
+    
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = thin_border
+    
+    ws.row_dimensions[4].height = 25
+    
+    # Data rows
+    row_num = 5
+    for allocation in allocations:
+        total_used = (allocation.pre_amount_used + 
+                     allocation.pr_amount_used + 
+                     allocation.ad_amount_used)
+        
+        utilization = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+        
+        row_data = [
+            allocation.id,
+            allocation.approved_budget.title,
+            allocation.approved_budget.fiscal_year,
+            allocation.end_user.mfo or 'N/A',
+            allocation.department,
+            f"{allocation.end_user.fullname} ({allocation.end_user.username})",
+            float(allocation.allocated_amount),
+            float(allocation.remaining_balance),
+            float(allocation.pre_amount_used),
+            float(allocation.pr_amount_used),
+            float(allocation.ad_amount_used),
+            round(utilization, 2),
+            allocation.allocated_at.strftime('%b %d, %Y %I:%M %p')
+        ]
+        
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.value = value
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
+            
+            # Format currency columns
+            if col_num in [7, 8, 9, 10, 11]:
+                cell.number_format = '#,##0.00'
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+            
+            # Format percentage column
+            if col_num == 12:
+                cell.number_format = '0.00"%"'
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                
+                # Color code utilization
+                if utilization < 50:
+                    cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                    cell.font = Font(color="006100")
+                elif utilization < 80:
+                    cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+                    cell.font = Font(color="9C6500")
+                else:
+                    cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                    cell.font = Font(color="9C0006")
+            
+            # Alternate row colors
+            if row_num % 2 == 0:
+                if col_num != 12:  # Don't override utilization coloring
+                    cell.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        
+        row_num += 1
+    
+    # Summary row
+    row_num += 1
+    summary_fill = PatternFill(start_color="E7E6E6", end_color="E7E6E6", fill_type="solid")
+    summary_font = Font(bold=True, size=11)
+    
+    # Calculate totals
+    total_allocated = sum(float(a.allocated_amount) for a in allocations)
+    total_remaining = sum(float(a.remaining_balance) for a in allocations)
+    total_pre_used = sum(float(a.pre_amount_used) for a in allocations)
+    total_pr_used = sum(float(a.pr_amount_used) for a in allocations)
+    total_ad_used = sum(float(a.ad_amount_used) for a in allocations)
+    total_used = total_pre_used + total_pr_used + total_ad_used
+    avg_utilization = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+    
+    ws.merge_cells(f'A{row_num}:F{row_num}')
+    summary_label = ws.cell(row=row_num, column=1)
+    summary_label.value = "TOTAL / AVERAGE"
+    summary_label.font = summary_font
+    summary_label.fill = summary_fill
+    summary_label.alignment = Alignment(horizontal='right', vertical='center')
+    summary_label.border = thin_border
+    
+    # Totals
+    totals = [
+        total_allocated,
+        total_remaining,
+        total_pre_used,
+        total_pr_used,
+        total_ad_used,
+        round(avg_utilization, 2)
+    ]
+    
+    for col_offset, total in enumerate(totals, 7):
+        cell = ws.cell(row=row_num, column=col_offset)
+        cell.value = total
+        cell.font = summary_font
+        cell.fill = summary_fill
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='right' if col_offset != 12 else 'center', vertical='center')
+        
+        if col_offset in [7, 8, 9, 10, 11]:
+            cell.number_format = '#,##0.00'
+        elif col_offset == 12:
+            cell.number_format = '0.00"%"'
+    
+    # Empty cell for last column
+    cell = ws.cell(row=row_num, column=13)
+    cell.fill = summary_fill
+    cell.border = thin_border
+    
+    # Prepare response
+    from datetime import datetime
+    filename = f"Budget_Allocations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    wb.save(response)
+    return response
 
 @role_required('admin', login_url='/admin/')
 def institutional_funds(request):

@@ -4,7 +4,7 @@ from django.utils import timezone
 
 # Custom User Manager
 class UserManager(BaseUserManager):
-    def create_user(self, username, fullname, email, password=None, department=None, **extra_fields):
+    def create_user(self, username, fullname, email, password=None, department=None, mfo=None, **extra_fields):
         """Creates and returns a regular user."""
         if not email:
             raise ValueError("Users must have an email address.")
@@ -25,6 +25,7 @@ class UserManager(BaseUserManager):
             fullname=fullname,
             email=email,
             department=department,
+            mfo=mfo,
             **extra_fields
         )
         user.set_password(password)
@@ -45,13 +46,13 @@ class UserManager(BaseUserManager):
 
         return self.create_user(username, fullname, email, password, department, **extra_fields)
 
-    def create_admin(self, username, fullname, email, password, department="Finance Admin"):
+    def create_admin(self, username, fullname, email, password, department="Finance Admin", mfo=None):
         """Creates and returns an admin user."""
-        return self.create_user(username, fullname, email, password, department, is_staff=True, is_admin=True)
+        return self.create_user(username, fullname, email, password, department, mfo, is_staff=True, is_admin=True)
 
-    def create_approving_officer(self, username, fullname, email, password, department="Campus Director"):
+    def create_approving_officer(self, username, fullname, email, password, department="Campus Director", mfo=None):
         """Creates and returns an approving officer user."""
-        return self.create_user(username, fullname, email, password, department, is_approving_officer=True)
+        return self.create_user(username, fullname, email, password, department, mfo, is_approving_officer=True)
     
 # Custom User Model
 class User(AbstractBaseUser, PermissionsMixin):
@@ -59,12 +60,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=50, unique=True)
     fullname = models.CharField(max_length=100)
     email = models.EmailField(max_length=255, unique=True)
-    department = models.CharField(max_length=255)
+    mfo = models.CharField(max_length=255, null=True, blank=True)  # Main Department
+    department = models.CharField(max_length=255)  # Specific Sub-department
     position = models.CharField(max_length=50, null=True, blank=True)
 
     is_admin = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
-    is_superuser = models.BooleanField(default=False)  # Added this field   
+    is_superuser = models.BooleanField(default=False)
     is_approving_officer = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(default=timezone.now)
@@ -73,7 +75,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username", "position",  "fullname", "department"]
+    REQUIRED_FIELDS = ["username", "position", "fullname", "department"]
 
     def save(self, *args, **kwargs):
         """Ensure admin users have correct permissions."""
@@ -92,7 +94,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return f"{self.username} ({'Superuser' if self.is_superuser else 'Admin' if self.is_admin else 'User'})"
     
-    # 👇 Add these methods
     def get_full_name(self):
         return f"{self.fullname}"
 

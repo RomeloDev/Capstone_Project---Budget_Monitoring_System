@@ -913,6 +913,10 @@ select {
   top: 0px;
 }
 
+.top-1\/2 {
+  top: 50%;
+}
+
 .top-20 {
   top: 5rem;
 }
@@ -1319,6 +1323,10 @@ select {
   width: 20rem;
 }
 
+.w-\[25rem\] {
+  width: 25rem;
+}
+
 .w-\[500px\] {
   width: 500px;
 }
@@ -1396,6 +1404,11 @@ select {
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
+.-translate-y-1\/2 {
+  --tw-translate-y: -50%;
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
+
 .translate-y-4 {
   --tw-translate-y: 1rem;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
@@ -1408,11 +1421,6 @@ select {
 
 .rotate-180 {
   --tw-rotate: 180deg;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-
-.rotate-90 {
-  --tw-rotate: 90deg;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
@@ -1446,6 +1454,12 @@ select {
 
 .cursor-pointer {
   cursor: pointer;
+}
+
+.appearance-none {
+  -webkit-appearance: none;
+     -moz-appearance: none;
+          appearance: none;
 }
 
 .grid-cols-1 {
@@ -2078,6 +2092,11 @@ select {
   background-color: rgb(234 179 8 / var(--tw-bg-opacity, 1));
 }
 
+.bg-purple-600 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(147 51 234 / var(--tw-bg-opacity, 1));
+}
+
 .bg-opacity-20 {
   --tw-bg-opacity: 0.2;
 }
@@ -2552,11 +2571,6 @@ select {
 .text-blue-50 {
   --tw-text-opacity: 1;
   color: rgb(239 246 255 / var(--tw-text-opacity, 1));
-}
-
-.text-blue-500 {
-  --tw-text-opacity: 1;
-  color: rgb(59 130 246 / var(--tw-text-opacity, 1));
 }
 
 .text-blue-600 {
@@ -3132,6 +3146,11 @@ select {
 .hover\:bg-red-800:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(153 27 27 / var(--tw-bg-opacity, 1));
+}
+
+.hover\:bg-purple-700:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(126 34 206 / var(--tw-bg-opacity, 1));
 }
 
 .hover\:bg-gradient-to-br:hover {
