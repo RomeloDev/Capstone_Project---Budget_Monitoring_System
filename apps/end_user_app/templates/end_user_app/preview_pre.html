@@ -1,128 +1,295 @@
 {% extends "end_user_base_template/dashboard.html" %}
 {% load humanize %}
 
-{% block title %}PRE Preview{% endblock %}
+{% block title %}Preview PRE{% endblock title %}
 
 {% block main-content %}
-<main class="content p-6">
-  <header class="mb-6 flex items-center justify-between">
-    <div>
-      <h1 class="font-semibold text-2xl">Submitted PRE Preview</h1>
-      <p class="text-gray-600 text-sm">Review the details of your submitted Program of Receipts and Expenditures.</p>
+<div class="p-6 space-y-6 max-w-7xl mx-auto">
+
+    <!-- Page Header -->
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+        <h1 class="text-2xl font-bold text-gray-800">Preview PRE Document</h1>
+        <p class="text-sm text-gray-600 mt-2">Review the extracted data before final submission</p>
     </div>
-    <a href="{% url "download_pre_excel" pre.id %}" class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      Download as Excel
-    </a>
-  </header>
 
-  <!-- Meta info -->
-  <section class="mb-6 bg-white rounded-lg border border-gray-200 p-4">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-      <div>
-        <span class="block text-gray-500">Department</span>
-        <span class="font-medium">{{ pre.department }}</span>
-      </div>
-      <div>
-        <span class="block text-gray-500">Submitted by</span>
-        <span class="font-medium">{{ pre.submitted_by.get_full_name|default:pre.submitted_by.username }}</span>
-      </div>
-      <div>
-        <span class="block text-gray-500">Submitted at</span>
-        <span class="font-medium">{{ pre.created_at }}</span>
-      </div>
+    <!-- Budget & PRE Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Budget Info -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                Budget Allocation
+            </h3>
+            <div class="space-y-3">
+                <div>
+                    <p class="text-sm text-blue-700">Title:</p>
+                    <p class="font-semibold text-blue-900">{{ allocation.approved_budget.title }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-blue-700">Fiscal Year:</p>
+                    <p class="font-semibold text-blue-900">{{ allocation.approved_budget.fiscal_year }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-blue-700">Remaining Balance:</p>
+                    <p class="font-semibold text-green-700">₱{{ allocation.remaining_balance|intcomma }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRE Info -->
+        <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-green-900 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                PRE Summary
+            </h3>
+            <div class="space-y-3">
+                <div>
+                    <p class="text-sm text-green-700">File:</p>
+                    <p class="font-semibold text-green-900">{{ pre_filename }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-green-700">Fiscal Year:</p>
+                    <p class="font-semibold text-green-900">{{ fiscal_year|default:"Not specified" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-green-700">Grand Total:</p>
+                    <p class="font-semibold text-2xl text-green-900">₱{{ grand_total|intcomma }}</p>
+                </div>
+            </div>
+        </div>
     </div>
-  </section>
 
-  <!-- Excel-like grouped table preview -->
-  <section class="bg-white rounded-lg border border-gray-200 p-4">
-    <h2 class="text-lg font-semibold mb-4">Budget by Object of Expenditures</h2>
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm border border-gray-300">
-        <thead>
-          <tr class="bg-gray-100 text-gray-700">
-            <th class="px-3 py-2 border border-gray-300 text-left w-2/5">Item Description</th>
-            <th class="px-3 py-2 border border-gray-300 text-right">Q1</th>
-            <th class="px-3 py-2 border border-gray-300 text-right">Q2</th>
-            <th class="px-3 py-2 border border-gray-300 text-right">Q3</th>
-            <th class="px-3 py-2 border border-gray-300 text-right">Q4</th>
-            <th class="px-3 py-2 border border-gray-300 text-right">TOTAL</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for section in sections %}
-            <!-- Section header row with color -->
-            <tr class="font-semibold text-gray-900">
-              <td class="px-3 py-2 border border-gray-300 {{ section.color_class }}" colspan="6">{{ section.title }}</td>
-            </tr>
-
-            {% for row in section.items %}
-              {% if row.is_group %}
-                <tr class="bg-gray-50">
-                  <td class="px-3 py-2 border border-gray-300 font-semibold">{{ row.label }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">&nbsp;</td>
-                </tr>
-              {% else %}
-                <tr>
-                  <td class="px-3 py-2 border border-gray-300 {% if row.indent %}pl-8{% endif %}">{{ row.label }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q1|default:"" }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q2|default:"" }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q3|default:"" }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ row.q4|default:"" }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right font-medium">{{ row.total|default:"" }}</td>
-                </tr>
-              {% endif %}
-            {% endfor %}
-            <!-- Section total row -->
-                <tr class="bg-gray-50">
-                  <td class="px-3 py-2 border font-semibold border-gray-300">TOTAL {{ section.title }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q1|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q2|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q3|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right">{{ section.total_q4|intcomma }}</td>
-                  <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ section.total_overall|intcomma }}</td>
-                </tr>
-          {% endfor %}
-          <!-- Grand totals row across all sections -->
-          <tr class="bg-emerald-50">
-            <td class="px-3 py-2 border font-bold border-gray-300">GRAND TOTAL</td>
-            <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ grand_total_q1|intcomma }}</td>
-            <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ grand_total_q2|intcomma }}</td>
-            <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ grand_total_q3|intcomma }}</td>
-            <td class="px-3 py-2 border border-gray-300 text-right font-semibold">{{ grand_total_q4|intcomma }}</td>
-            <td class="px-3 py-2 border border-gray-300 text-right font-bold">{{ grand_total_overall|intcomma }}</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Validation Status -->
+    {% if grand_total <= allocation.remaining_balance %}
+    <div class="bg-green-100 border border-green-300 rounded-lg p-4">
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p class="text-sm font-semibold text-green-800">Validation Passed: PRE total is within budget allocation</p>
+        </div>
     </div>
-  </section>
-
-  <!-- Certification section -->
-  <section class="bg-white rounded-lg border border-gray-200 p-4 mt-6">
-    <h2 class="text-lg font-semibold mb-4">Certification</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div>
-        <p class="text-sm text-gray-500 mb-1">Prepared by</p>
-        <p class="font-medium">{{ prepared_by|default:'—' }}</p>
-      </div>
-      <div>
-        <p class="text-sm text-gray-500 mb-1">Certified by</p>
-        <p class="font-medium">{{ certified_by|default:'—' }}</p>
-      </div>
-      <div>
-        <p class="text-sm text-gray-500 mb-1">Approved by</p>
-        <p class="font-medium">{{ approved_by|default:'—' }}</p>
-      </div>
+    {% else %}
+    <div class="bg-red-100 border border-red-300 rounded-lg p-4">
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p class="text-sm font-semibold text-red-800">Validation Failed: PRE total exceeds budget allocation</p>
+        </div>
     </div>
-  </section>
-</main>
-{% endblock %}
+    {% endif %}
 
+    <!-- Extracted Data Tables -->
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div class="border-b border-gray-200 px-6 py-4">
+            <h2 class="text-xl font-semibold text-gray-800">Extracted PRE Data</h2>
+        </div>
 
+        <div class="p-6 space-y-6">
+            <!-- Receipts -->
+            {% if extracted_data.receipts %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded">RECEIPTS</span>
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 border border-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q1</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q2</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q3</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q4</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for item in extracted_data.receipts %}
+                            <tr>
+                                <td class="px-4 py-2 text-sm text-gray-900">{{ item.item_name }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
 
+            <!-- Personnel Services -->
+            {% if extracted_data.personnel %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded">PERSONNEL SERVICES</span>
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 border border-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q1</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q2</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q3</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q4</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for item in extracted_data.personnel %}
+                            <tr>
+                                <td class="px-4 py-2 text-sm text-gray-900">{{ item.item_name }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- MOOE -->
+            {% if extracted_data.mooe %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded">MAINTENANCE & OTHER OPERATING EXPENSES</span>
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 border border-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q1</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q2</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q3</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q4</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for item in extracted_data.mooe %}
+                            <tr>
+                                <td class="px-4 py-2 text-xs text-gray-600 uppercase">{{ item.category|default:"" }}</td>
+                                <td class="px-4 py-2 text-sm text-gray-900">{{ item.item_name }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Capital Outlays -->
+            {% if extracted_data.capital %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span class="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded">CAPITAL OUTLAYS</span>
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 border border-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q1</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q2</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q3</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Q4</th>
+                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for item in extracted_data.capital %}
+                            <tr>
+                                <td class="px-4 py-2 text-xs text-gray-600 uppercase">{{ item.category|default:"" }}</td>
+                                <td class="px-4 py-2 text-sm text-gray-900">{{ item.item_name }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Grand Total -->
+            <div class="bg-gray-100 border border-gray-300 rounded-lg p-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-lg font-bold text-gray-800">GRAND TOTAL:</span>
+                    <span class="text-2xl font-bold text-blue-600">₱{{ grand_total|intcomma }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supporting Documents -->
+    {% if supporting_docs %}
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div class="border-b border-gray-200 px-6 py-4">
+            <h2 class="text-xl font-semibold text-gray-800">Supporting Documents</h2>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for doc in supporting_docs %}
+                <div class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 truncate">{{ doc.name }}</p>
+                        <p class="text-xs text-gray-500">{{ doc.size|filesizeformat }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <form method="POST" class="flex justify-end gap-3">
+        {% csrf_token %}
+        <button type="submit" 
+                name="action" 
+                value="cancel"
+                class="px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 transition">
+            Cancel & Go Back
+        </button>
+        <button type="submit" 
+                name="action" 
+                value="submit"
+                {% if grand_total > allocation.remaining_balance %}disabled{% endif %}
+                class="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed inline-flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Submit PRE
+        </button>
+    </form>
+
+</div>
+
+{% endblock main-content %}

@@ -20,10 +20,14 @@ from .constants import FRIENDLY_LABELS
 from docxtpl import DocxTemplate
 from openpyxl import load_workbook
 import os
+import json
 from io import BytesIO
 import shutil
 import xlwings as xw
 import tempfile
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE
+from .utils.pre_parser import parse_pre_excel
+from django.core.files.storage import default_storage
 
 # Create your views here.
 @role_required('end_user', login_url='/')
@@ -100,7 +104,7 @@ def purchase_request(request):
     })
 
 @role_required('end_user', login_url='/')
-def settings(request):
+def user_settings_page(request):
     return render(request, 'end_user_app/settings.html')
 
 @role_required('end_user', login_url='/')
@@ -662,277 +666,547 @@ def department_pre_form(request, pk:int):
     
     return render(request, "end_user_app/department_pre_form.html", context)
 
+# @role_required('end_user', login_url='/')
+# def department_pre_page(request):
+#     user = request.user
+#     user_dept = user.department
+#     # has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
+    
+#     is_has_budget = BudgetAllocation.objects.filter(department=user_dept, is_compiled=False).exists()
+    
+#     if is_has_budget:
+#         has_budget = True
+#     else:
+#         has_budget = False
+        
+#     budget_allocations = BudgetAllocation.objects.filter(department=request.user.department, is_compiled=False).select_related('approved_budget').order_by('-allocated_at')
+
+#     # Load submitted PREs for this user/department
+#     pres = DepartmentPRE.objects.filter(submitted_by=user).order_by('-created_at')
+
+#     return render(request, "end_user_app/department_pre_page.html", {
+#         'has_budget': has_budget,
+#         'pres': pres,
+#         'budget_allocations': budget_allocations,
+#     })
+
 @role_required('end_user', login_url='/')
 def department_pre_page(request):
+    """Main PRE page showing budget allocations and submitted PREs"""
     user = request.user
-    user_dept = user.department
-    # has_budget = BudgetAllocation.objects.filter(department=request.user.department).exists()
     
-    is_has_budget = BudgetAllocation.objects.filter(department=user_dept, is_compiled=False).exists()
+    # Get budget allocations for current user
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=user,
+        is_active=True
+    ).select_related('approved_budget').order_by('-allocated_at')
     
-    if is_has_budget:
-        has_budget = True
-    else:
-        has_budget = False
-        
-    budget_allocations = BudgetAllocation.objects.filter(department=request.user.department, is_compiled=False).select_related('approved_budget').order_by('-allocated_at')
-
-    # Load submitted PREs for this user/department
-    pres = DepartmentPRE.objects.filter(submitted_by=user).order_by('-created_at')
-
-    return render(request, "end_user_app/department_pre_page.html", {
+    has_budget = budget_allocations.exists()
+    
+    # Get submitted PREs
+    pres = NewDepartmentPRE.objects.filter(
+        submitted_by=user
+    ).order_by('-created_at')
+    
+    context = {
         'has_budget': has_budget,
-        'pres': pres,
         'budget_allocations': budget_allocations,
-    })
+        'pres': pres,
+    }
+    
+    return render(request, 'end_user_app/department_pre_page.html', context)
+
+@role_required('end_user', login_url='/')
+def upload_pre(request, allocation_id):
+    """Handle PRE Excel upload and supporting documents"""
+    allocation = get_object_or_404(
+        NewBudgetAllocation.objects.select_related('approved_budget'),
+        id=allocation_id,
+        end_user=request.user
+    )
+    
+    # Check if PRE already exists for this allocation
+    existing_pre = NewDepartmentPRE.objects.filter(
+        budget_allocation=allocation
+    ).first()
+    
+    if existing_pre:
+        messages.warning(request, 
+            f"PRE already exists for this allocation. "
+            f"Status: {existing_pre.status}")
+        return redirect('department_pre_page')
+    
+    if request.method == 'POST':
+        pre_file = request.FILES.get('pre_document')
+        supporting_docs = request.FILES.getlist('supporting_documents')
+        
+        # Validation
+        if not pre_file:
+            messages.error(request, "PRE Excel file is required.")
+            return redirect('upload_pre', allocation_id=allocation_id)
+        
+        # Validate file extension
+        if not pre_file.name.endswith('.xlsx'):
+            messages.error(request, "Only .xlsx Excel files are accepted for PRE.")
+            return redirect('upload_pre', allocation_id=allocation_id)
+        
+        # Save file temporarily
+        temp_path = default_storage.save(
+            f'temp/pre_{request.user.id}_{pre_file.name}',
+            pre_file
+        )
+        full_path = os.path.join(settings.MEDIA_ROOT, temp_path)
+        
+        try:
+            # Parse Excel file
+            result = parse_pre_excel(full_path)
+            
+            if not result['success']:
+                messages.error(request, 
+                    f"Error parsing PRE file: {', '.join(result['errors'])}")
+                default_storage.delete(temp_path)
+                return redirect('upload_pre', allocation_id=allocation_id)
+            
+            # Validate fiscal year
+            if result['fiscal_year']:
+                if result['fiscal_year'] != allocation.approved_budget.fiscal_year:
+                    messages.error(request, 
+                        f"PRE fiscal year ({result['fiscal_year']}) does not match "
+                        f"budget allocation fiscal year ({allocation.approved_budget.fiscal_year}).")
+                    default_storage.delete(temp_path)
+                    return redirect('upload_pre', allocation_id=allocation_id)
+            
+            # Validate grand total
+            if result['grand_total'] > allocation.remaining_balance:
+                messages.error(request, 
+                    f"PRE total amount (₱{result['grand_total']:,.2f}) exceeds "
+                    f"remaining budget allocation (₱{allocation.remaining_balance:,.2f}).")
+                default_storage.delete(temp_path)
+                return redirect('upload_pre', allocation_id=allocation_id)
+            
+            # Store data in session for preview
+            request.session['pre_upload_data'] = {
+                'allocation_id': allocation_id,
+                'extracted_data': json.dumps(result['data'], default=str),
+                'grand_total': str(result['grand_total']),
+                'fiscal_year': result['fiscal_year'],
+                'pre_filename': pre_file.name,
+                'temp_file_path': temp_path,
+            }
+            
+            # Store supporting documents info
+            supporting_docs_info = []
+            for doc in supporting_docs:
+                supporting_docs_info.append({
+                    'name': doc.name,
+                    'size': doc.size,
+                    'content_type': doc.content_type,
+                })
+            
+            request.session['supporting_docs_info'] = supporting_docs_info
+            
+            # Store supporting documents temporarily
+            temp_doc_paths = []
+            for doc in supporting_docs:
+                temp_doc_path = default_storage.save(
+                    f'temp/support_{request.user.id}_{doc.name}',
+                    doc
+                )
+                temp_doc_paths.append(temp_doc_path)
+            
+            request.session['temp_doc_paths'] = temp_doc_paths
+            
+            messages.success(request, "Files uploaded successfully. Please review the extracted data.")
+            return redirect('preview_pre')
+            
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+            if os.path.exists(full_path):
+                default_storage.delete(temp_path)
+            return redirect('upload_pre', allocation_id=allocation_id)
+    
+    context = {
+        'allocation': allocation,
+    }
+    
+    return render(request, 'end_user_app/upload_pre.html', context)
 
 
 @role_required('end_user', login_url='/')
-def preview_pre(request, pk: int):
-    pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by'), pk=pk)
-    # Security: ensure user can only view their own PRE (unless you allow admins)
-    if pre.submitted_by != request.user:
-        messages.error(request, "You do not have permission to view this PRE.")
+def preview_pre(request):
+    """Preview extracted PRE data before final submission"""
+    
+    # Get data from session
+    upload_data = request.session.get('pre_upload_data')
+    supporting_docs_info = request.session.get('supporting_docs_info', [])
+    
+    if not upload_data:
+        messages.error(request, "No upload data found. Please upload PRE again.")
+        return redirect('department_pre_page')
+    
+    # Parse extracted data
+    extracted_data = json.loads(upload_data['extracted_data'])
+    grand_total = Decimal(upload_data['grand_total'])
+    
+    # Get allocation
+    allocation = get_object_or_404(
+        NewBudgetAllocation.objects.select_related('approved_budget'),
+        id=upload_data['allocation_id'],
+        end_user=request.user
+    )
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'cancel':
+            # Clean up temporary files
+            temp_file_path = upload_data.get('temp_file_path')
+            if temp_file_path and default_storage.exists(temp_file_path):
+                default_storage.delete(temp_file_path)
+            
+            temp_doc_paths = request.session.get('temp_doc_paths', [])
+            for path in temp_doc_paths:
+                if default_storage.exists(path):
+                    default_storage.delete(path)
+            
+            # Clear session
+            request.session.pop('pre_upload_data', None)
+            request.session.pop('supporting_docs_info', None)
+            request.session.pop('temp_doc_paths', None)
+            
+            messages.info(request, "Upload cancelled.")
+            return redirect('department_pre_page')
+        
+        elif action == 'submit':
+            try:
+                # Create DepartmentPRE record
+                pre = NewDepartmentPRE.objects.create(
+                    submitted_by=request.user,
+                    department=allocation.department,
+                    budget_allocation=allocation,
+                    fiscal_year=allocation.approved_budget.fiscal_year,
+                    total_amount=grand_total,
+                    status='Pending',
+                    is_valid=True
+                )
+                
+                # Move PRE file from temp to permanent location
+                temp_file_path = upload_data['temp_file_path']
+                if default_storage.exists(temp_file_path):
+                    # Read temp file
+                    with default_storage.open(temp_file_path, 'rb') as temp_file:
+                        # Save to PRE's uploaded_excel_file field
+                        from django.core.files.base import ContentFile
+                        pre.uploaded_excel_file.save(
+                            upload_data['pre_filename'],
+                            ContentFile(temp_file.read()),
+                            save=True
+                        )
+                    # Delete temp file
+                    default_storage.delete(temp_file_path)
+                
+                # Save supporting documents
+                temp_doc_paths = request.session.get('temp_doc_paths', [])
+                for idx, temp_path in enumerate(temp_doc_paths):
+                    if default_storage.exists(temp_path):
+                        with default_storage.open(temp_path, 'rb') as temp_doc:
+                            # Create SupportingDocument instance
+                            # Note: You'll need to create this model or adjust based on your structure
+                            from django.core.files.base import ContentFile
+                            doc_info = supporting_docs_info[idx]
+                            
+                            # Save document (adjust this based on your model structure)
+                            # For now, we'll assume you want to store it related to the PRE
+                            
+                        default_storage.delete(temp_path)
+                
+                # Clear session
+                request.session.pop('pre_upload_data', None)
+                request.session.pop('supporting_docs_info', None)
+                request.session.pop('temp_doc_paths', None)
+                
+                messages.success(request, 
+                    f"PRE submitted successfully! Total amount: ₱{grand_total:,.2f}. "
+                    f"Status: Pending Review")
+                return redirect('department_pre_page')
+                
+            except Exception as e:
+                messages.error(request, f"Error submitting PRE: {str(e)}")
+                return redirect('preview_pre')
+    
+    context = {
+        'allocation': allocation,
+        'extracted_data': extracted_data,
+        'grand_total': grand_total,
+        'fiscal_year': upload_data['fiscal_year'],
+        'pre_filename': upload_data['pre_filename'],
+        'supporting_docs': supporting_docs_info,
+    }
+    
+    return render(request, 'end_user_app/preview_pre.html', context)
+
+
+@role_required('end_user', login_url='/')
+def download_pre_template(request):
+    """Download blank PRE template"""
+    # Path to your PRE template file
+    template_path = os.path.join(settings.MEDIA_ROOT, 'templates', 'PRE_Template.xlsx')
+    
+    if os.path.exists(template_path):
+        from django.http import FileResponse
+        response = FileResponse(open(template_path, 'rb'))
+        response['Content-Disposition'] = 'attachment; filename="PRE_Template.xlsx"'
+        return response
+    else:
+        messages.error(request, "PRE template file not found.")
         return redirect('department_pre_page')
 
-    # Build grouped sections for Excel-like table
-    def to_decimal(value):
-        try:
-            return Decimal(str(value)) if value not in (None, "") else Decimal('0')
-        except Exception:
-            return Decimal('0')
+# @role_required('end_user', login_url='/')
+# def preview_pre(request, pk: int):
+#     pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by'), pk=pk)
+#     # Security: ensure user can only view their own PRE (unless you allow admins)
+#     if pre.submitted_by != request.user:
+#         messages.error(request, "You do not have permission to view this PRE.")
+#         return redirect('department_pre_page')
 
-    payload = pre.data or {}
+#     # Build grouped sections for Excel-like table
+#     def to_decimal(value):
+#         try:
+#             return Decimal(str(value)) if value not in (None, "") else Decimal('0')
+#         except Exception:
+#             return Decimal('0')
 
-    # Define mapping of sections and items (subset reflecting provided screenshot)
-    sections_spec = [
-        {
-            'title': 'Personnel Services',
-            'color_class': 'bg-yellow-100',
-            'items': [
-                {'label': 'Basic Salary', 'name': 'basic_salary'},
-                {'label': 'Honoraria', 'name': 'honoraria'},
-                {'label': 'Overtime Pay', 'name': 'overtime_pay'},
-            ]
-        },
-        {
-            'title': 'Maintenance and Other Operating Expenses',
-            'color_class': 'bg-blue-100',
-            'items': [
-                {'label': 'Travelling Expenses', 'is_group': True},
-                {'label': 'Travelling expenses-local', 'name': 'travel_local', 'indent': True},
-                {'label': 'Travelling Expenses-foreign', 'name': 'travel_foreign', 'indent': True},
-                {'label': 'Training and Scholarship expenses', 'is_group': True},
-                {'label': 'Training Expenses', 'name': 'training_expenses', 'indent': True},
-                {'label': 'Supplies and materials expenses', 'is_group': True},
-                {'label': 'Office Supplies Expenses', 'name': 'office_supplies_expenses', 'indent': True},
-                {'label': 'Accountable Form Expenses', 'name': 'accountable_form_expenses', 'indent': True},
-                {'label': 'Agricultural and Marine Supplies Expenses', 'name': 'agri_marine_supplies_expenses', 'indent': True},
-                {'label': 'Drugs and Medicines', 'name': 'drugs_medicines', 'indent': True},
-                {'label': 'Medical, Dental & Laboratory Supplies Expenses', 'name': 'med_dental_lab_supplies_expenses', 'indent': True},
-                {'label': 'Food Supplies Expenses', 'name': 'food_supplies_expenses', 'indent': True},
-                {'label': 'Fuel, Oil and Lubricants Expenses', 'name': 'fuel_oil_lubricants_expenses', 'indent': True},
-                {'label': 'Textbooks and Instructional Materials Expenses', 'name': 'textbooks_instructional_materials_expenses', 'indent': True},
-                {'label': 'Construction Materials Expenses', 'name': 'construction_material_expenses', 'indent': True},
-                {'label': 'Other Supplies & Materials Expenses', 'name': 'other_supplies_materials_expenses', 'indent': True},
-                {'label': 'Semi-expendable Machinery Equipment', 'is_group': True},
-                {'label': 'Machinery', 'name': 'semee_machinery', 'indent': True},
-                {'label': 'Office Equipment', 'name': 'semee_office_equipment', 'indent': True},
-                {'label': 'Information and Communications Technology Equipment', 'name': 'semee_information_communication', 'indent': True},
-                {'label': 'Communications Equipment', 'name': 'semee_communications_equipment', 'indent': True},
-                {'label': 'Disaster Response and Rescue Equipment', 'name': 'semee_drr_equipment', 'indent': True},
-                {'label': 'Medical Equipment', 'name': 'semee_medical_equipment', 'indent': True},
-                {'label': 'Printing Equipment', 'name': 'semee_printing_equipment', 'indent': True},
-                {'label': 'Sports Equipment', 'name': 'semee_sports_equipment', 'indent': True},
-                {'label': 'Technical and Scientific Equipment', 'name': 'semee_technical_scientific_equipment', 'indent': True},
-                {'label': 'ICT Equipment', 'name': 'semee_ict_equipment', 'indent': True},
-                {'label': 'Other Machinery and Equipment', 'name': 'semee_other_machinery_equipment', 'indent': True},
-                {'label': 'Semi-expendable Furnitures and Fixtures', 'is_group': True},
-                {'label': 'Furniture and Fixtures', 'name': 'furniture_fixtures', 'indent': True},
-                {'label': 'Books', 'name': 'books', 'indent': True},
-                {'label': 'Utility Expenses', 'is_group': True},
-                {'label': 'Water Expenses', 'name': 'water_expenses', 'indent': True},
-                {'label': 'Electricity Expenses', 'name': 'electricity_expenses', 'indent': True},
-                {'label': 'Communication Expenses', 'is_group': True},
-                {'label': 'Postage and Courier Services', 'name': 'postage_courier_services', 'indent': True},
-                {'label': 'Telephone Expenses', 'name': 'telephone_expenses', 'indent': True},
-                {'label': 'Telephone Expenses (Landline)', 'name': 'telephone_expenses_landline', 'indent': True},
-                {'label': 'Internet Subscription Expenses', 'name': 'internet_subscription_expenses', 'indent': True},
-                {'label': 'Cable, Satellite, Telegraph & Radio Expenses', 'name': 'cable_satellite_telegraph_radio_expenses', 'indent': True},
-                {'label': 'Awards/Rewards and Prizes', 'is_group': True},
-                {'label': 'Awards/Rewards Expenses', 'name': 'awards_rewards_expenses', 'indent': True},
-                {'label': 'Prizes', 'name': 'prizes', 'indent': True},
-                {'label': 'Survey, Research, Exploration, and Development Expenses', 'is_group': True},
-                {'label': 'Survey Expenses', 'name': 'survey_expenses', 'indent': True},
-                {'label': 'Survey, Research, Exploration, and Development expenses', 'name': 'survey_research_exploration_development_expenses', 'indent': True},
-                {'label': 'Professional Services', 'is_group': True},
-                {'label': 'Legal Services', 'name': 'legal_services', 'indent': True},
-                {'label': 'Auditing Services', 'name': 'auditing_services', 'indent': True},
-                {'label': 'Consultancy Services', 'name': 'consultancy_services', 'indent': True},
-                {'label': 'Other Professional Services', 'name': 'other_professional_servies', 'indent': True},
-                {'label': 'General Services', 'is_group': True},
-                {'label': 'Security Services', 'name': 'security_services', 'indent': True},
-                {'label': 'Janitorial Services', 'name': 'janitorial_services', 'indent': True},
-                {'label': 'Other General Services', 'name': 'other_general_services', 'indent': True},
-                {'label': 'Environment/Sanitary Services', 'name': 'environment/sanitary_services', 'indent': True},
-                {'label': 'Repair and Maintenance', 'is_group': True},
-                {'label': 'Repair & Maintenance - Land Improvements', 'name': 'repair_maintenance_land_improvements', 'indent': True},
-                {'label': 'Repair & Maintenance - Buildings and Structures', 'is_group': True},
-                {'label': 'Buildings', 'name': 'buildings', 'indent': True},
-                {'label': 'School Buildings', 'name': 'school_buildings', 'indent': True},
-                {'label': 'Hostels and Dormitories', 'name': 'hostel_dormitories', 'indent': True},
-                {'label': 'Other Structures', 'name': 'other_structures', 'indent': True},
-                {'label': 'Repairs and Maintenance - Machinery and Equipment', 'is_group': True},
-                {'label': 'Machinery', 'name': 'repair_maintenance_machinery', 'indent': True},
-                {'label': 'Office Equipment', 'name': 'repair_maintenance_office_equipment', 'indent': True},
-                {'label': 'ICT Equipment', 'name': 'repair_maintenance_ict_equipment', 'indent': True},
-                {'label': 'Agricultural and Forestry Equipment', 'name': 'repair_maintenance_agri_forestry_equipment', 'indent': True},
-                {'label': 'Marine and Fishery Equipment', 'name': 'repair_maintenance_marine_fishery_equipment', 'indent': True},
-                {'label': 'Airport Equipment', 'name': 'repair_maintenance_airport_equipment', 'indent': True},
-                {'label': 'Communication Equipment', 'name': 'repair_maintenance_communication_equipment', 'indent': True},
-                {'label': 'Disaster, Response and Rescue Equipment', 'name': 'repair_maintenance_drre_equipment', 'indent': True},
-                {'label': 'Medical Equipment', 'name': 'repair_maintenance_medical_equipment', 'indent': True},
-                {'label': 'Printing Equipment', 'name': 'repair_maintenance_printing_equipment', 'indent': True},
-                {'label': 'Sports Equipment', 'name': 'repair_maintenance_sports_equipment', 'indent': True},
-                {'label': 'Technical and Scientific Equipment', 'name': 'repair_maintenance_technical_scientific_equipment', 'indent': True},
-                {'label': 'Other Machinery and Equipment', 'name': 'repair_maintenance_other_machinery_equipment', 'indent': True},
-                {'label': 'Repairs and Maintenance - Transportation Equipment', 'is_group': True},
-                {'label': 'Motor Vehicles', 'name': 'repair_maintenance_motor', 'indent': True},
-                {'label': 'Other Transportation Equipment', 'name': 'repair_maintenance_other_transportation_equipment', 'indent': True},
-                {'label': 'Repairs and Maintenance - Furniture & Fixtures', 'name': 'repair_maintenance_furniture_fixtures'},
-                {'label': 'Repairs and Maintenance - Semi-Expendable Machinery and Equipment', 'name': 'repair_maintenance_semi_expendable_machinery_equipment'},
-                {'label': 'Repairs and Maintenance - Other Property, Plant and Equipment', 'name': 'repair_maintenance_other_property_plant_equipment'},
-                {'label': 'Taxes, Insurance Premiums and Other Fees', 'is_group': True},
-                {'label': 'Taxes, Duties and Licenses', 'name': 'taxes_duties_licenses', 'indent': True},
-                {'label': 'Fidelity Bond Premiums', 'name': 'fidelity_bond_premiums', 'indent': True},
-                {'label': 'Insurance Expenses', 'name': 'insurance_expenses', 'indent': True},
-                {'label': 'Labor and Wages', 'is_group': True},
-                {'label': 'Labor and Wages', 'name': 'labor_wages', 'indent': True},
-                {'label': 'Other Maintenance and Operating Expenses', 'is_group': True},
-                {'label': 'Advertising Expenses', 'name': 'advertising_expenses', 'indent': True},
-                {'label': 'Printing and Publication Expenses', 'name': 'printing_publication_expenses', 'indent': True},
-                {'label': 'Representation Expenses', 'name': 'representation_expenses', 'indent': True},
-                {'label': 'Transportation and Delivery Expenses', 'name': 'transportation_delivery_expenses', 'indent': True},
-                {'label': 'Rent/Lease Expenses', 'name': 'rent/lease_expenses', 'indent': True},
-                {'label': 'Membership Dues and contributions to organizations', 'name': 'membership_dues_contribute_to_org', 'indent': True},
-                {'label': 'Subscription Expenses', 'name': 'subscription_expenses', 'indent': True},
-                {'label': 'Website Maintenance', 'name': 'website_maintenance', 'indent': True},
-                {'label': 'Other Maintenance and Operating Expenses', 'name': 'other_maintenance_operating_expenses', 'indent': True},
-            ]
-        },
-        {
-            'title': 'Capital Outlays',
-            'color_class': 'bg-green-100',
-            'items': [
-                # Placeholder; extend as needed
-                {'label': 'Land', 'is_group': True},
-                {'label': 'Land', 'name': 'land', 'indent': True},
-                {'label': 'Land Improvements', 'is_group': True},
-                {'label': 'Land Improvements, Aquaculture Structure', 'name': 'land_improvements_aqua_structure', 'indent': True},
-                {'label': 'Infrastructure Assets', 'is_group': True},
-                {'label': 'Water Supply Systems', 'name': 'water_supply_systems', 'indent': True},
-                {'label': 'Power Supply Systems', 'name': 'power_supply_systems', 'indent': True},
-                {'label': 'Other Infrastructure Assets', 'name': 'other_infra_assets', 'indent': True},
-                {'label': 'Building and Other Structures', 'is_group': True},
-                {'label': 'Building', 'name': 'bos_building', 'indent': True},
-                {'label': 'School Buildings', 'name': 'bos_school_buildings', 'indent': True},
-                {'label': 'Hostels and Dormitories', 'name': 'bos_hostels_dorm', 'indent': True},
-                {'label': 'Other Structures', 'name': 'other_structures', 'indent': True},
-                {'label': 'Machinery and Equipment', 'is_group': True},
-                {'label': 'Machinery', 'name': 'me_machinery', 'indent': True},
-                {'label': 'Office Equipment', 'name': 'me_office_equipment', 'indent': True},
-                {'label': 'Information and Communication Technology Equipment', 'name': 'me_ict_equipment', 'indent': True},
-                {'label': 'Communication Equipment', 'name': 'me_communication_equipment', 'indent': True},
-                {'label': 'Disaster Response and Rescue Equipment', 'name': 'me_drre', 'indent': True},
-                {'label': 'Medical Equipment', 'name': 'me_medical_equipment', 'indent': True},
-                {'label': 'Printing Equipment', 'name': 'me_printing_equipment', 'indent': True},
-                {'label': 'Sports Equipment', 'name': 'me_sports_equipment', 'indent': True},
-                {'label': 'Technical and Scientific Equipment', 'name': 'me_technical_scientific_equipment', 'indent': True},
-                {'label': 'Other Machinery and Equipment', 'name': 'me_other_machinery_equipment', 'indent': True},
-                {'label': 'Transportation Equipment', 'is_group': True},
-                {'label': 'Motor Vehicles', 'name': 'te_motor', 'indent': True},
-                {'label': 'Other Transportation Equipment', 'name': 'te_other_transpo_equipment', 'indent': True},
-                {'label': 'Furniture, Fixtures and Books', 'is_group': True},
-                {'label': 'Furniture and Fixtures', 'name': 'ffb_furniture_fixtures', 'indent': True},
-                {'label': 'Books', 'name': 'ffb_books', 'indent': True},
-                {'label': 'Construction in Progress', 'is_group': True},
-                {'label': 'Construction in Progress - Land Improvements', 'name': 'cp_land_improvements', 'indent': True},
-                {'label': 'Construction in Progress - Infrastructure Assets', 'name': 'cp_infra_assets', 'indent': True},
-                {'label': 'Construction in Progress - Buildings and Other Structures', 'name': 'cp_building_other_structures', 'indent': True},
-                {'label': 'Construction in Progress - Leased Assets', 'name': 'cp_leased_assets', 'indent': True},
-                {'label': 'Construction in Progress - Leased Assets Improvements', 'name': 'cp_leased_assets_improvements', 'indent': True},
-                {'label': 'Intangible Assets', 'is_group': True},
-                {'label': 'Computer Software', 'name': 'ia_computer_software', 'indent': True},
-                {'label': 'Websites', 'name': 'ia_websites', 'indent': True},
-                {'label': 'Other Tangible Assets', 'name': 'ia_other_tangible_assets', 'indent': True},
+#     payload = pre.data or {}
+
+#     # Define mapping of sections and items (subset reflecting provided screenshot)
+#     sections_spec = [
+#         {
+#             'title': 'Personnel Services',
+#             'color_class': 'bg-yellow-100',
+#             'items': [
+#                 {'label': 'Basic Salary', 'name': 'basic_salary'},
+#                 {'label': 'Honoraria', 'name': 'honoraria'},
+#                 {'label': 'Overtime Pay', 'name': 'overtime_pay'},
+#             ]
+#         },
+#         {
+#             'title': 'Maintenance and Other Operating Expenses',
+#             'color_class': 'bg-blue-100',
+#             'items': [
+#                 {'label': 'Travelling Expenses', 'is_group': True},
+#                 {'label': 'Travelling expenses-local', 'name': 'travel_local', 'indent': True},
+#                 {'label': 'Travelling Expenses-foreign', 'name': 'travel_foreign', 'indent': True},
+#                 {'label': 'Training and Scholarship expenses', 'is_group': True},
+#                 {'label': 'Training Expenses', 'name': 'training_expenses', 'indent': True},
+#                 {'label': 'Supplies and materials expenses', 'is_group': True},
+#                 {'label': 'Office Supplies Expenses', 'name': 'office_supplies_expenses', 'indent': True},
+#                 {'label': 'Accountable Form Expenses', 'name': 'accountable_form_expenses', 'indent': True},
+#                 {'label': 'Agricultural and Marine Supplies Expenses', 'name': 'agri_marine_supplies_expenses', 'indent': True},
+#                 {'label': 'Drugs and Medicines', 'name': 'drugs_medicines', 'indent': True},
+#                 {'label': 'Medical, Dental & Laboratory Supplies Expenses', 'name': 'med_dental_lab_supplies_expenses', 'indent': True},
+#                 {'label': 'Food Supplies Expenses', 'name': 'food_supplies_expenses', 'indent': True},
+#                 {'label': 'Fuel, Oil and Lubricants Expenses', 'name': 'fuel_oil_lubricants_expenses', 'indent': True},
+#                 {'label': 'Textbooks and Instructional Materials Expenses', 'name': 'textbooks_instructional_materials_expenses', 'indent': True},
+#                 {'label': 'Construction Materials Expenses', 'name': 'construction_material_expenses', 'indent': True},
+#                 {'label': 'Other Supplies & Materials Expenses', 'name': 'other_supplies_materials_expenses', 'indent': True},
+#                 {'label': 'Semi-expendable Machinery Equipment', 'is_group': True},
+#                 {'label': 'Machinery', 'name': 'semee_machinery', 'indent': True},
+#                 {'label': 'Office Equipment', 'name': 'semee_office_equipment', 'indent': True},
+#                 {'label': 'Information and Communications Technology Equipment', 'name': 'semee_information_communication', 'indent': True},
+#                 {'label': 'Communications Equipment', 'name': 'semee_communications_equipment', 'indent': True},
+#                 {'label': 'Disaster Response and Rescue Equipment', 'name': 'semee_drr_equipment', 'indent': True},
+#                 {'label': 'Medical Equipment', 'name': 'semee_medical_equipment', 'indent': True},
+#                 {'label': 'Printing Equipment', 'name': 'semee_printing_equipment', 'indent': True},
+#                 {'label': 'Sports Equipment', 'name': 'semee_sports_equipment', 'indent': True},
+#                 {'label': 'Technical and Scientific Equipment', 'name': 'semee_technical_scientific_equipment', 'indent': True},
+#                 {'label': 'ICT Equipment', 'name': 'semee_ict_equipment', 'indent': True},
+#                 {'label': 'Other Machinery and Equipment', 'name': 'semee_other_machinery_equipment', 'indent': True},
+#                 {'label': 'Semi-expendable Furnitures and Fixtures', 'is_group': True},
+#                 {'label': 'Furniture and Fixtures', 'name': 'furniture_fixtures', 'indent': True},
+#                 {'label': 'Books', 'name': 'books', 'indent': True},
+#                 {'label': 'Utility Expenses', 'is_group': True},
+#                 {'label': 'Water Expenses', 'name': 'water_expenses', 'indent': True},
+#                 {'label': 'Electricity Expenses', 'name': 'electricity_expenses', 'indent': True},
+#                 {'label': 'Communication Expenses', 'is_group': True},
+#                 {'label': 'Postage and Courier Services', 'name': 'postage_courier_services', 'indent': True},
+#                 {'label': 'Telephone Expenses', 'name': 'telephone_expenses', 'indent': True},
+#                 {'label': 'Telephone Expenses (Landline)', 'name': 'telephone_expenses_landline', 'indent': True},
+#                 {'label': 'Internet Subscription Expenses', 'name': 'internet_subscription_expenses', 'indent': True},
+#                 {'label': 'Cable, Satellite, Telegraph & Radio Expenses', 'name': 'cable_satellite_telegraph_radio_expenses', 'indent': True},
+#                 {'label': 'Awards/Rewards and Prizes', 'is_group': True},
+#                 {'label': 'Awards/Rewards Expenses', 'name': 'awards_rewards_expenses', 'indent': True},
+#                 {'label': 'Prizes', 'name': 'prizes', 'indent': True},
+#                 {'label': 'Survey, Research, Exploration, and Development Expenses', 'is_group': True},
+#                 {'label': 'Survey Expenses', 'name': 'survey_expenses', 'indent': True},
+#                 {'label': 'Survey, Research, Exploration, and Development expenses', 'name': 'survey_research_exploration_development_expenses', 'indent': True},
+#                 {'label': 'Professional Services', 'is_group': True},
+#                 {'label': 'Legal Services', 'name': 'legal_services', 'indent': True},
+#                 {'label': 'Auditing Services', 'name': 'auditing_services', 'indent': True},
+#                 {'label': 'Consultancy Services', 'name': 'consultancy_services', 'indent': True},
+#                 {'label': 'Other Professional Services', 'name': 'other_professional_servies', 'indent': True},
+#                 {'label': 'General Services', 'is_group': True},
+#                 {'label': 'Security Services', 'name': 'security_services', 'indent': True},
+#                 {'label': 'Janitorial Services', 'name': 'janitorial_services', 'indent': True},
+#                 {'label': 'Other General Services', 'name': 'other_general_services', 'indent': True},
+#                 {'label': 'Environment/Sanitary Services', 'name': 'environment/sanitary_services', 'indent': True},
+#                 {'label': 'Repair and Maintenance', 'is_group': True},
+#                 {'label': 'Repair & Maintenance - Land Improvements', 'name': 'repair_maintenance_land_improvements', 'indent': True},
+#                 {'label': 'Repair & Maintenance - Buildings and Structures', 'is_group': True},
+#                 {'label': 'Buildings', 'name': 'buildings', 'indent': True},
+#                 {'label': 'School Buildings', 'name': 'school_buildings', 'indent': True},
+#                 {'label': 'Hostels and Dormitories', 'name': 'hostel_dormitories', 'indent': True},
+#                 {'label': 'Other Structures', 'name': 'other_structures', 'indent': True},
+#                 {'label': 'Repairs and Maintenance - Machinery and Equipment', 'is_group': True},
+#                 {'label': 'Machinery', 'name': 'repair_maintenance_machinery', 'indent': True},
+#                 {'label': 'Office Equipment', 'name': 'repair_maintenance_office_equipment', 'indent': True},
+#                 {'label': 'ICT Equipment', 'name': 'repair_maintenance_ict_equipment', 'indent': True},
+#                 {'label': 'Agricultural and Forestry Equipment', 'name': 'repair_maintenance_agri_forestry_equipment', 'indent': True},
+#                 {'label': 'Marine and Fishery Equipment', 'name': 'repair_maintenance_marine_fishery_equipment', 'indent': True},
+#                 {'label': 'Airport Equipment', 'name': 'repair_maintenance_airport_equipment', 'indent': True},
+#                 {'label': 'Communication Equipment', 'name': 'repair_maintenance_communication_equipment', 'indent': True},
+#                 {'label': 'Disaster, Response and Rescue Equipment', 'name': 'repair_maintenance_drre_equipment', 'indent': True},
+#                 {'label': 'Medical Equipment', 'name': 'repair_maintenance_medical_equipment', 'indent': True},
+#                 {'label': 'Printing Equipment', 'name': 'repair_maintenance_printing_equipment', 'indent': True},
+#                 {'label': 'Sports Equipment', 'name': 'repair_maintenance_sports_equipment', 'indent': True},
+#                 {'label': 'Technical and Scientific Equipment', 'name': 'repair_maintenance_technical_scientific_equipment', 'indent': True},
+#                 {'label': 'Other Machinery and Equipment', 'name': 'repair_maintenance_other_machinery_equipment', 'indent': True},
+#                 {'label': 'Repairs and Maintenance - Transportation Equipment', 'is_group': True},
+#                 {'label': 'Motor Vehicles', 'name': 'repair_maintenance_motor', 'indent': True},
+#                 {'label': 'Other Transportation Equipment', 'name': 'repair_maintenance_other_transportation_equipment', 'indent': True},
+#                 {'label': 'Repairs and Maintenance - Furniture & Fixtures', 'name': 'repair_maintenance_furniture_fixtures'},
+#                 {'label': 'Repairs and Maintenance - Semi-Expendable Machinery and Equipment', 'name': 'repair_maintenance_semi_expendable_machinery_equipment'},
+#                 {'label': 'Repairs and Maintenance - Other Property, Plant and Equipment', 'name': 'repair_maintenance_other_property_plant_equipment'},
+#                 {'label': 'Taxes, Insurance Premiums and Other Fees', 'is_group': True},
+#                 {'label': 'Taxes, Duties and Licenses', 'name': 'taxes_duties_licenses', 'indent': True},
+#                 {'label': 'Fidelity Bond Premiums', 'name': 'fidelity_bond_premiums', 'indent': True},
+#                 {'label': 'Insurance Expenses', 'name': 'insurance_expenses', 'indent': True},
+#                 {'label': 'Labor and Wages', 'is_group': True},
+#                 {'label': 'Labor and Wages', 'name': 'labor_wages', 'indent': True},
+#                 {'label': 'Other Maintenance and Operating Expenses', 'is_group': True},
+#                 {'label': 'Advertising Expenses', 'name': 'advertising_expenses', 'indent': True},
+#                 {'label': 'Printing and Publication Expenses', 'name': 'printing_publication_expenses', 'indent': True},
+#                 {'label': 'Representation Expenses', 'name': 'representation_expenses', 'indent': True},
+#                 {'label': 'Transportation and Delivery Expenses', 'name': 'transportation_delivery_expenses', 'indent': True},
+#                 {'label': 'Rent/Lease Expenses', 'name': 'rent/lease_expenses', 'indent': True},
+#                 {'label': 'Membership Dues and contributions to organizations', 'name': 'membership_dues_contribute_to_org', 'indent': True},
+#                 {'label': 'Subscription Expenses', 'name': 'subscription_expenses', 'indent': True},
+#                 {'label': 'Website Maintenance', 'name': 'website_maintenance', 'indent': True},
+#                 {'label': 'Other Maintenance and Operating Expenses', 'name': 'other_maintenance_operating_expenses', 'indent': True},
+#             ]
+#         },
+#         {
+#             'title': 'Capital Outlays',
+#             'color_class': 'bg-green-100',
+#             'items': [
+#                 # Placeholder; extend as needed
+#                 {'label': 'Land', 'is_group': True},
+#                 {'label': 'Land', 'name': 'land', 'indent': True},
+#                 {'label': 'Land Improvements', 'is_group': True},
+#                 {'label': 'Land Improvements, Aquaculture Structure', 'name': 'land_improvements_aqua_structure', 'indent': True},
+#                 {'label': 'Infrastructure Assets', 'is_group': True},
+#                 {'label': 'Water Supply Systems', 'name': 'water_supply_systems', 'indent': True},
+#                 {'label': 'Power Supply Systems', 'name': 'power_supply_systems', 'indent': True},
+#                 {'label': 'Other Infrastructure Assets', 'name': 'other_infra_assets', 'indent': True},
+#                 {'label': 'Building and Other Structures', 'is_group': True},
+#                 {'label': 'Building', 'name': 'bos_building', 'indent': True},
+#                 {'label': 'School Buildings', 'name': 'bos_school_buildings', 'indent': True},
+#                 {'label': 'Hostels and Dormitories', 'name': 'bos_hostels_dorm', 'indent': True},
+#                 {'label': 'Other Structures', 'name': 'other_structures', 'indent': True},
+#                 {'label': 'Machinery and Equipment', 'is_group': True},
+#                 {'label': 'Machinery', 'name': 'me_machinery', 'indent': True},
+#                 {'label': 'Office Equipment', 'name': 'me_office_equipment', 'indent': True},
+#                 {'label': 'Information and Communication Technology Equipment', 'name': 'me_ict_equipment', 'indent': True},
+#                 {'label': 'Communication Equipment', 'name': 'me_communication_equipment', 'indent': True},
+#                 {'label': 'Disaster Response and Rescue Equipment', 'name': 'me_drre', 'indent': True},
+#                 {'label': 'Medical Equipment', 'name': 'me_medical_equipment', 'indent': True},
+#                 {'label': 'Printing Equipment', 'name': 'me_printing_equipment', 'indent': True},
+#                 {'label': 'Sports Equipment', 'name': 'me_sports_equipment', 'indent': True},
+#                 {'label': 'Technical and Scientific Equipment', 'name': 'me_technical_scientific_equipment', 'indent': True},
+#                 {'label': 'Other Machinery and Equipment', 'name': 'me_other_machinery_equipment', 'indent': True},
+#                 {'label': 'Transportation Equipment', 'is_group': True},
+#                 {'label': 'Motor Vehicles', 'name': 'te_motor', 'indent': True},
+#                 {'label': 'Other Transportation Equipment', 'name': 'te_other_transpo_equipment', 'indent': True},
+#                 {'label': 'Furniture, Fixtures and Books', 'is_group': True},
+#                 {'label': 'Furniture and Fixtures', 'name': 'ffb_furniture_fixtures', 'indent': True},
+#                 {'label': 'Books', 'name': 'ffb_books', 'indent': True},
+#                 {'label': 'Construction in Progress', 'is_group': True},
+#                 {'label': 'Construction in Progress - Land Improvements', 'name': 'cp_land_improvements', 'indent': True},
+#                 {'label': 'Construction in Progress - Infrastructure Assets', 'name': 'cp_infra_assets', 'indent': True},
+#                 {'label': 'Construction in Progress - Buildings and Other Structures', 'name': 'cp_building_other_structures', 'indent': True},
+#                 {'label': 'Construction in Progress - Leased Assets', 'name': 'cp_leased_assets', 'indent': True},
+#                 {'label': 'Construction in Progress - Leased Assets Improvements', 'name': 'cp_leased_assets_improvements', 'indent': True},
+#                 {'label': 'Intangible Assets', 'is_group': True},
+#                 {'label': 'Computer Software', 'name': 'ia_computer_software', 'indent': True},
+#                 {'label': 'Websites', 'name': 'ia_websites', 'indent': True},
+#                 {'label': 'Other Tangible Assets', 'name': 'ia_other_tangible_assets', 'indent': True},
                 
-            ]
-        },
-    ]
+#             ]
+#         },
+#     ]
 
-    sections = []
-    for spec in sections_spec:
-        items = []
-        for row in spec['items']:
-            if row.get('is_group'):
-                items.append({'is_group': True, 'label': row['label']})
-            else:
-                name = row['name']
-                q1 = to_decimal(payload.get(f"{name}_q1"))
-                q2 = to_decimal(payload.get(f"{name}_q2"))
-                q3 = to_decimal(payload.get(f"{name}_q3"))
-                q4 = to_decimal(payload.get(f"{name}_q4"))
-                total = q1 + q2 + q3 + q4
-                items.append({
-                    'label': row['label'],
-                    'indent': row.get('indent', False),
-                    'q1': q1,
-                    'q2': q2,
-                    'q3': q3,
-                    'q4': q4,
-                    'total': total,
-                })
+#     sections = []
+#     for spec in sections_spec:
+#         items = []
+#         for row in spec['items']:
+#             if row.get('is_group'):
+#                 items.append({'is_group': True, 'label': row['label']})
+#             else:
+#                 name = row['name']
+#                 q1 = to_decimal(payload.get(f"{name}_q1"))
+#                 q2 = to_decimal(payload.get(f"{name}_q2"))
+#                 q3 = to_decimal(payload.get(f"{name}_q3"))
+#                 q4 = to_decimal(payload.get(f"{name}_q4"))
+#                 total = q1 + q2 + q3 + q4
+#                 items.append({
+#                     'label': row['label'],
+#                     'indent': row.get('indent', False),
+#                     'q1': q1,
+#                     'q2': q2,
+#                     'q3': q3,
+#                     'q4': q4,
+#                     'total': total,
+#                 })
 
-        # Compute section totals excluding group rows
-        total_q1 = sum((it['q1'] for it in items if not it.get('is_group')), Decimal('0'))
-        total_q2 = sum((it['q2'] for it in items if not it.get('is_group')), Decimal('0'))
-        total_q3 = sum((it['q3'] for it in items if not it.get('is_group')), Decimal('0'))
-        total_q4 = sum((it['q4'] for it in items if not it.get('is_group')), Decimal('0'))
-        total_overall = sum((it['total'] for it in items if not it.get('is_group')), Decimal('0'))
+#         # Compute section totals excluding group rows
+#         total_q1 = sum((it['q1'] for it in items if not it.get('is_group')), Decimal('0'))
+#         total_q2 = sum((it['q2'] for it in items if not it.get('is_group')), Decimal('0'))
+#         total_q3 = sum((it['q3'] for it in items if not it.get('is_group')), Decimal('0'))
+#         total_q4 = sum((it['q4'] for it in items if not it.get('is_group')), Decimal('0'))
+#         total_overall = sum((it['total'] for it in items if not it.get('is_group')), Decimal('0'))
 
-        sections.append({
-            'title': spec['title'],
-            'color_class': spec['color_class'],
-            'items': items,
-            'total_q1': total_q1,
-            'total_q2': total_q2,
-            'total_q3': total_q3,
-            'total_q4': total_q4,
-            'total_overall': total_overall,
-        })
+#         sections.append({
+#             'title': spec['title'],
+#             'color_class': spec['color_class'],
+#             'items': items,
+#             'total_q1': total_q1,
+#             'total_q2': total_q2,
+#             'total_q3': total_q3,
+#             'total_q4': total_q4,
+#             'total_overall': total_overall,
+#         })
 
-    # Compute grand totals across all sections
-    grand_total_q1 = sum((sec['total_q1'] for sec in sections), Decimal('0'))
-    grand_total_q2 = sum((sec['total_q2'] for sec in sections), Decimal('0'))
-    grand_total_q3 = sum((sec['total_q3'] for sec in sections), Decimal('0'))
-    grand_total_q4 = sum((sec['total_q4'] for sec in sections), Decimal('0'))
-    grand_total_overall = sum((sec['total_overall'] for sec in sections), Decimal('0'))
+#     # Compute grand totals across all sections
+#     grand_total_q1 = sum((sec['total_q1'] for sec in sections), Decimal('0'))
+#     grand_total_q2 = sum((sec['total_q2'] for sec in sections), Decimal('0'))
+#     grand_total_q3 = sum((sec['total_q3'] for sec in sections), Decimal('0'))
+#     grand_total_q4 = sum((sec['total_q4'] for sec in sections), Decimal('0'))
+#     grand_total_overall = sum((sec['total_overall'] for sec in sections), Decimal('0'))
 
-    # Pass the grouped table, raw data and signatories
-    context = {
-        'pre': pre,
-        'data': payload,
-        'sections': sections,
-        'grand_total_q1': grand_total_q1,
-        'grand_total_q2': grand_total_q2,
-        'grand_total_q3': grand_total_q3,
-        'grand_total_q4': grand_total_q4,
-        'grand_total_overall': grand_total_overall,
-        'prepared_by': pre.prepared_by_name,
-        'certified_by': pre.certified_by_name,
-        'approved_by': pre.approved_by_name,
-    }
-    return render(request, "end_user_app/preview_pre.html", context)
+#     # Pass the grouped table, raw data and signatories
+#     context = {
+#         'pre': pre,
+#         'data': payload,
+#         'sections': sections,
+#         'grand_total_q1': grand_total_q1,
+#         'grand_total_q2': grand_total_q2,
+#         'grand_total_q3': grand_total_q3,
+#         'grand_total_q4': grand_total_q4,
+#         'grand_total_overall': grand_total_overall,
+#         'prepared_by': pre.prepared_by_name,
+#         'certified_by': pre.certified_by_name,
+#         'approved_by': pre.approved_by_name,
+#     }
+#     return render(request, "end_user_app/preview_pre.html", context)
     
 # Activity Design Form Logic
 @role_required('end_user', login_url='/')
