@@ -960,6 +960,22 @@ def download_pre_template(request):
     else:
         messages.error(request, "PRE template file not found.")
         return redirect('department_pre_page')
+    
+@role_required('end_user', login_url='/')
+def view_pre_detail(request, pre_id):
+    """View PRE details (placeholder for now)"""
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related('budget_allocation',
+            'budget_allocation__approved_budget'),
+        id=pre_id,
+        submitted_by=request.user
+    )
+    
+    context = {
+        'pre': pre,
+    }
+    
+    return render(request, 'end_user_app/view_pre_detail.html', context)
 
 # @role_required('end_user', login_url='/')
 # def preview_pre(request, pk: int):

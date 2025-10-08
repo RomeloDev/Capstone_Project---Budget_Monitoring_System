@@ -1,0 +1,98 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}PRE Details{% endblock title %}
+
+{% block main-content %}
+<div class="p-6 space-y-6 max-w-7xl mx-auto">
+
+    <!-- Back Button -->
+    <div>
+        <a href="{% url 'department_pre_page' %}" 
+           class="inline-flex items-center text-blue-600 hover:text-blue-800 gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to PRE Page
+        </a>
+    </div>
+
+    <!-- PRE Details -->
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">PRE Details</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <p class="text-sm text-gray-600">PRE ID:</p>
+                <p class="font-semibold text-gray-900">{{ pre.id }}</p>
+            </div>
+            
+            <div>
+                <p class="text-sm text-gray-600">Department:</p>
+                <p class="font-semibold text-gray-900">{{ pre.department }}</p>
+            </div>
+            
+            <div>
+                <p class="text-sm text-gray-600">Fiscal Year:</p>
+                <p class="font-semibold text-gray-900">{{ pre.fiscal_year }}</p>
+            </div>
+            
+            <div>
+                <p class="text-sm text-gray-600">Total Amount:</p>
+                <p class="font-semibold text-gray-900">₱{{ pre.total_amount|intcomma }}</p>
+            </div>
+            
+            <div>
+                <p class="text-sm text-gray-600">Status:</p>
+                <p>
+                    {% if pre.status == 'Pending' %}
+                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-semibold">
+                        {{ pre.status }}
+                    </span>
+                    {% elif pre.status == 'Approved' %}
+                    <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-semibold">
+                        {{ pre.status }}
+                    </span>
+                    {% elif pre.status == 'Partially Approved' %}
+                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-semibold">
+                        {{ pre.status }}
+                    </span>
+                    {% else %}
+                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-sm font-semibold">
+                        {{ pre.status }}
+                    </span>
+                    {% endif %}
+                </p>
+            </div>
+            
+            <div>
+                <p class="text-sm text-gray-600">Submitted At:</p>
+                <p class="font-semibold text-gray-900">{{ pre.created_at|date:"M d, Y g:i A" }}</p>
+            </div>
+        </div>
+
+        <!-- Download PRE File -->
+        {% if pre.uploaded_excel_file %}
+        <div class="mt-6 pt-6 border-t">
+            <a href="{{ pre.uploaded_excel_file.url }}" 
+               download
+               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Download PRE File
+            </a>
+        </div>
+        {% endif %}
+        
+        <!-- More detailed view coming soon -->
+        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
+            <p class="text-sm text-blue-800">
+                <strong>Note:</strong> Detailed PRE breakdown view is coming soon.
+            </p>
+        </div>
+    </div>
+
+</div>
+
+{% endblock main-content %}

@@ -26,4 +26,5 @@ urlpatterns = [
     path('download_pre_excel/<int:pk>/', views.download_pre_excel, name='download_pre_excel'),
     path('pre/download_pre_template/', views.download_pre_template, name='download_pre_template'),
     path('pre/upload_pre/<int:allocation_id>/', views.upload_pre, name='upload_pre'),
+    path('pre/view/<uuid:pre_id>/', views.view_pre_detail, name='view_pre_detail'),
 ]
