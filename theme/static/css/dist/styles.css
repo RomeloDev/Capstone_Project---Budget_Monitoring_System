@@ -953,6 +953,14 @@ select {
   grid-column: span 2 / span 2;
 }
 
+.row-span-2 {
+  grid-row: span 2 / span 2;
+}
+
+.row-span-3 {
+  grid-row: span 3 / span 3;
+}
+
 .-mx-4 {
   margin-left: -1rem;
   margin-right: -1rem;

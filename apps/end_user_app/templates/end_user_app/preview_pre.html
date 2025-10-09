@@ -135,6 +135,16 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="bg-blue-50">
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-bold text-gray-900">TOTAL RECEIPTS</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ receipts_total.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ receipts_total.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ receipts_total.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ receipts_total.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ receipts_total.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -170,6 +180,16 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="bg-blue-50">
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-bold text-gray-900">TOTAL RECEIPTS</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ personnel_total.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ personnel_total.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ personnel_total.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ personnel_total.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ personnel_total.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -207,6 +227,17 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="bg-blue-50">
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-bold text-gray-900">TOTAL RECEIPTS</td>
+                                <td class="px-4 py-3 text-sm font-bold text-gray-900"></td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ mooe_total.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ mooe_total.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ mooe_total.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ mooe_total.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ mooe_total.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -244,6 +275,17 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="bg-blue-50">
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-bold text-gray-900">TOTAL RECEIPTS</td>
+                                <td class="px-4 py-3 text-sm font-bold text-gray-900"></td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ capital_total.q1|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ capital_total.q2|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ capital_total.q3|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ capital_total.q4|floatformat:2|intcomma }}</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-blue-900">₱{{ capital_total.total|floatformat:2|intcomma }}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

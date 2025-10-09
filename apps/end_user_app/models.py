@@ -1,6 +1,7 @@
 import decimal
 from django.db import models
 from apps.users.models import User
+from apps.budgets.models import BudgetAllocation
 from decimal import Decimal
 from django.core.validators import FileExtensionValidator
 
@@ -475,3 +476,55 @@ class PREBudgetRealignment(models.Model):
             source_items = source_items.filter(quarter=self.source_quarter)
         
         return sum(item.consumed_amount for item in source_items)
+    
+    
+class PREDraft(models.Model):
+    """Store PRE draft uploads"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='pre_drafts')
+    budget_allocation = models.ForeignKey(BudgetAllocation, on_delete=models.CASCADE)
+    
+    # PRE file
+    pre_file = models.FileField(
+        upload_to='pre_drafts/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['xlsx'])]
+    )
+    pre_filename = models.CharField(max_length=255, blank=True)
+    
+    # Draft status
+    is_submitted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+        unique_together = ['user', 'budget_allocation']
+    
+    def __str__(self):
+        return f"Draft PRE - {self.user.get_full_name()} - {self.budget_allocation.id}"
+
+
+class PREDraftSupportingDocument(models.Model):
+    """Supporting documents for PRE drafts"""
+    draft = models.ForeignKey(PREDraft, on_delete=models.CASCADE, related_name='supporting_documents')
+    document = models.FileField(upload_to='pre_draft_docs/%Y/%m/')
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField()
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['uploaded_at']
+    
+    def __str__(self):
+        return self.file_name
+    
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size = self.file_size
+        if size < 1024:
+            return f"{size} B"
+        elif size < 1024 * 1024:
+            return f"{size / 1024:.2f} KB"
+        else:
+            return f"{size / (1024 * 1024):.2f} MB"

@@ -848,6 +848,28 @@ def preview_pre(request):
     extracted_data = json.loads(upload_data['extracted_data'])
     grand_total = Decimal(upload_data['grand_total'])
     
+    # Calculate section totals
+    def calculate_section_totals(items):
+        totals = {
+            'q1': Decimal('0'),
+            'q2': Decimal('0'),
+            'q3': Decimal('0'),
+            'q4': Decimal('0'),
+            'total': Decimal('0')
+        }
+        for item in items:
+            totals['q1'] += Decimal(str(item.get('q1', 0)))
+            totals['q2'] += Decimal(str(item.get('q2', 0)))
+            totals['q3'] += Decimal(str(item.get('q3', 0)))
+            totals['q4'] += Decimal(str(item.get('q4', 0)))
+            totals['total'] += Decimal(str(item.get('total', 0)))
+        return totals
+    
+    receipts_total = calculate_section_totals(extracted_data.get('receipts', []))
+    personnel_total = calculate_section_totals(extracted_data.get('personnel', []))
+    mooe_total = calculate_section_totals(extracted_data.get('mooe', []))
+    capital_total = calculate_section_totals(extracted_data.get('capital', []))
+    
     # Get allocation
     allocation = get_object_or_404(
         NewBudgetAllocation.objects.select_related('approved_budget'),
@@ -941,6 +963,10 @@ def preview_pre(request):
         'fiscal_year': upload_data['fiscal_year'],
         'pre_filename': upload_data['pre_filename'],
         'supporting_docs': supporting_docs_info,
+        'receipts_total': receipts_total,
+        'personnel_total': personnel_total,
+        'mooe_total': mooe_total,
+        'capital_total': capital_total,
     }
     
     return render(request, 'end_user_app/preview_pre.html', context)
