@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
 from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, SupportingDocument, BudgetAllocation as NewBudgetAllocation
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, SupportingDocument, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, RequestApproval, SystemNotification
 from apps.users.models import User
 from django.contrib import messages
 from decimal import Decimal
@@ -22,7 +22,7 @@ from django.db.models import Count
 from datetime import timedelta
 from apps.users.utils import role_required
 import mimetypes
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 import os
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from django.http import HttpResponse
@@ -2354,3 +2354,377 @@ def handle_pre_realignment_admin_action(request, pk):
             messages.success(request, 'Budget realignment rejected.')
     
     return redirect('pre_budget_realignment_admin')
+
+@role_required('admin', login_url='/admin/')
+def admin_pre_list(request):
+    """
+    Admin view to list all PRE submissions with filters, search, and pagination
+    """
+    # Check if user is admin/staff
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('dashboard')
+    
+    # Base queryset - exclude drafts
+    pres = NewDepartmentPRE.objects.exclude(status='Draft').select_related(
+        'submitted_by', 
+        'budget_allocation__approved_budget'
+    ).order_by('-created_at')
+    
+    # === FILTERS ===
+    
+    # 1. Search Filter (PRE ID or Employee Name)
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        pres = pres.filter(
+            Q(id__icontains=search_query) |
+            Q(submitted_by__fullname__icontains=search_query) |
+            Q(submitted_by__username__icontains=search_query) |
+            Q(submitted_by__email__icontains=search_query) |
+            Q(department__icontains=search_query)
+        )
+    
+    # 2. Department Filter
+    department_filter = request.GET.get('department', '').strip()
+    if department_filter:
+        pres = pres.filter(department=department_filter)
+    
+    # 3. Status Filter
+    status_filter = request.GET.get('status', '').strip()
+    if status_filter:
+        pres = pres.filter(status=status_filter)
+    
+    # 4. Date Range Filter
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            pres = pres.filter(created_at__date__gte=date_from_obj)
+        except ValueError:
+            messages.warning(request, "Invalid 'From Date' format.")
+    
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+            pres = pres.filter(created_at__date__lte=date_to_obj)
+        except ValueError:
+            messages.warning(request, "Invalid 'To Date' format.")
+    
+    # === STATISTICS ===
+    # Calculate stats for all PREs (excluding drafts)
+    all_pres = NewDepartmentPRE.objects.exclude(status='Draft')
+    stats = {
+        'total': all_pres.count(),
+        'pending': all_pres.filter(status='Pending').count(),
+        'approved': all_pres.filter(status='Approved').count(),
+        'rejected': all_pres.filter(status='Rejected').count(),
+    }
+    
+    # === PAGINATION ===
+    paginator = Paginator(pres, 10)  # Show 10 PREs per page
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # === GET DEPARTMENTS FOR FILTER ===
+    departments = NewDepartmentPRE.objects.exclude(
+        status='Draft'
+    ).values_list('department', flat=True).distinct().order_by('department')
+    
+    # === STATUS CHOICES ===
+    status_choices = NewDepartmentPRE.STATUS_CHOICES
+    
+    context = {
+        'pres': page_obj,
+        'page_obj': page_obj,
+        'is_paginated': page_obj.has_other_pages(),
+        'stats': stats,
+        'departments': departments,
+        'status_choices': status_choices,
+    }
+    
+    return render(request, 'admin_panel/pre_list.html', context)
+
+@role_required('admin', login_url='/admin/')
+def admin_pre_detail(request, pre_id):
+    """
+    Admin view to see detailed PRE information
+    """
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('dashboard')
+    
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related(
+            'submitted_by',
+            'budget_allocation__approved_budget'
+        ).prefetch_related(
+            'line_items__category',
+            'line_items__subcategory',
+            'receipts'
+        ),
+        id=pre_id
+    )
+    
+    # Get approval history
+    approval_history = RequestApproval.objects.filter(
+        content_type='pre',
+        object_id=pre.id
+    ).select_related('approved_by').order_by('-approved_at')
+    
+    # Calculate totals by category
+    from django.db.models import Sum
+    category_totals = pre.line_items.values(
+        'category__name'
+    ).annotate(
+        total=Sum('q1_amount') + Sum('q2_amount') + Sum('q3_amount') + Sum('q4_amount')
+    ).order_by('category__sort_order')
+    
+    context = {
+        'pre': pre,
+        'approval_history': approval_history,
+        'category_totals': category_totals,
+    }
+    
+    return render(request, 'admin_panel/pre_detail.html', context)
+
+@role_required('admin', login_url='/admin/')
+def admin_handle_pre_action(request, pre_id):
+    """
+    Handle Approve/Reject actions for PRE submissions
+    This is a basic implementation - will be enhanced with modals in Component 4
+    """
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('dashboard')
+    
+    if request.method != 'POST':
+        return redirect('admin_pre_list')
+    
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    action = request.POST.get('action')
+    
+    if action == 'approve':
+        if pre.status == 'Pending':
+            pre.status = 'Partially Approved'
+            pre.partially_approved_at = timezone.now()
+            pre.save()
+            
+            # Create approval record
+            RequestApproval.objects.create(
+                content_type='pre',
+                object_id=pre.id,
+                approved_by=request.user,
+                approval_level='partial',
+                comments=request.POST.get('comment', '')
+            )
+            
+            # Create notification
+            SystemNotification.objects.create(
+                recipient=pre.submitted_by,
+                title='PRE Partially Approved',
+                message=f'Your PRE for {pre.department} has been partially approved.',
+                content_type='pre',
+                object_id=pre.id
+            )
+            
+            messages.success(request, f'PRE {str(pre.id)[:8]} has been partially approved. Please generate PDF for printing.')
+            
+            # TODO: Trigger PDF generation
+            # generate_pre_pdf(pre)
+        else:
+            messages.warning(request, 'This PRE cannot be approved.')
+    
+    elif action == 'reject':
+        if pre.status == 'Pending':
+            pre.status = 'Rejected'
+            pre.rejection_reason = request.POST.get('reason', 'No reason provided')
+            pre.save()
+            
+            # Create approval record
+            RequestApproval.objects.create(
+                content_type='pre',
+                object_id=pre.id,
+                approved_by=request.user,
+                approval_level='rejected',
+                comments=pre.rejection_reason
+            )
+            
+            # Create notification
+            SystemNotification.objects.create(
+                recipient=pre.submitted_by,
+                title='PRE Rejected',
+                message=f'Your PRE for {pre.department} has been rejected. Reason: {pre.rejection_reason}',
+                content_type='pre',
+                object_id=pre.id
+            )
+            
+            messages.success(request, f'PRE {str(pre.id)[:8]} has been rejected.')
+        else:
+            messages.warning(request, 'This PRE cannot be rejected.')
+    
+    else:
+        messages.error(request, 'Invalid action.')
+    
+    return redirect('admin_pre_list')
+
+@role_required('admin', login_url='/admin/')
+def admin_approve_pre_with_comment(request, pre_id):
+    """
+    Advanced approve with comment (AJAX endpoint for modal)
+    """
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+    
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    
+    if pre.status != 'Pending':
+        return JsonResponse({
+            'success': False, 
+            'error': f'This PRE cannot be approved. Current status: {pre.status}'
+        }, status=400)
+    
+    # Get comment from request
+    comment = request.POST.get('comment', '').strip()
+    
+    # Update PRE to Partially Approved
+    pre.status = 'Partially Approved'
+    pre.partially_approved_at = timezone.now()
+    pre.admin_notes = comment
+    pre.save()
+    
+    # Create approval record
+    RequestApproval.objects.create(
+        content_type='pre',
+        object_id=pre.id,
+        approved_by=request.user,
+        approval_level='partial',
+        comments=comment
+    )
+    
+    # Create notification for submitter
+    SystemNotification.objects.create(
+        recipient=pre.submitted_by,
+        title='PRE Partially Approved',
+        message=f'Your PRE for {pre.department} has been partially approved. Please download the PDF for signatures.',
+        content_type='pre',
+        object_id=pre.id
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'message': f'PRE {str(pre.id)[:8]} partially approved successfully',
+        'pre_id': str(pre.id),
+        'new_status': pre.status
+    })
+
+
+@role_required('admin', login_url='/admin/')
+def admin_reject_pre_with_reason(request, pre_id):
+    """
+    Advanced reject with reason (AJAX endpoint for modal)
+    """
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+    
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    
+    if pre.status != 'Pending':
+        return JsonResponse({
+            'success': False, 
+            'error': f'This PRE cannot be rejected. Current status: {pre.status}'
+        }, status=400)
+    
+    # Get reason from request
+    reason = request.POST.get('reason', '').strip()
+    
+    if not reason:
+        return JsonResponse({
+            'success': False, 
+            'error': 'Rejection reason is required'
+        }, status=400)
+    
+    # Update PRE
+    pre.status = 'Rejected'
+    pre.rejection_reason = reason
+    pre.save()
+    
+    # Create approval record
+    RequestApproval.objects.create(
+        content_type='pre',
+        object_id=pre.id,
+        approved_by=request.user,
+        approval_level='rejected',
+        comments=reason
+    )
+    
+    # Create notification
+    SystemNotification.objects.create(
+        recipient=pre.submitted_by,
+        title='PRE Rejected',
+        message=f'Your PRE for {pre.department} has been rejected. Reason: {reason}',
+        content_type='pre',
+        object_id=pre.id
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'message': f'PRE {str(pre.id)[:8]} rejected',
+        'pre_id': str(pre.id),
+        'new_status': pre.status
+    })
+
+
+@role_required('admin', login_url='/admin/')
+def admin_update_pre_status(request, pre_id):
+    """
+    General status update endpoint
+    """
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+    
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    new_status = request.POST.get('status')
+    comment = request.POST.get('comment', '')
+    
+    # Valid status transitions
+    valid_statuses = dict(NewDepartmentPRE.STATUS_CHOICES).keys()
+    
+    if new_status not in valid_statuses:
+        return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
+    
+    old_status = pre.status
+    pre.status = new_status
+    
+    # Update timestamps based on status
+    if new_status == 'Partially Approved':
+        pre.partially_approved_at = timezone.now()
+    elif new_status == 'Approved':
+        pre.final_approved_at = timezone.now()
+    
+    pre.save()
+    
+    # Create status change record
+    RequestApproval.objects.create(
+        content_type='pre',
+        object_id=pre.id,
+        approved_by=request.user,
+        approval_level='status_change',
+        comments=f'Status changed from {old_status} to {new_status}. {comment}'
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'message': f'Status updated from {old_status} to {new_status}',
+        'new_status': new_status
+    })

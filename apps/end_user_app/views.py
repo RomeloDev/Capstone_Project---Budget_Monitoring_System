@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations, PREBudgetRealignment
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations, PREBudgetRealignment, PREDraft, PREDraftSupportingDocument
 from decimal import Decimal
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -28,6 +28,7 @@ import tempfile
 from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE
 from .utils.pre_parser import parse_pre_excel
 from django.core.files.storage import default_storage
+from django.utils import timezone
 
 # Create your views here.
 @role_required('end_user', login_url='/')
@@ -718,7 +719,7 @@ def department_pre_page(request):
 
 @role_required('end_user', login_url='/')
 def upload_pre(request, allocation_id):
-    """Handle PRE Excel upload and supporting documents"""
+    """Handle PRE Excel upload and supporting documents with draft support"""
     allocation = get_object_or_404(
         NewBudgetAllocation.objects.select_related('approved_budget'),
         id=allocation_id,
@@ -736,97 +737,142 @@ def upload_pre(request, allocation_id):
             f"Status: {existing_pre.status}")
         return redirect('department_pre_page')
     
+    # Get or create draft
+    draft, created = PREDraft.objects.get_or_create(
+        user=request.user,
+        budget_allocation=allocation
+    )
+    
     if request.method == 'POST':
-        pre_file = request.FILES.get('pre_document')
-        supporting_docs = request.FILES.getlist('supporting_documents')
+        action = request.POST.get('action')
         
-        # Validation
-        if not pre_file:
-            messages.error(request, "PRE Excel file is required.")
-            return redirect('upload_pre', allocation_id=allocation_id)
-        
-        # Validate file extension
-        if not pre_file.name.endswith('.xlsx'):
-            messages.error(request, "Only .xlsx Excel files are accepted for PRE.")
-            return redirect('upload_pre', allocation_id=allocation_id)
-        
-        # Save file temporarily
-        temp_path = default_storage.save(
-            f'temp/pre_{request.user.id}_{pre_file.name}',
-            pre_file
-        )
-        full_path = os.path.join(settings.MEDIA_ROOT, temp_path)
-        
-        try:
-            # Parse Excel file
-            result = parse_pre_excel(full_path)
+        if action == 'upload_pre':
+            # Handle PRE file upload
+            pre_file = request.FILES.get('pre_document')
             
-            if not result['success']:
-                messages.error(request, 
-                    f"Error parsing PRE file: {', '.join(result['errors'])}")
-                default_storage.delete(temp_path)
+            if not pre_file:
+                messages.error(request, "Please select a PRE file to upload.")
                 return redirect('upload_pre', allocation_id=allocation_id)
             
-            # Validate fiscal year
-            if result['fiscal_year']:
-                if result['fiscal_year'] != allocation.approved_budget.fiscal_year:
-                    messages.error(request, 
-                        f"PRE fiscal year ({result['fiscal_year']}) does not match "
-                        f"budget allocation fiscal year ({allocation.approved_budget.fiscal_year}).")
-                    default_storage.delete(temp_path)
-                    return redirect('upload_pre', allocation_id=allocation_id)
-            
-            # Validate grand total
-            if result['grand_total'] > allocation.remaining_balance:
-                messages.error(request, 
-                    f"PRE total amount (₱{result['grand_total']:,.2f}) exceeds "
-                    f"remaining budget allocation (₱{allocation.remaining_balance:,.2f}).")
-                default_storage.delete(temp_path)
+            if not pre_file.name.endswith('.xlsx'):
+                messages.error(request, "Only .xlsx Excel files are accepted for PRE.")
                 return redirect('upload_pre', allocation_id=allocation_id)
             
-            # Store data in session for preview
-            request.session['pre_upload_data'] = {
-                'allocation_id': allocation_id,
-                'extracted_data': json.dumps(result['data'], default=str),
-                'grand_total': str(result['grand_total']),
-                'fiscal_year': result['fiscal_year'],
-                'pre_filename': pre_file.name,
-                'temp_file_path': temp_path,
-            }
+            # Save to draft
+            if draft.pre_file:
+                # Delete old file if exists
+                draft.pre_file.delete(save=False)
             
-            # Store supporting documents info
-            supporting_docs_info = []
+            draft.pre_file = pre_file
+            draft.pre_filename = pre_file.name
+            draft.save()
+            
+            messages.success(request, f"PRE file '{pre_file.name}' saved as draft.")
+            return redirect('upload_pre', allocation_id=allocation_id)
+        
+        elif action == 'upload_supporting':
+            # Handle supporting documents upload
+            supporting_docs = request.FILES.getlist('supporting_documents')
+            
+            if not supporting_docs:
+                messages.error(request, "Please select at least one supporting document.")
+                return redirect('upload_pre', allocation_id=allocation_id)
+            
+            # Save each supporting document
+            count = 0
             for doc in supporting_docs:
-                supporting_docs_info.append({
-                    'name': doc.name,
-                    'size': doc.size,
-                    'content_type': doc.content_type,
-                })
-            
-            request.session['supporting_docs_info'] = supporting_docs_info
-            
-            # Store supporting documents temporarily
-            temp_doc_paths = []
-            for doc in supporting_docs:
-                temp_doc_path = default_storage.save(
-                    f'temp/support_{request.user.id}_{doc.name}',
-                    doc
+                # Check if document with same name already exists
+                existing = draft.supporting_documents.filter(file_name=doc.name).first()
+                if existing:
+                    messages.warning(request, f"File '{doc.name}' already exists. Skipped.")
+                    continue
+                
+                PREDraftSupportingDocument.objects.create(
+                    draft=draft,
+                    document=doc,
+                    file_name=doc.name,
+                    file_size=doc.size
                 )
-                temp_doc_paths.append(temp_doc_path)
+                count += 1
             
-            request.session['temp_doc_paths'] = temp_doc_paths
+            if count > 0:
+                messages.success(request, f"{count} supporting document(s) saved as draft.")
+            return redirect('upload_pre', allocation_id=allocation_id)
+        
+        elif action == 'remove_supporting':
+            # Remove supporting document
+            doc_id = request.POST.get('doc_id')
+            try:
+                doc = draft.supporting_documents.get(id=doc_id)
+                doc_name = doc.file_name
+                doc.document.delete(save=False)
+                doc.delete()
+                messages.success(request, f"Removed '{doc_name}'")
+            except PREDraftSupportingDocument.DoesNotExist:
+                messages.error(request, "Document not found.")
+            return redirect('upload_pre', allocation_id=allocation_id)
+        
+        elif action == 'continue':
+            # Validate and continue to preview
+            if not draft.pre_file:
+                messages.error(request, "Please upload a PRE Excel file first.")
+                return redirect('upload_pre', allocation_id=allocation_id)
             
-            messages.success(request, "Files uploaded successfully. Please review the extracted data.")
-            return redirect('preview_pre')
-            
-        except Exception as e:
-            messages.error(request, f"Error processing file: {str(e)}")
-            if os.path.exists(full_path):
-                default_storage.delete(temp_path)
+            # Parse Excel file
+            try:
+                result = parse_pre_excel(draft.pre_file.path)
+                
+                if not result['success']:
+                    messages.error(request, 
+                        f"Error parsing PRE file: {', '.join(result['errors'])}")
+                    return redirect('upload_pre', allocation_id=allocation_id)
+                
+                # Validate fiscal year
+                if result['fiscal_year']:
+                    if result['fiscal_year'] != allocation.approved_budget.fiscal_year:
+                        messages.error(request, 
+                            f"PRE fiscal year ({result['fiscal_year']}) does not match "
+                            f"budget allocation fiscal year ({allocation.approved_budget.fiscal_year}).")
+                        return redirect('upload_pre', allocation_id=allocation_id)
+                
+                # Validate grand total
+                if result['grand_total'] > allocation.remaining_balance:
+                    messages.error(request, 
+                        f"PRE total amount (₱{result['grand_total']:,.2f}) exceeds "
+                        f"remaining budget allocation (₱{allocation.remaining_balance:,.2f}).")
+                    return redirect('upload_pre', allocation_id=allocation_id)
+                
+                # Store data in session for preview
+                request.session['pre_upload_data'] = {
+                    'allocation_id': allocation_id,
+                    'draft_id': draft.id,
+                    'extracted_data': json.dumps(result['data'], default=str),
+                    'grand_total': str(result['grand_total']),
+                    'fiscal_year': result['fiscal_year'],
+                    'pre_filename': draft.pre_filename,
+                }
+                
+                messages.success(request, "Files validated successfully. Please review the extracted data.")
+                return redirect('preview_pre')
+                
+            except Exception as e:
+                messages.error(request, f"Error processing file: {str(e)}")
+                return redirect('upload_pre', allocation_id=allocation_id)
+        
+        elif action == 'clear_draft':
+            # Clear all draft files
+            if draft.pre_file:
+                draft.pre_file.delete(save=False)
+            for doc in draft.supporting_documents.all():
+                doc.document.delete(save=False)
+                doc.delete()
+            draft.delete()
+            messages.info(request, "Draft cleared.")
             return redirect('upload_pre', allocation_id=allocation_id)
     
     context = {
         'allocation': allocation,
+        'draft': draft,
     }
     
     return render(request, 'end_user_app/upload_pre.html', context)
@@ -901,6 +947,9 @@ def preview_pre(request):
         
         elif action == 'submit':
             try:
+                draft_id = upload_data.get('draft_id')
+                draft = PREDraft.objects.get(id=draft_id, user=request.user)
+                
                 # Create DepartmentPRE record
                 pre = NewDepartmentPRE.objects.create(
                     submitted_by=request.user,
@@ -909,23 +958,33 @@ def preview_pre(request):
                     fiscal_year=allocation.approved_budget.fiscal_year,
                     total_amount=grand_total,
                     status='Pending',
-                    is_valid=True
+                    is_valid=True,
+                    submitted_at=timezone.now(),
                 )
                 
+                # Move PRE file from draft
+                if draft.pre_file:
+                    from django.core.files.base import ContentFile
+                    with draft.pre_file.open('rb') as f:
+                        pre.uploaded_excel_file.save(draft.pre_filename, ContentFile(f.read()), save=True)
+        
+                draft.is_submitted = True
+                draft.save()
+                
                 # Move PRE file from temp to permanent location
-                temp_file_path = upload_data['temp_file_path']
-                if default_storage.exists(temp_file_path):
-                    # Read temp file
-                    with default_storage.open(temp_file_path, 'rb') as temp_file:
-                        # Save to PRE's uploaded_excel_file field
-                        from django.core.files.base import ContentFile
-                        pre.uploaded_excel_file.save(
-                            upload_data['pre_filename'],
-                            ContentFile(temp_file.read()),
-                            save=True
-                        )
-                    # Delete temp file
-                    default_storage.delete(temp_file_path)
+                # temp_file_path = upload_data['temp_file_path']
+                # if default_storage.exists(temp_file_path):
+                #     # Read temp file
+                #     with default_storage.open(temp_file_path, 'rb') as temp_file:
+                #         # Save to PRE's uploaded_excel_file field
+                #         from django.core.files.base import ContentFile
+                #         pre.uploaded_excel_file.save(
+                #             upload_data['pre_filename'],
+                #             ContentFile(temp_file.read()),
+                #             save=True
+                #         )
+                #     # Delete temp file
+                #     default_storage.delete(temp_file_path)
                 
                 # Save supporting documents
                 temp_doc_paths = request.session.get('temp_doc_paths', [])
@@ -946,10 +1005,13 @@ def preview_pre(request):
                 request.session.pop('pre_upload_data', None)
                 request.session.pop('supporting_docs_info', None)
                 request.session.pop('temp_doc_paths', None)
+                request.session.pop('pre_upload_data', None)
                 
                 messages.success(request, 
                     f"PRE submitted successfully! Total amount: ₱{grand_total:,.2f}. "
                     f"Status: Pending Review")
+                
+                draft.delete()  # Remove draft after submission
                 return redirect('department_pre_page')
                 
             except Exception as e:

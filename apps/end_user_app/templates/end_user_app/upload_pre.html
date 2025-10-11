@@ -63,14 +63,40 @@
     </div>
 
     <!-- Upload Form -->
-    <form method="POST" enctype="multipart/form-data" class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-6">
-        {% csrf_token %}
-
-        <!-- PRE Document Upload -->
-        <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                PRE Excel Document <span class="text-red-500">*</span>
-            </label>
+<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-6">
+    
+    <!-- PRE Document Upload -->
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+            PRE Excel Document <span class="text-red-500">*</span>
+        </label>
+        
+        {% if draft.pre_file %}
+        <!-- Existing Draft PRE File -->
+        <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div>
+                        <p class="text-sm font-semibold text-green-900">Draft PRE File Saved</p>
+                        <p class="text-xs text-green-700">{{ draft.pre_filename }}</p>
+                        <p class="text-xs text-green-600">Last updated: {{ draft.updated_at|date:"M d, Y g:i A" }}</p>
+                    </div>
+                </div>
+                <a href="{{ draft.pre_file.url }}" 
+                   download
+                   class="text-green-700 hover:text-green-900 text-sm underline">
+                    Download
+                </a>
+            </div>
+        </div>
+        {% endif %}
+        
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload_pre">
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
@@ -79,9 +105,9 @@
                     <label for="pre_document" class="cursor-pointer">
                         <span class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                             </svg>
-                            Browse PRE File
+                            {% if draft.pre_file %}Replace PRE File{% else %}Browse PRE File{% endif %}
                         </span>
                         <input type="file" 
                                name="pre_document" 
@@ -89,30 +115,64 @@
                                accept=".xlsx"
                                required
                                class="hidden"
-                               onchange="displayFileName('pre_document', 'pre_file_name')">
+                               onchange="this.form.submit()">
                     </label>
                     <p class="text-xs text-gray-500 mt-2">Only .xlsx files accepted</p>
                 </div>
-                <div id="pre_file_name" class="mt-4 hidden">
-                    <div class="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <span id="pre_file_text"></span>
+            </div>
+        </form>
+        <p class="text-sm text-gray-600 mt-2">
+            <strong>Important:</strong> Use the official PRE template. 
+            <a href="{% url 'download_pre_template' %}" class="text-blue-600 hover:underline">Download template here</a>
+        </p>
+    </div>
+
+    <!-- Supporting Documents Upload -->
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">
+            Supporting Documents <span class="text-gray-500">(Optional)</span>
+        </label>
+        
+        {% if draft.supporting_documents.exists %}
+        <!-- Existing Supporting Documents -->
+        <div class="mb-4 space-y-2">
+            <p class="text-sm font-medium text-gray-700">Saved Documents ({{ draft.supporting_documents.count }}):</p>
+            {% for doc in draft.supporting_documents.all %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded">
+                <div class="flex items-center gap-3">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">{{ doc.file_name }}</p>
+                        <p class="text-xs text-gray-500">{{ doc.get_file_size_display }}</p>
                     </div>
                 </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ doc.document.url }}" 
+                       download
+                       class="text-blue-600 hover:text-blue-800 text-sm">
+                        Download
+                    </a>
+                    <form method="POST" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove_supporting">
+                        <input type="hidden" name="doc_id" value="{{ doc.id }}">
+                        <button type="submit" 
+                                onclick="return confirm('Remove this document?')"
+                                class="text-red-600 hover:text-red-800 text-sm">
+                            Remove
+                        </button>
+                    </form>
+                </div>
             </div>
-            <p class="text-sm text-gray-600 mt-2">
-                <strong>Important:</strong> Use the official PRE template. 
-                <a href="{% url 'download_pre_template' %}" class="text-blue-600 hover:underline">Download template here</a>
-            </p>
+            {% endfor %}
         </div>
-
-        <!-- Supporting Documents Upload -->
-        <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                Supporting Documents <span class="text-gray-500">(Optional)</span>
-            </label>
+        {% endif %}
+        
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload_supporting">
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
@@ -123,37 +183,54 @@
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
                             </svg>
-                            Browse Supporting Documents
+                            Add Supporting Documents
                         </span>
                         <input type="file" 
                                name="supporting_documents" 
                                id="supporting_documents" 
                                multiple
                                class="hidden"
-                               onchange="displayMultipleFileNames()">
+                               onchange="this.form.submit()">
                     </label>
                     <p class="text-xs text-gray-500 mt-2">You can select multiple files (all formats accepted)</p>
                 </div>
-                <div id="supporting_files_list" class="mt-4 space-y-2 hidden"></div>
             </div>
-        </div>
+        </form>
+    </div>
 
-        <!-- Action Buttons -->
-        <div class="flex justify-end gap-3 pt-6 border-t">
+    <!-- Action Buttons -->
+    <div class="flex justify-between items-center gap-3 pt-6 border-t">
+        <form method="POST" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="clear_draft">
+            <button type="submit" 
+                    onclick="return confirm('Clear all draft files? This cannot be undone.')"
+                    class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm">
+                Clear Draft
+            </button>
+        </form>
+        
+        <div class="flex gap-3">
             <a href="{% url 'department_pre_page' %}" 
                class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition">
                 Cancel
             </a>
-            <button type="submit" 
-                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition inline-flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Continue to Preview
-            </button>
+            <form method="POST" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="continue">
+                <button type="submit" 
+                        {% if not draft.pre_file %}disabled{% endif %}
+                        class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition inline-flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Continue to Preview
+                </button>
+            </form>
         </div>
-    </form>
+    </div>
 
+</div>
 </div>
 
 <script>

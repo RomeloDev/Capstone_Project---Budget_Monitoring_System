@@ -195,8 +195,8 @@ class DepartmentPRE(models.Model):
     # Basic info
     submitted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="submitted_pres")
     department = models.CharField(max_length=255)
-    program = models.CharField(max_length=255, default="GASS")
-    fund_source = models.CharField(max_length=100, default="STF")
+    program = models.CharField(max_length=255, null=True, blank=True)
+    fund_source = models.CharField(max_length=100, null=True, blank=True)
     fiscal_year = models.CharField(max_length=10)
     
     # Link to budget allocation - CRITICAL for validation
@@ -262,6 +262,11 @@ class DepartmentPRE(models.Model):
     # Admin notes
     admin_notes = models.TextField(blank=True, help_text="Admin notes during review")
     rejection_reason = models.TextField(blank=True)
+    
+    # Status workflow fields
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    partially_approved_at = models.DateTimeField(null=True, blank=True)
+    final_approved_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         ordering = ['-created_at']

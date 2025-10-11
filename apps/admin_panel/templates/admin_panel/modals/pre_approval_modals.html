@@ -1,0 +1,446 @@
+<!-- Approval Modal -->
+<div id="approveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full transform transition-all">
+    <!-- Modal Header -->
+    <div class="bg-green-600 text-white px-6 py-4 rounded-t-lg">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold flex items-center">
+          <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Approve PRE
+        </h3>
+        <button onclick="closeApproveModal()" class="text-white hover:text-gray-200 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="p-6">
+      <div class="mb-4">
+        <p class="text-gray-700 mb-2">You are about to approve:</p>
+        <div class="bg-gray-50 p-3 rounded border border-gray-200">
+          <p class="font-semibold text-gray-800" id="approvePreNumber">PRE-2024-XXXXXXXX</p>
+          <p class="text-sm text-gray-600 mt-1" id="approvePreDept">Department Name</p>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label for="approveComment" class="block text-sm font-medium text-gray-700 mb-2">
+          Add Comment (Optional)
+        </label>
+        <textarea 
+          id="approveComment" 
+          rows="4" 
+          class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+          placeholder="Add any notes or instructions for the submitter..."></textarea>
+      </div>
+
+      <div class="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
+        <p class="text-sm text-green-800">
+          <strong>Note:</strong> Approving will change status to "Partially Approved" and generate a PDF for printing and signatures.
+        </p>
+      </div>
+
+      <div id="approveError" class="hidden bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+        <p class="text-sm text-red-800"></p>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="bg-gray-50 px-6 py-4 rounded-b-lg flex justify-end gap-3">
+      <button 
+        onclick="closeApproveModal()" 
+        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition">
+        Cancel
+      </button>
+      <button 
+        onclick="submitApproval()" 
+        id="approveSubmitBtn"
+        class="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        Approve PRE
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full transform transition-all">
+    <!-- Modal Header -->
+    <div class="bg-red-600 text-white px-6 py-4 rounded-t-lg">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold flex items-center">
+          <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Reject PRE
+        </h3>
+        <button onclick="closeRejectModal()" class="text-white hover:text-gray-200 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="p-6">
+      <div class="mb-4">
+        <p class="text-gray-700 mb-2">You are about to reject:</p>
+        <div class="bg-gray-50 p-3 rounded border border-gray-200">
+          <p class="font-semibold text-gray-800" id="rejectPreNumber">PRE-2024-XXXXXXXX</p>
+          <p class="text-sm text-gray-600 mt-1" id="rejectPreDept">Department Name</p>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label for="rejectReason" class="block text-sm font-medium text-gray-700 mb-2">
+          Rejection Reason <span class="text-red-500">*</span>
+        </label>
+        <textarea 
+          id="rejectReason" 
+          rows="4" 
+          required
+          class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-red-500 focus:outline-none"
+          placeholder="Please provide a clear reason for rejection..."></textarea>
+        <p class="text-xs text-gray-500 mt-1">This will be sent to the submitter.</p>
+      </div>
+
+      <div class="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+        <p class="text-sm text-red-800">
+          <strong>Warning:</strong> Rejecting this PRE will notify the submitter and they will need to resubmit.
+        </p>
+      </div>
+
+      <div id="rejectError" class="hidden bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+        <p class="text-sm text-red-800"></p>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="bg-gray-50 px-6 py-4 rounded-b-lg flex justify-end gap-3">
+      <button 
+        onclick="closeRejectModal()" 
+        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition">
+        Cancel
+      </button>
+      <button 
+        onclick="submitRejection()" 
+        id="rejectSubmitBtn"
+        class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+        Reject PRE
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Success Toast Notification -->
+<div id="successToast" class="hidden fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center">
+  <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+  </svg>
+  <span id="successToastMessage">Action completed successfully!</span>
+</div>
+
+<!-- JavaScript for Modal Functionality -->
+<script>
+// Global variables to store current PRE data
+let currentPreId = null;
+let currentPreNumber = null;
+let currentPreDept = null;
+
+// ============================================
+// APPROVE MODAL FUNCTIONS
+// ============================================
+function openApproveModal(preId, preNumber, preDept) {
+  currentPreId = preId;
+  currentPreNumber = preNumber || `PRE-${preId.toString().substring(0, 8)}`;
+  currentPreDept = preDept || 'Department';
+  
+  document.getElementById('approvePreNumber').textContent = currentPreNumber;
+  document.getElementById('approvePreDept').textContent = currentPreDept;
+  document.getElementById('approveComment').value = '';
+  document.getElementById('approveError').classList.add('hidden');
+  
+  document.getElementById('approveModal').classList.remove('hidden');
+}
+
+function closeApproveModal() {
+  document.getElementById('approveModal').classList.add('hidden');
+  currentPreId = null;
+  currentPreNumber = null;
+  currentPreDept = null;
+}
+
+function submitApproval() {
+  const comment = document.getElementById('approveComment').value.trim();
+  const submitBtn = document.getElementById('approveSubmitBtn');
+  const errorDiv = document.getElementById('approveError');
+  
+  // Disable button
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Processing...';
+  
+  // Get CSRF token - try multiple methods
+  let csrftoken = null;
+  
+  // Method 1: Look for input field
+  const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+  if (csrfInput) {
+    csrftoken = csrfInput.value;
+  }
+  
+  // Method 2: Look for meta tag
+  if (!csrftoken) {
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) {
+      csrftoken = csrfMeta.content;
+    }
+  }
+  
+  // Method 3: Get from cookie
+  if (!csrftoken) {
+    csrftoken = getCookie('csrftoken');
+  }
+  
+  if (!csrftoken) {
+    console.error('CSRF token not found!');
+    errorDiv.querySelector('p').textContent = 'Security token not found. Please refresh the page.';
+    errorDiv.classList.remove('hidden');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Approve PRE';
+    return;
+  }
+  
+  console.log('Submitting approval for PRE:', currentPreId);
+  console.log('URL:', `/admin/pre/${currentPreId}/approve/`);
+  
+  // Make AJAX request
+  fetch(`/admin/pre/${currentPreId}/approve/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': csrftoken
+    },
+    body: `comment=${encodeURIComponent(comment)}`
+  })
+  .then(response => {
+    console.log('Response status:', response.status);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Response data:', data);
+    if (data.success) {
+      closeApproveModal();
+      showSuccessToast(data.message || 'PRE approved successfully!');
+      
+      // Reload page after 1 second
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      errorDiv.querySelector('p').textContent = data.error || 'An error occurred';
+      errorDiv.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Approve PRE';
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    errorDiv.querySelector('p').textContent = `Network error: ${error.message}. Check console for details.`;
+    errorDiv.classList.remove('hidden');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Approve PRE';
+  });
+}
+
+// Helper function to get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// ============================================
+// REJECT MODAL FUNCTIONS
+// ============================================
+function openRejectModal(preId, preNumber, preDept) {
+  currentPreId = preId;
+  currentPreNumber = preNumber || `PRE-${preId.toString().substring(0, 8)}`;
+  currentPreDept = preDept || 'Department';
+  
+  document.getElementById('rejectPreNumber').textContent = currentPreNumber;
+  document.getElementById('rejectPreDept').textContent = currentPreDept;
+  document.getElementById('rejectReason').value = '';
+  document.getElementById('rejectError').classList.add('hidden');
+  
+  document.getElementById('rejectModal').classList.remove('hidden');
+}
+
+function closeRejectModal() {
+  document.getElementById('rejectModal').classList.add('hidden');
+  currentPreId = null;
+  currentPreNumber = null;
+  currentPreDept = null;
+}
+
+function submitRejection() {
+  const reason = document.getElementById('rejectReason').value.trim();
+  const submitBtn = document.getElementById('rejectSubmitBtn');
+  const errorDiv = document.getElementById('rejectError');
+  
+  // Validate reason
+  if (!reason) {
+    errorDiv.querySelector('p').textContent = 'Rejection reason is required';
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+  
+  // Disable button
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Processing...';
+  
+  // Get CSRF token
+  const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  
+  // Make AJAX request
+  fetch(`/admin/pre/${currentPreId}/reject/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': csrftoken
+    },
+    body: `reason=${encodeURIComponent(reason)}`
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      closeRejectModal();
+      showSuccessToast(data.message || 'PRE rejected successfully!');
+      
+      // Reload page after 1 second
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      errorDiv.querySelector('p').textContent = data.error || 'An error occurred';
+      errorDiv.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>Reject PRE';
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    errorDiv.querySelector('p').textContent = 'Network error. Please try again.';
+    errorDiv.classList.remove('hidden');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>Reject PRE';
+  });
+}
+
+// ============================================
+// SUCCESS TOAST NOTIFICATION
+// ============================================
+function showSuccessToast(message) {
+  const toast = document.getElementById('successToast');
+  const messageSpan = document.getElementById('successToastMessage');
+  
+  messageSpan.textContent = message;
+  toast.classList.remove('hidden');
+  
+  // Auto-hide after 3 seconds
+  setTimeout(() => {
+    toast.classList.add('hidden');
+  }, 3000);
+}
+
+// ============================================
+// KEYBOARD SHORTCUTS
+// ============================================
+document.addEventListener('keydown', function(event) {
+  // Close modals with Escape key
+  if (event.key === 'Escape') {
+    closeApproveModal();
+    closeRejectModal();
+  }
+});
+
+// ============================================
+// CLICK OUTSIDE TO CLOSE
+// ============================================
+document.getElementById('approveModal')?.addEventListener('click', function(event) {
+  if (event.target === this) {
+    closeApproveModal();
+  }
+});
+
+document.getElementById('rejectModal')?.addEventListener('click', function(event) {
+  if (event.target === this) {
+    closeRejectModal();
+  }
+});
+</script>
+
+<style>
+/* Modal animations */
+#approveModal, #rejectModal {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+#approveModal > div, #rejectModal > div {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+</style>

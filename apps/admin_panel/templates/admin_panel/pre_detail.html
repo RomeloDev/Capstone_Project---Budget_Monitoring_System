@@ -1,0 +1,484 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}PRE Details - {{ pre.department }}{% endblock %}
+
+{% block main-content %}
+<div class="flex flex-col w-full">
+  <!-- Header with Back Button -->
+  <header class="bg-blue-600 px-4 py-3 text-white shadow-sm rounded-lg mb-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center">
+        <a href="{% url 'admin_pre_list' %}" class="mr-4 hover:bg-blue-700 p-2 rounded transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+          </svg>
+        </a>
+        <div>
+          <h1 class="text-[20px] font-bold">PRE Details</h1>
+          <p class="text-sm text-blue-100 mt-1">PRE-{{ pre.id|slice:":8"|upper }} - {{ pre.department }}</p>
+        </div>
+      </div>
+      <div>
+        <span class="px-4 py-2 rounded-full text-sm font-semibold
+          {% if pre.status == 'Pending' %} bg-yellow-400 text-yellow-900
+          {% elif pre.status == 'Partially Approved' %} bg-blue-400 text-blue-900
+          {% elif pre.status == 'Approved' %} bg-green-400 text-green-900
+          {% elif pre.status == 'Rejected' %} bg-red-400 text-red-900
+          {% endif %}">
+          {{ pre.status }}
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 px-6 py-4 bg-gray-100 space-y-6">
+    
+    <!-- Action Buttons -->
+    {% if pre.status == 'Pending' %}
+    <section class="bg-white p-4 rounded-lg shadow-md">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-800">Quick Actions</h2>
+        <div class="flex gap-3">
+          <button onclick="openApproveModal('{{ pre.id }}', 'PRE-{{ pre.id|slice:":8"|upper }}', '{{ pre.department|escapejs }}')" 
+                  class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Approve PRE
+          </button>
+          <button onclick="openRejectModal('{{ pre.id }}', 'PRE-{{ pre.id|slice:":8"|upper }}', '{{ pre.department|escapejs }}')" 
+                  class="bg-red-600 text-white px-6 py-2 rounded-md hover:bg-red-700 transition flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Reject PRE
+          </button>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Left Column: PRE Information -->
+      <div class="lg:col-span-2 space-y-6">
+        
+        <!-- Basic Information -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Basic Information
+          </h2>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">PRE Number</p>
+              <p class="font-semibold text-gray-800">PRE-{{ pre.id|slice:":8"|upper }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Department</p>
+              <p class="font-semibold text-gray-800">{{ pre.department }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Program</p>
+              <p class="font-semibold text-gray-800">{{ pre.program }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Fund Source</p>
+              <p class="font-semibold text-gray-800">{{ pre.fund_source }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Fiscal Year</p>
+              <p class="font-semibold text-gray-800">{{ pre.fiscal_year }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Total Amount</p>
+              <p class="font-bold text-blue-600 text-lg">₱{{ pre.total_amount|floatformat:2|intcomma }}</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Budget Allocation Info -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Budget Allocation
+          </h2>
+          {% if pre.budget_allocation %}
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Allocated Amount</p>
+              <p class="font-semibold text-gray-800">₱{{ pre.budget_allocation.allocated_amount|floatformat:2|intcomma }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Remaining Balance</p>
+              <p class="font-semibold {% if pre.budget_allocation.remaining_balance >= pre.total_amount %}text-green-600{% else %}text-red-600{% endif %}">
+                ₱{{ pre.budget_allocation.remaining_balance|floatformat:2|intcomma }}
+              </p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Budget Period</p>
+              <p class="font-semibold text-gray-800">
+                <a href="{% url 'budget_allocation' %}#alloc-{{ pre.budget_allocation.id }}" class="text-blue-600 hover:underline">
+                  {{ pre.budget_allocation.approved_budget.fiscal_year }}
+                </a>
+              </p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Budget Title</p>
+              <p class="font-semibold text-gray-800">
+                <a href="{% url 'institutional_funds' %}#ab-{{ pre.budget_allocation.approved_budget.id }}" class="text-blue-600 hover:underline">
+                  {{ pre.budget_allocation.approved_budget.title|truncatewords:5 }}
+                </a>
+              </p>
+            </div>
+          </div>
+          
+          <!-- Budget Validation -->
+          <div class="mt-4 p-3 rounded {% if pre.total_amount <= pre.budget_allocation.remaining_balance %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
+            <p class="text-sm {% if pre.total_amount <= pre.budget_allocation.remaining_balance %}text-green-800{% else %}text-red-800{% endif %}">
+              {% if pre.total_amount <= pre.budget_allocation.remaining_balance %}
+                ✓ PRE amount is within budget allocation
+              {% else %}
+                ⚠ PRE amount exceeds remaining budget by ₱{{ pre.total_amount|add:"-"|add:pre.budget_allocation.remaining_balance|floatformat:2|intcomma }}
+              {% endif %}
+            </p>
+          </div>
+          {% else %}
+          <p class="text-gray-500 italic">No budget allocation linked</p>
+          {% endif %}
+        </section>
+
+        <!-- Line Items -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+            </svg>
+            Budget Line Items ({{ pre.line_items.count }})
+          </h2>
+          
+          {% if pre.line_items.exists %}
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="px-4 py-2 text-left">Category</th>
+                  <th class="px-4 py-2 text-left">Item</th>
+                  <th class="px-4 py-2 text-right">Q1</th>
+                  <th class="px-4 py-2 text-right">Q2</th>
+                  <th class="px-4 py-2 text-right">Q3</th>
+                  <th class="px-4 py-2 text-right">Q4</th>
+                  <th class="px-4 py-2 text-right font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in pre.line_items.all %}
+                <tr class="border-t hover:bg-gray-50">
+                  <td class="px-4 py-2">
+                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      {{ item.category.category_type }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2">
+                    <p class="font-medium">{{ item.item_name }}</p>
+                    {% if item.subcategory %}
+                    <p class="text-xs text-gray-500">{{ item.subcategory.name }}</p>
+                    {% endif %}
+                  </td>
+                  <td class="px-4 py-2 text-right">₱{{ item.q1_amount|floatformat:2|intcomma }}</td>
+                  <td class="px-4 py-2 text-right">₱{{ item.q2_amount|floatformat:2|intcomma }}</td>
+                  <td class="px-4 py-2 text-right">₱{{ item.q3_amount|floatformat:2|intcomma }}</td>
+                  <td class="px-4 py-2 text-right">₱{{ item.q4_amount|floatformat:2|intcomma }}</td>
+                  <td class="px-4 py-2 text-right font-semibold">₱{{ item.get_total|floatformat:2|intcomma }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="bg-gray-100 font-bold">
+                <tr>
+                  <td colspan="6" class="px-4 py-3 text-right">Grand Total:</td>
+                  <td class="px-4 py-3 text-right text-blue-600">₱{{ pre.total_amount|floatformat:2|intcomma }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {% else %}
+          <p class="text-gray-500 italic">No line items found</p>
+          {% endif %}
+        </section>
+
+        <!-- Uploaded Documents -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            </svg>
+            Documents
+          </h2>
+          <div class="space-y-3">
+            {% if pre.uploaded_excel_file %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded border">
+              <div class="flex items-center">
+                <svg class="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <div>
+                  <p class="font-medium text-gray-800">Original Excel File</p>
+                  <p class="text-xs text-gray-500">Uploaded by submitter</p>
+                </div>
+              </div>
+              <a href="{{ pre.uploaded_excel_file.url }}" target="_blank" 
+                 class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+                Download
+              </a>
+            </div>
+            {% endif %}
+
+            {% if pre.partially_approved_pdf %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded border">
+              <div class="flex items-center">
+                <svg class="w-8 h-8 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                </svg>
+                <div>
+                  <p class="font-medium text-gray-800">Partially Approved PDF</p>
+                  <p class="text-xs text-gray-500">For printing and signatures</p>
+                </div>
+              </div>
+              <a href="{{ pre.partially_approved_pdf.url }}" target="_blank" 
+                 class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+                Download
+              </a>
+            </div>
+            {% endif %}
+
+            {% if pre.final_approved_scan %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded border">
+              <div class="flex items-center">
+                <svg class="w-8 h-8 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <div>
+                  <p class="font-medium text-gray-800">Signed & Scanned Copy</p>
+                  <p class="text-xs text-gray-500">Final approved document</p>
+                </div>
+              </div>
+              <a href="{{ pre.final_approved_scan.url }}" target="_blank" 
+                 class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+                Download
+              </a>
+            </div>
+            {% endif %}
+
+            {% if not pre.uploaded_excel_file and not pre.partially_approved_pdf and not pre.final_approved_scan %}
+            <p class="text-gray-500 italic text-center py-4">No documents available</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- Admin Notes & Rejection Reason -->
+        {% if pre.admin_notes or pre.rejection_reason %}
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+            </svg>
+            Notes & Comments
+          </h2>
+          
+          {% if pre.admin_notes %}
+          <div class="mb-4">
+            <p class="text-sm font-medium text-gray-700 mb-2">Admin Notes:</p>
+            <div class="bg-blue-50 p-3 rounded border border-blue-200">
+              <p class="text-gray-800">{{ pre.admin_notes }}</p>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if pre.rejection_reason %}
+          <div>
+            <p class="text-sm font-medium text-gray-700 mb-2">Rejection Reason:</p>
+            <div class="bg-red-50 p-3 rounded border border-red-200">
+              <p class="text-red-800">{{ pre.rejection_reason }}</p>
+            </div>
+          </div>
+          {% endif %}
+        </section>
+        {% endif %}
+
+      </div>
+
+      <!-- Right Column: Sidebar -->
+      <div class="space-y-6">
+        
+        <!-- Submitter Information -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+            Submitted By
+          </h3>
+          <div class="space-y-3">
+            <div>
+              <p class="text-sm text-gray-600">Name</p>
+              <p class="font-medium text-gray-800">{{ pre.submitted_by.get_full_name|default:pre.submitted_by.username }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600">Email</p>
+              <p class="text-gray-800">{{ pre.submitted_by.email }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600">Department</p>
+              <p class="text-gray-800">{{ pre.department }}</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Timeline -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Timeline
+          </h3>
+          <div class="space-y-4">
+            
+            <!-- Created -->
+            <div class="flex items-start">
+              <div class="flex-shrink-0">
+                <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                  <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path>
+                    <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"></path>
+                  </svg>
+                </div>
+              </div>
+              <div class="ml-3 flex-1">
+                <p class="text-sm font-medium text-gray-800">Created</p>
+                <p class="text-xs text-gray-500">{{ pre.created_at|date:"M d, Y h:i A" }}</p>
+              </div>
+            </div>
+
+            <!-- Submitted -->
+            {% if pre.submitted_at %}
+            <div class="flex items-start">
+              <div class="flex-shrink-0">
+                <div class="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
+                  <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
+                    <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path>
+                  </svg>
+                </div>
+              </div>
+              <div class="ml-3 flex-1">
+                <p class="text-sm font-medium text-gray-800">Submitted</p>
+                <p class="text-xs text-gray-500">{{ pre.submitted_at|date:"M d, Y h:i A" }}</p>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Partially Approved -->
+            {% if pre.partially_approved_at %}
+            <div class="flex items-start">
+              <div class="flex-shrink-0">
+                <div class="w-8 h-8 bg-yellow-200 rounded-full flex items-center justify-center">
+                  <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                  </svg>
+                </div>
+              </div>
+              <div class="ml-3 flex-1">
+                <p class="text-sm font-medium text-gray-800">Partially Approved</p>
+                <p class="text-xs text-gray-500">{{ pre.partially_approved_at|date:"M d, Y h:i A" }}</p>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Final Approved -->
+            {% if pre.final_approved_at %}
+            <div class="flex items-start">
+              <div class="flex-shrink-0">
+                <div class="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center">
+                  <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                  </svg>
+                </div>
+              </div>
+              <div class="ml-3 flex-1">
+                <p class="text-sm font-medium text-gray-800">Final Approved</p>
+                <p class="text-xs text-gray-500">{{ pre.final_approved_at|date:"M d, Y h:i A" }}</p>
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+        </section>
+
+        <!-- Approval History -->
+        {% if approval_history %}
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            Approval History
+          </h3>
+          <div class="space-y-3">
+            {% for approval in approval_history %}
+            <div class="border-l-4 {% if approval.approval_level == 'rejected' %}border-red-500{% else %}border-green-500{% endif %} pl-3 py-2">
+              <p class="text-sm font-medium text-gray-800">{{ approval.approved_by.get_full_name }}</p>
+              <p class="text-xs text-gray-600">{{ approval.approval_level|title }}</p>
+              <p class="text-xs text-gray-500">{{ approval.approved_at|date:"M d, Y h:i A" }}</p>
+              {% if approval.comments %}
+              <p class="text-xs text-gray-700 mt-1 italic">"{{ approval.comments }}"</p>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+
+        <!-- Validation Status -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Validation Status
+          </h3>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-600">Valid</span>
+              <span class="px-2 py-1 rounded text-xs font-semibold {% if pre.is_valid %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                {% if pre.is_valid %}Yes{% else %}No{% endif %}
+              </span>
+            </div>
+            {% if pre.validation_errors %}
+            <div class="mt-2 p-2 bg-red-50 rounded border border-red-200">
+              <p class="text-xs text-red-800 font-medium mb-1">Errors:</p>
+              <ul class="text-xs text-red-700 list-disc list-inside">
+                {% for key, value in pre.validation_errors.items %}
+                <li>{{ value }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Include Modals -->
+{% include 'admin_panel/modals/pre_approval_modals.html' %}
+
+{% endblock %}

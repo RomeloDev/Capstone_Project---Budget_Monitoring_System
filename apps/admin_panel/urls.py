@@ -15,7 +15,7 @@ urlpatterns = [
     path('handle_re_alignment_request/<int:pk>/', views.handle_re_alignment_request_action, name='handle_re_alignment_request_action'),
     path('pre_request_page/', views.pre_request_page, name='pre_request_page'),
     path('pre/<int:pk>/', views.admin_preview_pre, name='admin_preview_pre'),
-    path('pre/<int:pk>/action/', views.admin_handle_pre_action, name='admin_handle_pre_action'),
+    # path('pre/<int:pk>/action/', views.admin_handle_pre_action, name='admin_handle_pre_action'),
     path('preview_purchase_request/<int:pk>/', views.preview_purchase_request, name='preview_purchase_request'),
     path('department_activity_design/', views.department_activity_design, name='department_activity_design'),
     path('handle_activity_design/<int:pk>/', views.handle_activity_design_request, name='handle_activity_design_request'),
@@ -27,4 +27,15 @@ urlpatterns = [
     path('bulk-export-budgets/', views.bulk_export_budgets, name='bulk_export_budgets'),
     path('export-allocation-excel/<int:allocation_id>/', views.export_allocation_excel, name='export_allocation_excel'),
     path('bulk-export-allocations/', views.bulk_export_allocations, name='bulk_export_allocations'),
+    # Main PRE List Page
+    path('pre/', views.admin_pre_list, name='admin_pre_list'),
+    path('pre/<uuid:pre_id>/', views.admin_pre_detail, name='admin_pre_detail'),
+    # Basic Approve/Reject Action (Form POST)
+    path('pre/<uuid:pre_id>/action/', views.admin_handle_pre_action, name='admin_handle_pre_action'),
+    # Advanced Approve with Comment (AJAX)
+    path('pre/<uuid:pre_id>/approve/', views.admin_approve_pre_with_comment, name='admin_approve_pre'),
+    # Advanced Reject with Reason (AJAX)
+    path('pre/<uuid:pre_id>/reject/', views.admin_reject_pre_with_reason, name='admin_reject_pre'),
+    # Update PRE Status
+    path('pre/<uuid:pre_id>/update-status/', views.admin_update_pre_status, name='admin_update_pre_status'),
 ]
