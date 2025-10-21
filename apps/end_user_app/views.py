@@ -709,10 +709,17 @@ def department_pre_page(request):
         submitted_by=user
     ).order_by('-created_at')
     
+    # NEW: Count partially approved PREs with PDF
+    partially_approved_count = pres.filter(
+        status='Partially Approved',
+        partially_approved_pdf__isnull=False
+    ).count()
+    
     context = {
         'has_budget': has_budget,
         'budget_allocations': budget_allocations,
         'pres': pres,
+        'partially_approved_count': partially_approved_count,  # NEW
     }
     
     return render(request, 'end_user_app/department_pre_page.html', context)

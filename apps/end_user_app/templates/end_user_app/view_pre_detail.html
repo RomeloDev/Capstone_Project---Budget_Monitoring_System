@@ -17,14 +17,78 @@
         </a>
     </div>
 
+    <!-- NEW: Partially Approved Alert -->
+    {% if pre.status == 'Partially Approved' and pre.partially_approved_pdf %}
+    <div class="bg-purple-50 border-l-4 border-purple-500 p-6 rounded-lg shadow-sm">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="ml-4 flex-1">
+                <h3 class="text-lg font-semibold text-purple-900">🎉 PRE Partially Approved - Ready to Print!</h3>
+                <p class="text-sm text-purple-800 mt-2">
+                    Your PRE has been reviewed and partially approved by the administrator. 
+                    You can now download the PDF document, print it, and submit to the Approving Officer for final signature.
+                </p>
+                <div class="mt-4">
+                    <a href="{{ pre.partially_approved_pdf.url }}" 
+                       download
+                       class="inline-flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition gap-2 font-semibold shadow-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        Download PDF for Printing
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- NEW: Rejection Alert -->
+    {% if pre.status == 'Rejected' %}
+    <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg shadow-sm">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="ml-4 flex-1">
+                <h3 class="text-lg font-semibold text-red-900">PRE Rejected</h3>
+                {% if pre.rejection_reason %}
+                <p class="text-sm text-red-800 mt-2">
+                    <strong>Reason:</strong> {{ pre.rejection_reason }}
+                </p>
+                {% endif %}
+                <p class="text-sm text-red-700 mt-2">
+                    Please review the feedback and resubmit a corrected PRE.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- PRE Details -->
     <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-        <h1 class="text-2xl font-bold text-gray-800 mb-6">PRE Details</h1>
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">PRE Details</h1>
+            <span class="px-4 py-2 rounded-full text-sm font-semibold
+                {% if pre.status == 'Pending' %} bg-yellow-100 text-yellow-800
+                {% elif pre.status == 'Partially Approved' %} bg-purple-100 text-purple-800
+                {% elif pre.status == 'Approved' %} bg-green-100 text-green-800
+                {% elif pre.status == 'Rejected' %} bg-red-100 text-red-800
+                {% endif %}">
+                {{ pre.status }}
+            </span>
+        </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <p class="text-sm text-gray-600">PRE ID:</p>
-                <p class="font-semibold text-gray-900">{{ pre.id }}</p>
+                <p class="font-semibold text-gray-900">#{{ pre.id|slice:":8"|upper }}</p>
             </div>
             
             <div>
@@ -43,55 +107,153 @@
             </div>
             
             <div>
-                <p class="text-sm text-gray-600">Status:</p>
-                <p>
-                    {% if pre.status == 'Pending' %}
-                    <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-semibold">
-                        {{ pre.status }}
-                    </span>
-                    {% elif pre.status == 'Approved' %}
-                    <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-semibold">
-                        {{ pre.status }}
-                    </span>
-                    {% elif pre.status == 'Partially Approved' %}
-                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-semibold">
-                        {{ pre.status }}
-                    </span>
-                    {% else %}
-                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-800 text-sm font-semibold">
-                        {{ pre.status }}
-                    </span>
-                    {% endif %}
-                </p>
-            </div>
-            
-            <div>
                 <p class="text-sm text-gray-600">Submitted At:</p>
                 <p class="font-semibold text-gray-900">{{ pre.created_at|date:"M d, Y g:i A" }}</p>
             </div>
+
+            {% if pre.partially_approved_at %}
+            <div>
+                <p class="text-sm text-gray-600">Partially Approved At:</p>
+                <p class="font-semibold text-green-700">{{ pre.partially_approved_at|date:"M d, Y g:i A" }}</p>
+            </div>
+            {% endif %}
+
+            {% if pre.admin_notes %}
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-600">Admin Notes:</p>
+                <div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
+                    <p class="text-sm text-gray-800">{{ pre.admin_notes }}</p>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
-        <!-- Download PRE File -->
-        {% if pre.uploaded_excel_file %}
-        <div class="mt-6 pt-6 border-t">
-            <a href="{{ pre.uploaded_excel_file.url }}" 
-               download
-               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                Download PRE File
-            </a>
+        <!-- NEW: Documents Section -->
+        <div class="mt-8 pt-6 border-t">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Documents</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Original Excel File -->
+                {% if pre.uploaded_excel_file %}
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-semibold text-gray-900">Original Excel File</p>
+                                <p class="text-xs text-gray-500">Submitted by you</p>
+                            </div>
+                        </div>
+                        <a href="{{ pre.uploaded_excel_file.url }}" 
+                           download
+                           class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm">
+                            Download
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Partially Approved PDF -->
+                {% if pre.partially_approved_pdf %}
+                <div class="border border-purple-300 rounded-lg p-4 hover:shadow-md transition bg-purple-50">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-10 h-10 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-semibold text-purple-900">Approved PDF</p>
+                                <p class="text-xs text-purple-700">Ready for printing & signature</p>
+                            </div>
+                        </div>
+                        <a href="{{ pre.partially_approved_pdf.url }}" 
+                           download
+                           class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition text-sm font-semibold">
+                            Print PDF
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Final Approved Scan (if uploaded by admin later) -->
+                {% if pre.final_approved_scan %}
+                <div class="border border-green-300 rounded-lg p-4 hover:shadow-md transition bg-green-50">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-semibold text-green-900">Signed Copy</p>
+                                <p class="text-xs text-green-700">Final approved document</p>
+                            </div>
+                        </div>
+                        <a href="{{ pre.final_approved_scan.url }}" 
+                           download
+                           class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm">
+                            Download
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
         </div>
-        {% endif %}
-        
-        <!-- More detailed view coming soon -->
-        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
-            <p class="text-sm text-blue-800">
-                <strong>Note:</strong> Detailed PRE breakdown view is coming soon.
+    </div>
+
+    <!-- NEW: Next Steps Instructions -->
+    {% if pre.status == 'Partially Approved' %}
+    <div class="bg-blue-50 p-6 rounded-lg shadow-sm border border-blue-200">
+        <h3 class="text-lg font-semibold text-blue-900 mb-3 flex items-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            What to do next?
+        </h3>
+        <ol class="list-decimal list-inside space-y-2 text-sm text-blue-800">
+            <li>Download the <strong>Approved PDF</strong> document above</li>
+            <li>Print the PDF document</li>
+            <li>Go to the office with the printed document</li>
+            <li>Submit the printed PRE to the <strong>Approving Officer</strong></li>
+            <li>The Approving Officer will sign the document</li>
+            <li>Wait for final approval notification</li>
+        </ol>
+        <div class="mt-4 p-3 bg-blue-100 rounded border border-blue-300">
+            <p class="text-sm text-blue-900">
+                <strong>Note:</strong> Keep the printed document safe until you submit it to the office. 
+                Make sure to bring it during office hours.
             </p>
         </div>
     </div>
+    {% elif pre.status == 'Pending' %}
+    <div class="bg-yellow-50 p-6 rounded-lg shadow-sm border border-yellow-200">
+        <h3 class="text-lg font-semibold text-yellow-900 mb-2 flex items-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            PRE Under Review
+        </h3>
+        <p class="text-sm text-yellow-800">
+            Your PRE is currently being reviewed by the administrator. You will be notified once it's approved. 
+            Please check back later or wait for the notification.
+        </p>
+    </div>
+    {% elif pre.status == 'Approved' %}
+    <div class="bg-green-50 p-6 rounded-lg shadow-sm border border-green-200">
+        <h3 class="text-lg font-semibold text-green-900 mb-2 flex items-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            PRE Fully Approved! ✓
+        </h3>
+        <p class="text-sm text-green-800">
+            Congratulations! Your PRE has been fully approved and the process is complete. 
+            The budget allocation has been updated accordingly.
+        </p>
+    </div>
+    {% endif %}
 
 </div>
 

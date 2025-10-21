@@ -17,7 +17,7 @@ from django.template.defaultfilters import floatformat
 from django.contrib.humanize.templatetags.humanize import intcomma
 from django.utils import timezone
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from .utils import log_audit_trail
+from .utils import log_audit_trail, generate_pre_number
 from django.db.models import Count
 from datetime import timedelta
 from apps.users.utils import role_required
@@ -2573,6 +2573,7 @@ def admin_handle_pre_action(request, pre_id):
 def admin_approve_pre_with_comment(request, pre_id):
     """
     Advanced approve with comment (AJAX endpoint for modal)
+    Auto-generates PDF when approving
     """
     if not request.user.is_staff:
         return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
@@ -2580,7 +2581,7 @@ def admin_approve_pre_with_comment(request, pre_id):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
     
-    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)  # Use your model name
     
     if pre.status != 'Pending':
         return JsonResponse({
@@ -2597,6 +2598,29 @@ def admin_approve_pre_with_comment(request, pre_id):
     pre.admin_notes = comment
     pre.save()
     
+    # 🔥 THIS IS THE KEY PART - Auto-generate PDF
+    # try:
+    #     from .pdf_generator import save_pre_pdf
+    #     pdf_url = save_pre_pdf(pre)
+    #     print(f"✅ PDF generated successfully: {pdf_url}")
+    # except Exception as e:
+    #     # If PDF generation fails, still approve but log error
+    #     print(f"❌ PDF generation failed: {str(e)}")
+    #     pdf_url = None
+    
+    from .excel_to_pdf_converter import generate_pre_pdf_from_excel
+
+    # Auto-generate PDF from Excel
+    try:
+        pdf_url = generate_pre_pdf_from_excel(pre)
+        if pdf_url:
+            print(f"✅ PDF generated successfully: {pdf_url}")
+        else:
+            print("⚠️ Auto-conversion failed - manual upload needed")
+    except Exception as e:
+        print(f"❌ PDF generation failed: {str(e)}")
+        pdf_url = None
+    
     # Create approval record
     RequestApproval.objects.create(
         content_type='pre',
@@ -2609,19 +2633,59 @@ def admin_approve_pre_with_comment(request, pre_id):
     # Create notification for submitter
     SystemNotification.objects.create(
         recipient=pre.submitted_by,
-        title='PRE Partially Approved',
-        message=f'Your PRE for {pre.department} has been partially approved. Please download the PDF for signatures.',
+        title='PRE Partially Approved - Ready to Print',
+        message=f'Your PRE for {pre.department} has been partially approved. You can now download and print the PDF document.',
         content_type='pre',
         object_id=pre.id
     )
     
     return JsonResponse({
         'success': True,
-        'message': f'PRE {str(pre.id)[:8]} partially approved successfully',
+        'message': f'PRE approved and PDF generated successfully',
         'pre_id': str(pre.id),
-        'new_status': pre.status
+        'new_status': pre.status,
+        'pdf_generated': pdf_url is not None  # Include this info
     })
 
+@role_required('admin', login_url='/admin/')
+def admin_upload_manual_pdf(request, pre_id):
+    """
+    Admin manually uploads converted PDF
+    """
+    if not request.user.is_staff:
+        messages.error(request, "Permission denied")
+        return redirect('admin_pre_list')
+    
+    if request.method != 'POST':
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    
+    if 'manual_pdf' not in request.FILES:
+        messages.error(request, "No PDF file uploaded")
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    pdf_file = request.FILES['manual_pdf']
+    
+    # Validate file
+    if not pdf_file.name.endswith('.pdf'):
+        messages.error(request, "Only PDF files are allowed")
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    try:
+        from .excel_to_pdf_converter import enable_manual_pdf_upload
+        
+        pdf_url = enable_manual_pdf_upload(pre, pdf_file)
+        
+        if pdf_url:
+            messages.success(request, "PDF uploaded successfully! Users can now download it.")
+        else:
+            messages.error(request, "Failed to upload PDF")
+            
+    except Exception as e:
+        messages.error(request, f"Error: {str(e)}")
+    
+    return redirect('admin_pre_detail', pre_id=pre_id)
 
 @role_required('admin', login_url='/admin/')
 def admin_reject_pre_with_reason(request, pre_id):
@@ -2728,3 +2792,136 @@ def admin_update_pre_status(request, pre_id):
         'message': f'Status updated from {old_status} to {new_status}',
         'new_status': new_status
     })
+    
+@role_required('admin', login_url='/admin/')
+def admin_preview_pre(request, pre_id):
+    """
+    Backward compatibility - redirects to detail view
+    """
+    return redirect('admin_pre_detail', pre_id=pre_id)
+
+
+# === PLACEHOLDER FUNCTIONS (Will implement in later components) ===
+
+@role_required('admin', login_url='/admin/')
+def admin_generate_pre_pdf(request, pre_id):
+    """
+    Generate PDF for partially approved PRE
+    """
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('dashboard')
+    
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    
+    # Check if PRE is in correct status
+    if pre.status not in ['Partially Approved', 'Approved']:
+        messages.error(request, "PDF can only be generated for partially approved or approved PREs.")
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    try:
+        # Import PDF generator
+        from .pdf_generator import save_pre_pdf
+        
+        # Generate and save PDF
+        pdf_url = save_pre_pdf(pre)
+        
+        messages.success(request, f'PDF generated successfully! Click below to download.')
+        
+        # Redirect to detail page with success message
+        return redirect('admin_pre_detail', pre_id=pre_id)
+        
+    except Exception as e:
+        messages.error(request, f'Error generating PDF: {str(e)}')
+        return redirect('admin_pre_detail', pre_id=pre_id)
+
+
+@role_required('admin', login_url='/admin/')
+def admin_upload_signed_copy(request, pre_id):
+    """
+    Upload scanned signed copy of PRE
+    """
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('dashboard')
+    
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    
+    if request.method != 'POST':
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    # Check if file was uploaded
+    if 'signed_copy' not in request.FILES:
+        messages.error(request, "No file was uploaded.")
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    signed_file = request.FILES['signed_copy']
+    
+    # Validate file extension
+    allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
+    file_ext = signed_file.name.split('.')[-1].lower()
+    
+    if file_ext not in allowed_extensions:
+        messages.error(request, f"Invalid file type. Allowed: {', '.join(allowed_extensions)}")
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    # Validate file size (max 10MB)
+    if signed_file.size > 10 * 1024 * 1024:
+        messages.error(request, "File size must be less than 10MB.")
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    try:
+        # Save the signed copy
+        pre.final_approved_scan = signed_file
+        pre.status = 'Approved'
+        pre.final_approved_at = timezone.now()
+        pre.save()
+        
+        # Create approval record
+        RequestApproval.objects.create(
+            content_type='pre',
+            object_id=pre.id,
+            approved_by=request.user,
+            approval_level='final',
+            comments='Signed copy uploaded and marked as fully approved'
+        )
+        
+        # Create notification
+        SystemNotification.objects.create(
+            recipient=pre.submitted_by,
+            title='PRE Fully Approved',
+            message=f'Your PRE for {pre.department} has been fully approved. The signed copy has been uploaded.',
+            content_type='pre',
+            object_id=pre.id
+        )
+        
+        # Update budget allocation
+        if pre.budget_allocation:
+            pre.budget_allocation.pre_amount_used += pre.total_amount
+            pre.budget_allocation.update_remaining_balance()
+        
+        messages.success(request, 'Signed copy uploaded successfully! PRE is now fully approved.')
+        
+    except Exception as e:
+        messages.error(request, f'Error uploading file: {str(e)}')
+    
+    return redirect('admin_pre_detail', pre_id=pre_id)
+
+
+@role_required('admin', login_url='/admin/')
+def admin_download_pre(request, pre_id):
+    """
+    Download PRE document
+    """
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    
+    if pre.uploaded_excel_file:
+        from django.http import FileResponse
+        return FileResponse(pre.uploaded_excel_file.open('rb'), 
+                          as_attachment=True,
+                          filename=f'PRE_{pre.department}_{pre.id}.xlsx')
+    else:
+        messages.error(request, "No file available for download")
+        return redirect('admin_pre_detail', pre_id=pre_id)
+
+

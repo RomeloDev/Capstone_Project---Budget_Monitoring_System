@@ -38,4 +38,11 @@ urlpatterns = [
     path('pre/<uuid:pre_id>/reject/', views.admin_reject_pre_with_reason, name='admin_reject_pre'),
     # Update PRE Status
     path('pre/<uuid:pre_id>/update-status/', views.admin_update_pre_status, name='admin_update_pre_status'),
+    # PDF Generation
+    path('pre/<uuid:pre_id>/generate-pdf/', views.admin_generate_pre_pdf, name='admin_generate_pre_pdf'),
+    # Upload Signed Copy
+    path('pre/<uuid:pre_id>/upload-signed/', views.admin_upload_signed_copy, name='admin_upload_signed_copy'),
+    path('pre/<uuid:pre_id>/upload-manual-pdf/', 
+     views.admin_upload_manual_pdf, 
+     name='admin_upload_manual_pdf'),
 ]
