@@ -29,6 +29,8 @@ from django.http import HttpResponse
 from openpyxl.utils import get_column_letter
 from openpyxl import Workbook
 from django.db.models import Q
+from django.views.decorators.http import require_http_methods
+from .forms import ApprovedDocumentUploadForm
 
 # Create your views here.
 @role_required('admin', login_url='/admin/')
@@ -2925,3 +2927,142 @@ def admin_download_pre(request, pre_id):
         return redirect('admin_pre_detail', pre_id=pre_id)
 
 
+@role_required('admin', login_url='/admin/')
+def admin_upload_approved_document(request, pre_id):
+    """
+    Admin uploads scanned approved document and marks PRE as fully approved
+    """
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related('submitted_by', 'budget_allocation'),
+        id=pre_id
+    )
+    
+    # Check if PRE is in correct status
+    if pre.status != 'Partially Approved':
+        messages.error(request, f'Cannot upload documents. PRE status is "{pre.status}". Only "Partially Approved" PREs can receive documents.')
+        return redirect('admin_pre_detail', pre_id=pre_id)
+    
+    if request.method == 'POST':
+        form = ApprovedDocumentUploadForm(request.POST, request.FILES, instance=pre)
+        
+        if form.is_valid():
+            try:
+                # Save uploaded file
+                pre = form.save(commit=False)
+                
+                # Mark as approved with admin details
+                pre.approve_with_documents(request.user)
+                
+                # Create system notification
+                from apps.budgets.models import SystemNotification
+                SystemNotification.objects.create(
+                    recipient=pre.submitted_by,
+                    title='PRE Fully Approved',
+                    message=f'Your PRE for {pre.department} has been fully approved with signed documents.',
+                    content_type='pre',
+                    object_id=pre.id
+                )
+                
+                # Log audit trail
+                log_audit_trail(
+                    request=request,
+                    action='APPROVE',
+                    model_name='DepartmentPRE',
+                    record_id=str(pre.id),
+                    detail=f'PRE {str(pre.id)[:8]} fully approved with uploaded documents by {request.user.username}'
+                )
+                
+                messages.success(
+                    request,
+                    f'✅ PRE {str(pre.id)[:8]} has been fully approved! '
+                    f'Document uploaded successfully and end user can now use line items for PR/AD.'
+                )
+                
+                return redirect('admin_pre_detail', pre_id=pre_id)
+                
+            except Exception as e:
+                messages.error(request, f'Error uploading document: {str(e)}')
+                return redirect('admin_pre_detail', pre_id=pre_id)
+        else:
+            # Form validation errors
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+    
+    else:
+        form = ApprovedDocumentUploadForm(instance=pre)
+    
+    context = {
+        'pre': pre,
+        'form': form,
+    }
+    
+    return render(request, 'admin_panel/upload_approved_document.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+@require_http_methods(["POST"])
+def admin_quick_approve_with_upload(request, pre_id):
+    """
+    AJAX endpoint for quick approval with document upload
+    """
+    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
+    
+    if pre.status != 'Partially Approved':
+        return JsonResponse({
+            'success': False,
+            'error': f'PRE must be Partially Approved first. Current status: {pre.status}'
+        }, status=400)
+    
+    uploaded_file = request.FILES.get('approved_document')
+    
+    if not uploaded_file:
+        return JsonResponse({
+            'success': False,
+            'error': 'No file uploaded'
+        }, status=400)
+    
+    # Validate file
+    max_size = 10 * 1024 * 1024  # 10MB
+    if uploaded_file.size > max_size:
+        return JsonResponse({
+            'success': False,
+            'error': 'File size exceeds 10MB limit'
+        }, status=400)
+    
+    try:
+        # Save file and approve
+        pre.approved_documents = uploaded_file
+        pre.approve_with_documents(request.user)
+        
+        # Notification
+        from apps.budgets.models import SystemNotification
+        SystemNotification.objects.create(
+            recipient=pre.submitted_by,
+            title='PRE Fully Approved',
+            message=f'Your PRE for {pre.department} has been fully approved.',
+            content_type='pre',
+            object_id=pre.id
+        )
+        
+        # Audit log
+        log_audit_trail(
+            request=request,
+            action='APPROVE',
+            model_name='DepartmentPRE',
+            record_id=str(pre.id),
+            detail=f'PRE fully approved with uploaded document'
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'PRE {str(pre.id)[:8]} fully approved!',
+            'new_status': pre.status,
+            'redirect_url': f'/admin/pre/{pre.id}/'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

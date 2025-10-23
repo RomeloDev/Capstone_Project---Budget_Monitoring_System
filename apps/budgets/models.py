@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.utils import timezone
 import uuid
 import os
+from django.conf import settings
 
 
 def approved_budget_upload_path(instance, filename):
@@ -268,6 +269,50 @@ class DepartmentPRE(models.Model):
     partially_approved_at = models.DateTimeField(null=True, blank=True)
     final_approved_at = models.DateTimeField(null=True, blank=True)
     
+    # NEW FIELDS FOR ADMIN APPROVAL FLOW
+    approved_documents = models.FileField(
+        upload_to='pre_approved_docs/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx']
+        )],
+        help_text="Scanned approved documents uploaded by admin"
+    )
+    
+    admin_approved_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="Timestamp when admin uploaded approved documents"
+    )
+    
+    admin_approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='admin_approved_pres',
+        help_text="Admin who uploaded the approved documents"
+    )
+    
+    # Helper methods
+    def can_upload_approved_docs(self):
+        """Check if admin can upload approved documents"""
+        return self.status == 'Partially Approved'
+    
+    def approve_with_documents(self, admin_user):
+        """Final approval after document upload"""
+        self.status = 'Approved'
+        self.final_approved_at = timezone.now()
+        self.admin_approved_by = admin_user
+        self.admin_approved_at = timezone.now()
+        self.save()
+        
+        # Update budget allocation
+        if self.budget_allocation:
+            self.budget_allocation.pre_amount_used += self.total_amount
+            self.budget_allocation.update_remaining_balance()
+    
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Department PRE"
@@ -311,29 +356,96 @@ class PurchaseRequest(models.Model):
     """Purchase Request for procurement items"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    submitted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="purchase_requests")
-    budget_allocation = models.ForeignKey(BudgetAllocation, on_delete=models.CASCADE, related_name='purchase_requests')
-    
-    # PR Details
-    pr_number = models.CharField(max_length=50, unique=True, blank=True)
+    # Basic Info
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='purchase_requests'
+    )
     department = models.CharField(max_length=255)
-    purpose = models.TextField()
-    total_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    pr_number = models.CharField(max_length=50, unique=True)
     
-    # File uploads
-    uploaded_document = models.FileField(
-        upload_to='pr_uploads/%Y/%m/',
-        validators=[FileExtensionValidator(allowed_extensions=['docx', 'doc'])],
-        help_text="Upload Purchase Request document (.docx format)"
+    # Budget Linkage
+    budget_allocation = models.ForeignKey(
+        'BudgetAllocation',
+        on_delete=models.CASCADE,
+        related_name='purchase_requests'
     )
     
-    # Status and workflow (same as PRE)
-    STATUS_CHOICES = DepartmentPRE.STATUS_CHOICES
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
+    # PRE Line Item Linkage (NEW)
+    source_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_requests',
+        help_text='Source PRE document'
+    )
+    source_line_item = models.ForeignKey(
+        'PRELineItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_requests',
+        help_text='Specific PRE line item used for funding'
+    )
+    source_of_fund_display = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text='Human-readable source of fund description'
+    )
     
-    # Workflow files
-    partially_approved_pdf = models.FileField(upload_to='pr_pdfs/%Y/%m/', null=True, blank=True)
-    final_approved_scan = models.FileField(upload_to='pr_scanned/%Y/%m/', null=True, blank=True)
+    # PR Details
+    purpose = models.TextField()
+    total_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00')
+    )
+    
+    # Optional Fields (for form-based PR)
+    entity_name = models.CharField(max_length=255, blank=True)
+    fund_cluster = models.CharField(max_length=100, blank=True)
+    office_section = models.CharField(max_length=255, blank=True)
+    responsibility_center_code = models.CharField(max_length=100, blank=True)
+    
+    # File Upload (for upload-based PR)
+    uploaded_document = models.FileField(
+        upload_to='pr_documents/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['docx', 'doc', 'pdf'])],
+        help_text="Uploaded PR document"
+    )
+    
+    # Status Workflow
+    STATUS_CHOICES = [
+        ('Draft', 'Draft'),
+        ('Pending', 'Pending Review'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='Draft'
+    )
+    
+    # Workflow Files
+    partially_approved_pdf = models.FileField(
+        upload_to='pr_pdfs/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text="PDF generated when partially approved"
+    )
+    final_approved_scan = models.FileField(
+        upload_to='pr_scanned/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text="Scanned copy of signed PR"
+    )
     
     # Validation
     is_valid = models.BooleanField(default=False)
@@ -341,9 +453,14 @@ class PurchaseRequest(models.Model):
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     partially_approved_at = models.DateTimeField(null=True, blank=True)
     final_approved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Admin notes
+    admin_notes = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)
     
     class Meta:
         ordering = ['-created_at']
@@ -351,7 +468,66 @@ class PurchaseRequest(models.Model):
         verbose_name_plural = "Purchase Requests"
     
     def __str__(self):
-        return f"PR-{self.pr_number or self.id.hex[:8]} - {self.department}"
+        return f"PR-{self.pr_number} - {self.department} (₱{self.total_amount:,.2f})"
+    
+    def get_allocated_line_items(self):
+        """Get all PRE line items allocated to this PR"""
+        return self.pre_allocations.select_related(
+            'pre_line_item__category',
+            'pre_line_item__subcategory',
+            'pre_line_item__pre'
+        )
+    
+    def get_total_allocated_from_pre(self):
+        """Calculate total allocated from PRE line items"""
+        from django.db.models import Sum
+        result = self.pre_allocations.aggregate(
+            total=Sum('allocated_amount')
+        )
+        return result['total'] or Decimal('0.00')
+    
+    def validate_against_budget(self):
+        """Validate PR total against allocated budget"""
+        errors = []
+        
+        if not self.budget_allocation:
+            errors.append("PR must be linked to a budget allocation")
+        
+        if not self.source_line_item:
+            errors.append("PR must have a PRE line item as funding source")
+        
+        if self.total_amount <= 0:
+            errors.append("PR total amount must be greater than zero")
+        
+        return errors
+
+
+class PurchaseRequestItem(models.Model):
+    """Individual items in a Purchase Request (for form-based PR)"""
+    purchase_request = models.ForeignKey(
+        PurchaseRequest,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    stock_property_no = models.CharField(max_length=100, blank=True)
+    unit = models.CharField(max_length=50)
+    item_description = models.TextField()
+    quantity = models.IntegerField()
+    unit_cost = models.DecimalField(max_digits=15, decimal_places=2)
+    total_cost = models.DecimalField(max_digits=15, decimal_places=2, editable=False)
+    
+    def save(self, *args, **kwargs):
+        self.total_cost = self.quantity * self.unit_cost
+        super().save(*args, **kwargs)
+        
+        # Update parent PR total
+        self.purchase_request.total_amount = sum(
+            item.total_cost for item in self.purchase_request.items.all()
+        )
+        self.purchase_request.save()
+    
+    def __str__(self):
+        return f"{self.item_description} (x{self.quantity})"
 
 
 class ActivityDesign(models.Model):
@@ -530,4 +706,57 @@ class SystemNotification(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        
 
+class PRDraft(models.Model):
+    """Draft storage for PR uploads before submission"""
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='pr_draft'
+    )
+    
+    # PR Document
+    pr_file = models.FileField(
+        upload_to='pr_drafts/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text="Uploaded PR document"
+    )
+    pr_filename = models.CharField(max_length=255, blank=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_submitted = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'pr_drafts'
+        verbose_name = 'PR Draft'
+        verbose_name_plural = 'PR Drafts'
+    
+    def __str__(self):
+        return f"PR Draft - {self.user.username}"
+
+
+class PRDraftSupportingDocument(models.Model):
+    """Supporting documents for PR draft"""
+    draft = models.ForeignKey(
+        PRDraft,
+        on_delete=models.CASCADE,
+        related_name='supporting_documents'
+    )
+    document = models.FileField(
+        upload_to='pr_draft_supporting/%Y/%m/',
+        help_text="Supporting document"
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField(help_text="File size in bytes")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'pr_draft_supporting_documents'
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.file_name} ({self.draft.user.username})"

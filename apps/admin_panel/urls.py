@@ -42,7 +42,8 @@ urlpatterns = [
     path('pre/<uuid:pre_id>/generate-pdf/', views.admin_generate_pre_pdf, name='admin_generate_pre_pdf'),
     # Upload Signed Copy
     path('pre/<uuid:pre_id>/upload-signed/', views.admin_upload_signed_copy, name='admin_upload_signed_copy'),
-    path('pre/<uuid:pre_id>/upload-manual-pdf/', 
-     views.admin_upload_manual_pdf, 
-     name='admin_upload_manual_pdf'),
+    path('pre/<uuid:pre_id>/upload-manual-pdf/', views.admin_upload_manual_pdf, name='admin_upload_manual_pdf'),
+    # PRE Approved Document Upload
+    path('pre/<uuid:pre_id>/upload-approved-doc/', views.admin_upload_approved_document, name='admin_upload_approved_document'),
+    path('pre/<uuid:pre_id>/quick-approve-upload/', views.admin_quick_approve_with_upload, name='admin_quick_approve_upload'),
 ]

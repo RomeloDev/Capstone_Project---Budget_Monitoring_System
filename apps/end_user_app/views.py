@@ -25,7 +25,7 @@ from io import BytesIO
 import shutil
 import xlwings as xw
 import tempfile
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem
 from .utils.pre_parser import parse_pre_excel
 from django.core.files.storage import default_storage
 from django.utils import timezone
@@ -885,6 +885,85 @@ def upload_pre(request, allocation_id):
     return render(request, 'end_user_app/upload_pre.html', context)
 
 
+def create_pre_line_items(pre, extracted_data):
+    """
+    Create PRELineItem records from extracted data
+    
+    Args:
+        pre: NewDepartmentPRE instance
+        extracted_data: Dict with categories (receipts, personnel, mooe, capital)
+    
+    Returns:
+        int: Number of line items created
+    """
+    from apps.budgets.models import PRELineItem, PRECategory, PRESubCategory
+    
+    line_items_created = 0
+    
+    # Category mapping
+    category_mapping = {
+        'receipts': ('PERSONNEL', 'Receipts'),  # Or create a separate category
+        'personnel': ('PERSONNEL', 'Personnel Services'),
+        'mooe': ('MOOE', 'Maintenance and Other Operating Expenses'),
+        'capital': ('CAPITAL', 'Capital Outlays'),
+    }
+    
+    for section_key, items_list in extracted_data.items():
+        if not items_list:
+            continue
+        
+        # Get or create category
+        category_type, category_name = category_mapping.get(
+            section_key, 
+            ('MOOE', section_key.title())
+        )
+        
+        category, _ = PRECategory.objects.get_or_create(
+            category_type=category_type,
+            defaults={
+                'name': category_name,
+                'code': category_type[:4].upper(),
+                'is_active': True,
+                'sort_order': {'receipts': 1, 'personnel': 2, 'mooe': 3, 'capital': 4}.get(section_key, 5)
+            }
+        )
+        
+        # Create line items
+        for item_data in items_list:
+            item_name = item_data.get('item_name', 'Unknown Item')
+            
+            # Get subcategory from nested data (for MOOE and Capital)
+            subcategory = None
+            subcategory_name = item_data.get('category')  # MOOE/Capital have subcategories
+            
+            if subcategory_name:
+                subcategory, _ = PRESubCategory.objects.get_or_create(
+                    category=category,
+                    name=subcategory_name.replace('_', ' ').title(),
+                    defaults={
+                        'code': subcategory_name[:10].upper(),
+                        'is_active': True,
+                    }
+                )
+            
+            # Create line item
+            PRELineItem.objects.create(
+                pre=pre,
+                category=category,
+                subcategory=subcategory,
+                item_name=item_name,
+                q1_amount=Decimal(str(item_data.get('q1', 0))),
+                q2_amount=Decimal(str(item_data.get('q2', 0))),
+                q3_amount=Decimal(str(item_data.get('q3', 0))),
+                q4_amount=Decimal(str(item_data.get('q4', 0))),
+            )
+            
+            line_items_created += 1
+    
+    print(f"✅ Created {line_items_created} PRELineItem records for PRE {pre.id}")
+    return line_items_created
+
+
 @role_required('end_user', login_url='/')
 def preview_pre(request):
     """Preview extracted PRE data before final submission"""
@@ -943,6 +1022,18 @@ def preview_pre(request):
             for path in temp_doc_paths:
                 if default_storage.exists(path):
                     default_storage.delete(path)
+                    
+            draft_id = upload_data.get('draft_id')
+            try:
+                draft = PREDraft.objects.get(id=draft_id, user=request.user)
+                if draft.pre_file:
+                    draft.pre_file.delete(save=False)
+                for doc in draft.supporting_documents.all():
+                    doc.document.delete(save=False)
+                    doc.delete()
+                draft.delete()
+            except:
+                pass
             
             # Clear session
             request.session.pop('pre_upload_data', None)
@@ -954,29 +1045,45 @@ def preview_pre(request):
         
         elif action == 'submit':
             try:
-                draft_id = upload_data.get('draft_id')
-                draft = PREDraft.objects.get(id=draft_id, user=request.user)
+                from django.db import transaction
                 
-                # Create DepartmentPRE record
-                pre = NewDepartmentPRE.objects.create(
-                    submitted_by=request.user,
-                    department=allocation.department,
-                    budget_allocation=allocation,
-                    fiscal_year=allocation.approved_budget.fiscal_year,
-                    total_amount=grand_total,
-                    status='Pending',
-                    is_valid=True,
-                    submitted_at=timezone.now(),
-                )
-                
-                # Move PRE file from draft
-                if draft.pre_file:
-                    from django.core.files.base import ContentFile
-                    with draft.pre_file.open('rb') as f:
-                        pre.uploaded_excel_file.save(draft.pre_filename, ContentFile(f.read()), save=True)
-        
-                draft.is_submitted = True
-                draft.save()
+                # Start transaction - everything succeeds or everything fails
+                with transaction.atomic():
+                    draft_id = upload_data.get('draft_id')
+                    draft = PREDraft.objects.get(id=draft_id, user=request.user)
+                    
+                    # 1. Create DepartmentPRE record
+                    pre = NewDepartmentPRE.objects.create(
+                        submitted_by=request.user,
+                        department=allocation.department,
+                        budget_allocation=allocation,
+                        fiscal_year=allocation.approved_budget.fiscal_year,
+                        total_amount=grand_total,
+                        status='Pending',
+                        is_valid=True,
+                        submitted_at=timezone.now(),
+                        prepared_by_name=request.user.get_full_name(),
+                    )
+                    
+                    # 2. Move PRE file from draft
+                    if draft.pre_file:
+                        from django.core.files.base import ContentFile
+                        with draft.pre_file.open('rb') as f:
+                            pre.uploaded_excel_file.save(
+                                draft.pre_filename, 
+                                ContentFile(f.read()), 
+                                save=True
+                            )
+                    
+                    # 3. 🔥 CREATE LINE ITEMS FROM EXTRACTED DATA
+                    line_items_created = create_pre_line_items(pre, extracted_data)
+                    
+                    if line_items_created == 0:
+                        raise Exception("No line items were created from the PRE data")
+                    
+                    # 4. Mark draft as submitted
+                    draft.is_submitted = True
+                    draft.save()
                 
                 # Move PRE file from temp to permanent location
                 # temp_file_path = upload_data['temp_file_path']
@@ -1018,11 +1125,23 @@ def preview_pre(request):
                     f"PRE submitted successfully! Total amount: ₱{grand_total:,.2f}. "
                     f"Status: Pending Review")
                 
+                # Log audit trail
+                log_audit_trail(
+                    request=request,
+                    action='CREATE',
+                    model_name='DepartmentPRE',
+                    record_id=pre.id,
+                    detail=f'Created PRE with {line_items_created} line items, Total: ₱{grand_total:,.2f}'
+                )
+                
                 draft.delete()  # Remove draft after submission
                 return redirect('department_pre_page')
                 
             except Exception as e:
                 messages.error(request, f"Error submitting PRE: {str(e)}")
+                print(f"PRE submission error: {e}")
+                import traceback
+                traceback.print_exc()
                 return redirect('preview_pre')
     
     context = {

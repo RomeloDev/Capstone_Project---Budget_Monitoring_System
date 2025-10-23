@@ -1,0 +1,254 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Upload Purchase Request{% endblock %}
+
+{% block main-content %}
+<main class="mx-auto max-w-4xl p-4 md:p-8">
+    <!-- Header -->
+    <header class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Upload Purchase Request</h1>
+                <p class="text-gray-600">Upload your completed PR document and supporting files</p>
+            </div>
+            <a href="{% url 'purchase_request' %}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back
+            </a>
+        </div>
+    </header>
+
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Step 1: Upload PR Document -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-bold mr-3">1</div>
+                <h2 class="text-xl font-semibold text-gray-900">Upload PR Document</h2>
+            </div>
+            
+            <p class="text-sm text-gray-600 mb-4">Upload your completed Purchase Request document (.docx or .pdf format)</p>
+            
+            {% if draft and draft.pr_file %}
+                <!-- Show uploaded file -->
+                <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <svg class="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ draft.pr_filename }}</p>
+                                <p class="text-sm text-gray-600">{{ draft.pr_file.size|filesizeformat }}</p>
+                            </div>
+                        </div>
+                        <button type="submit" name="action" value="remove_pr" 
+                                class="text-red-600 hover:text-red-800 font-medium text-sm">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            {% else %}
+                <!-- Upload input -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+                    <input type="file" name="pr_document" id="pr_document" 
+                           accept=".pdf,.doc,.docx" 
+                           class="hidden" 
+                           onchange="document.getElementById('upload-pr-btn').click()">
+                    <label for="pr_document" class="cursor-pointer">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p class="mt-2 text-sm text-gray-600">
+                            <span class="font-medium text-blue-600 hover:text-blue-500">Click to upload</span> or drag and drop
+                        </p>
+                        <p class="mt-1 text-xs text-gray-500">PDF, DOC, DOCX up to 10MB</p>
+                    </label>
+                </div>
+                <button type="submit" name="action" value="upload_pr" id="upload-pr-btn" class="hidden"></button>
+            {% endif %}
+        </section>
+
+        <!-- Step 2: Upload Supporting Documents -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-bold mr-3">2</div>
+                <h2 class="text-xl font-semibold text-gray-900">Upload Supporting Documents</h2>
+            </div>
+            
+            <p class="text-sm text-gray-600 mb-4">Upload additional supporting documents (multiple files allowed)</p>
+            
+            <!-- Uploaded documents list -->
+            {% if draft.supporting_documents.exists %}
+                <div class="mb-4 space-y-2">
+                    {% for doc in draft.supporting_documents.all %}
+                        <div class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <div class="flex items-center">
+                                <svg class="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <div>
+                                    <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+                                    <p class="text-sm text-gray-600">{{ doc.file_size|filesizeformat }}</p>
+                                </div>
+                            </div>
+                            <form method="post" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="doc_id" value="{{ doc.id }}">
+                                <button type="submit" name="action" value="remove_supporting" 
+                                        class="text-red-600 hover:text-red-800 font-medium text-sm">
+                                    Remove
+                                </button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            <!-- Upload input -->
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                <input type="file" name="supporting_documents" id="supporting_documents" 
+                       multiple 
+                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" 
+                       class="hidden" 
+                       onchange="document.getElementById('upload-support-btn').click()">
+                <label for="supporting_documents" class="cursor-pointer">
+                    <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-600">
+                        <span class="font-medium text-blue-600 hover:text-blue-500">Click to upload</span> multiple files
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500">PDF, DOC, DOCX, JPG, PNG up to 10MB each</p>
+                </label>
+            </div>
+            <button type="submit" name="action" value="upload_supporting" id="upload-support-btn" class="hidden"></button>
+        </section>
+
+        <!-- Step 3: Funding Details -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-bold mr-3">3</div>
+                <h2 class="text-xl font-semibold text-gray-900">Funding Details</h2>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Budget Allocation -->
+                <div>
+                    <label for="budget_allocation" class="block text-sm font-medium text-gray-700 mb-2">
+                        Budget Allocation <span class="text-red-500">*</span>
+                    </label>
+                    <select name="budget_allocation" id="budget_allocation"
+                            class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            required>
+                        <option value="">Select Budget Allocation</option>
+                        {% for alloc in budget_allocations %}
+                            <option value="{{ alloc.id }}">
+                                {{ alloc.approved_budget.title }} - ₱{{ alloc.remaining_balance|floatformat:2|intcomma }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Source of Fund (PRE Line Item) -->
+                <div>
+                    <label for="source_of_fund" class="block text-sm font-medium text-gray-700 mb-2">
+                        Source of Fund (PRE Line Item) <span class="text-red-500">*</span>
+                    </label>
+                    <select name="source_of_fund" id="source_of_fund"
+                            class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            required>
+                        <option value="">Select approved PRE line item</option>
+                        {% for opt in source_of_fund_options %}
+                            <option value="{{ opt.value }}">{{ opt.label }}</option>
+                        {% empty %}
+                            <option disabled>No approved PRE funds available</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-sm text-gray-500">Select which PRE line item will fund this purchase request</p>
+                </div>
+
+                <!-- Total Amount -->
+                <div>
+                    <label for="total_amount" class="block text-sm font-medium text-gray-700 mb-2">
+                        Total Amount <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₱</span>
+                        <input type="number" name="total_amount" id="total_amount" 
+                               step="0.01" min="0" 
+                               class="w-full pl-8 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="0.00"
+                               required>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">Enter the total amount for this purchase request</p>
+                </div>
+
+                <!-- Purpose -->
+                <div>
+                    <label for="purpose" class="block text-sm font-medium text-gray-700 mb-2">
+                        Purpose <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="purpose" id="purpose" rows="3"
+                              class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                              placeholder="State the purpose of this purchase request"
+                              required></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center justify-between">
+            <button type="submit" name="action" value="clear_draft"
+                    class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                Clear All
+            </button>
+            <div class="space-x-3">
+                <button type="button" onclick="window.location.href='{% url 'purchase_request' %}'"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit" name="action" value="submit"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                        {% if not draft or not draft.pr_file %}disabled{% endif %}>
+                    Submit Purchase Request
+                </button>
+            </div>
+        </div>
+
+        <!-- Validation Info -->
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div class="text-sm text-blue-800">
+                    <p class="font-medium mb-1">Before submitting:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>Upload your PR document (Step 1)</li>
+                        <li>Upload supporting documents if needed (Step 2)</li>
+                        <li>Fill in all funding details (Step 3)</li>
+                        <li>Ensure the total amount doesn't exceed available funds</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="mt-4 space-y-2">
+            {% for message in messages %}
+                <div class="rounded-lg p-4 {% if message.tags == 'success' %}bg-green-50 border border-green-200 text-green-800{% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-800{% else %}bg-blue-50 border border-blue-200 text-blue-800{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</main>
+{% endblock %}

@@ -22,6 +22,20 @@
   </header>
 
   <main class="flex-1 px-6 py-8 bg-gray-100 space-y-6">
+    <!-- Messages -->
+    {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+                <div class="text-white px-4 py-2 mt-1 rounded 
+                    {% if message.tags == 'error' %} bg-red-500
+                    {% elif message.tags == 'success' %} bg-green-500
+                    {% elif message.tags == 'warning' %} bg-yellow-500
+                    {% else %} bg-gray-500 {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
 
     <!-- Quick Stats Dashboard -->
     <section class="grid grid-cols-1 md:grid-cols-4 gap-4">

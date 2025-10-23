@@ -33,6 +33,20 @@
   </header>
 
   <main class="flex-1 px-6 py-4 bg-gray-100 space-y-6">
+    <!-- Messages -->
+    {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+                <div class="text-white px-4 py-2 mt-1 rounded 
+                    {% if message.tags == 'error' %} bg-red-500
+                    {% elif message.tags == 'success' %} bg-green-500
+                    {% elif message.tags == 'warning' %} bg-yellow-500
+                    {% else %} bg-gray-500 {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
     
     <!-- Action Buttons -->
     {% if pre.status == 'Pending' %}
@@ -58,6 +72,175 @@
       </div>
     </section>
     {% endif %}
+
+    <!-- UPLOAD APPROVED DOCUMENT ACTION (Only for Partially Approved PREs) -->
+    {% if pre.status == 'Partially Approved' %}
+    <section class="bg-green-50 border-l-4 border-green-500 p-6 rounded-lg shadow-md">
+      <div class="flex items-start justify-between">
+        <div class="flex-1">
+          <h2 class="text-lg font-semibold text-green-800 mb-2 flex items-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Ready for Final Approval
+          </h2>
+          <p class="text-green-700 text-sm mb-4">
+            This PRE has been partially approved. The end user should submit the signed physical document to the office.
+            Once received and verified, upload the scanned copy below to complete the approval process.
+          </p>
+          
+          <div class="bg-white p-4 rounded-lg border border-green-200 mb-4">
+            <h3 class="font-semibold text-gray-800 mb-2">Next Steps:</h3>
+            <ol class="text-sm text-gray-700 space-y-1 list-decimal list-inside">
+              <li>End user prints and signs the partially approved PDF</li>
+              <li>End user submits physical document to admin office</li>
+              <li>Admin reviews and verifies signatures</li>
+              <li><strong>Admin uploads scanned copy using button below</strong></li>
+              <li>PRE automatically changes to "Approved" status</li>
+              <li>End user can use line items for PR/AD requests</li>
+            </ol>
+          </div>
+        </div>
+        
+        <div class="ml-4">
+          <a href="{% url 'admin_upload_approved_document' pre.id %}" 
+            class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition shadow-lg">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            Upload Approved Document
+          </a>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- APPROVED STATUS DISPLAY (Show uploaded document) -->
+    {% if pre.status == 'Approved' and pre.approved_documents %}
+    <section class="bg-green-50 border-l-4 border-green-500 p-6 rounded-lg shadow-md">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <svg class="w-12 h-12 text-green-600 mr-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div>
+            <h2 class="text-xl font-semibold text-green-800">✅ PRE Fully Approved</h2>
+            <p class="text-green-700 text-sm mt-1">
+              Approved on {{ pre.admin_approved_at|date:"M d, Y g:i A" }} by {{ pre.admin_approved_by.get_full_name }}
+            </p>
+            <p class="text-green-600 text-sm mt-1">
+              End user can now use line items for Purchase Requests and Activity Designs
+            </p>
+          </div>
+        </div>
+        
+        <a href="{{ pre.approved_documents.url }}" target="_blank"
+          class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          </svg>
+          View Approved Document
+        </a>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- UPDATE THE DOCUMENTS SECTION TO INCLUDE APPROVED DOCUMENT -->
+    <!-- Replace the existing Documents section with this updated version: -->
+
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+        <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+        </svg>
+        Documents
+      </h2>
+      
+      <div class="space-y-3">
+        <!-- Original Excel File -->
+        {% if pre.uploaded_excel_file %}
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded border">
+          <div class="flex items-center">
+            <svg class="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-gray-800">Original Excel File</p>
+              <p class="text-xs text-gray-500">Uploaded by submitter</p>
+            </div>
+          </div>
+          <a href="{{ pre.uploaded_excel_file.url }}" target="_blank" 
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+            Download
+          </a>
+        </div>
+        {% endif %}
+
+        <!-- Partially Approved PDF -->
+        {% if pre.partially_approved_pdf %}
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded border">
+          <div class="flex items-center">
+            <svg class="w-8 h-8 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-gray-800">Partially Approved PDF</p>
+              <p class="text-xs text-gray-500">For printing and signatures</p>
+            </div>
+          </div>
+          <a href="{{ pre.partially_approved_pdf.url }}" target="_blank" 
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+            Download
+          </a>
+        </div>
+        {% endif %}
+
+        <!-- Approved Document (NEW) -->
+        {% if pre.approved_documents %}
+        <div class="flex items-center justify-between p-3 bg-green-50 rounded border border-green-200">
+          <div class="flex items-center">
+            <svg class="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-gray-800">✅ Signed & Approved Document</p>
+              <p class="text-xs text-gray-500">
+                Uploaded on {{ pre.admin_approved_at|date:"M d, Y g:i A" }} by {{ pre.admin_approved_by.get_full_name }}
+              </p>
+            </div>
+          </div>
+          <a href="{{ pre.approved_documents.url }}" target="_blank" 
+            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm">
+            View Document
+          </a>
+        </div>
+        {% endif %}
+
+        <!-- Final Approved Scan (if exists from end user) -->
+        {% if pre.final_approved_scan %}
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded border">
+          <div class="flex items-center">
+            <svg class="w-8 h-8 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-gray-800">Final Approved Scan (User Upload)</p>
+              <p class="text-xs text-gray-500">Uploaded by end user</p>
+            </div>
+          </div>
+          <a href="{{ pre.final_approved_scan.url }}" target="_blank" 
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+            Download
+          </a>
+        </div>
+        {% endif %}
+
+        {% if not pre.uploaded_excel_file and not pre.partially_approved_pdf and not pre.approved_documents and not pre.final_approved_scan %}
+        <p class="text-gray-500 italic text-center py-4">No documents available</p>
+        {% endif %}
+      </div>
+    </section>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
@@ -211,7 +394,7 @@
           {% endif %}
         </section>
 
-        <!-- Uploaded Documents -->
+        {% comment %} <!-- Uploaded Documents -->
         <section class="bg-white p-6 rounded-lg shadow-md">
           <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
             <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -325,7 +508,7 @@
             <p class="text-gray-500 italic text-center py-4">No documents available</p>
             {% endif %}
           </div>
-        </section>
+        </section> {% endcomment %}
 
         <!-- Admin Notes & Rejection Reason -->
         {% if pre.admin_notes or pre.rejection_reason %}

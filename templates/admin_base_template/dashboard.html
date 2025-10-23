@@ -122,7 +122,7 @@
             <li>
               <a href="{% url 'admin_pre_list' %}" 
                  class="flex items-center gap-2 px-3 py-2 rounded-md
-                 {% if request.resolver_match.url_name == 'pre_request_page' %}
+                 {% if request.resolver_match.url_name == 'admin_pre_list' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
