@@ -7,7 +7,6 @@ import uuid
 import os
 from django.conf import settings
 
-
 def approved_budget_upload_path(instance, filename):
     """
     Segregate uploaded files by format into different folders
@@ -622,7 +621,7 @@ class PRESubCategory(models.Model):
 
 class PRELineItem(models.Model):
     """Individual budget line items for PRE"""
-    pre = models.ForeignKey(DepartmentPRE, on_delete=models.CASCADE, related_name='line_items')
+    pre = models.ForeignKey('budgets.DepartmentPRE', on_delete=models.CASCADE, related_name='line_items')
     category = models.ForeignKey(PRECategory, on_delete=models.CASCADE)
     subcategory = models.ForeignKey(PRESubCategory, on_delete=models.CASCADE, null=True, blank=True)
     
@@ -654,7 +653,7 @@ class PRELineItem(models.Model):
 
 class PREReceipt(models.Model):
     """Budget receipts/income for PRE"""
-    pre = models.ForeignKey(DepartmentPRE, on_delete=models.CASCADE, related_name='receipts')
+    pre = models.ForeignKey('budgets.DepartmentPRE', on_delete=models.CASCADE, related_name='receipts')
     receipt_type = models.CharField(max_length=100)
     
     # Quarterly amounts
@@ -665,7 +664,176 @@ class PREReceipt(models.Model):
     
     def get_total(self):
         return (self.q1_amount or 0) + (self.q2_amount or 0) + (self.q3_amount or 0) + (self.q4_amount or 0)
+    
 
+class PurchaseRequestAllocation(models.Model):
+    """
+    Track allocation of PRE line items to Purchase Requests
+    Records which PRE line items are funding each PR
+    """
+    
+    purchase_request = models.ForeignKey(
+        'PurchaseRequest',
+        on_delete=models.CASCADE,
+        related_name='pre_allocations',
+        help_text='The purchase request being funded'
+    )
+    
+    pre_line_item = models.ForeignKey(
+        'PRELineItem',
+        on_delete=models.PROTECT,  # Don't allow deleting line items that have allocations
+        related_name='pr_allocations',
+        help_text='The PRE line item providing the funds'
+    )
+    
+    allocated_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Amount allocated from this line item'
+    )
+    
+    allocated_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When the allocation was made'
+    )
+    
+    # Optional: Add notes about the allocation
+    notes = models.TextField(blank=True, help_text='Optional notes about this allocation')
+    
+    class Meta:
+        db_table = 'purchase_request_allocations'
+        ordering = ['-allocated_at']
+        verbose_name = 'Purchase Request Allocation'
+        verbose_name_plural = 'Purchase Request Allocations'
+        indexes = [
+            models.Index(fields=['purchase_request', 'pre_line_item']),
+        ]
+    
+    def __str__(self):
+        return f"PR Allocation: ₱{self.allocated_amount:,.2f} from {self.pre_line_item.item_name}"
+    
+    def get_line_item_display(self):
+        """Return formatted display of the line item"""
+        category = self.pre_line_item.category.name if self.pre_line_item.category else 'Other'
+        return f"{category} - {self.pre_line_item.item_name}"
+
+
+class ActivityDesignAllocation(models.Model):
+    """
+    Track allocation of PRE line items to Activity Designs
+    Records which PRE line items are funding each AD
+    """
+    
+    activity_design = models.ForeignKey(
+        'ActivityDesign',
+        on_delete=models.CASCADE,
+        related_name='pre_allocations',
+        help_text='The activity design being funded'
+    )
+    
+    pre_line_item = models.ForeignKey(
+        'PRELineItem',
+        on_delete=models.PROTECT,  # Don't allow deleting line items that have allocations
+        related_name='ad_allocations',
+        help_text='The PRE line item providing the funds'
+    )
+    
+    allocated_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Amount allocated from this line item'
+    )
+    
+    allocated_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When the allocation was made'
+    )
+    
+    # Optional: Add notes about the allocation
+    notes = models.TextField(blank=True, help_text='Optional notes about this allocation')
+    
+    class Meta:
+        db_table = 'activity_design_allocations'
+        ordering = ['-allocated_at']
+        verbose_name = 'Activity Design Allocation'
+        verbose_name_plural = 'Activity Design Allocations'
+        indexes = [
+            models.Index(fields=['activity_design', 'pre_line_item']),
+        ]
+    
+    def __str__(self):
+        return f"AD Allocation: ₱{self.allocated_amount:,.2f} from {self.pre_line_item.item_name}"
+    
+    def get_line_item_display(self):
+        """Return formatted display of the line item"""
+        category = self.pre_line_item.category.name if self.pre_line_item.category else 'Other'
+        return f"{category} - {self.pre_line_item.item_name}"
+
+
+# IMPORTANT: Also update the existing PurchaseRequest model
+# Add these methods to the PurchaseRequest class:
+
+def get_allocated_line_items(self):
+    """Get all PRE line items allocated to this PR"""
+    return self.pre_allocations.select_related(
+        'pre_line_item__category',
+        'pre_line_item__subcategory',
+        'pre_line_item__pre'
+    )
+
+def get_total_allocated_from_pre(self):
+    """Calculate total allocated from PRE line items"""
+    from django.db.models import Sum
+    result = self.pre_allocations.aggregate(
+        total=Sum('allocated_amount')
+    )
+    return result['total'] or Decimal('0.00')
+
+def get_allocation_summary(self):
+    """Get summary of all allocations for this PR"""
+    allocations = []
+    for alloc in self.pre_allocations.all():
+        allocations.append({
+            'line_item': alloc.pre_line_item.item_name,
+            'category': alloc.pre_line_item.category.name if alloc.pre_line_item.category else 'Other',
+            'amount': alloc.allocated_amount,
+            'pre_id': alloc.pre_line_item.pre.id,
+        })
+    return allocations
+
+
+# IMPORTANT: Also update the existing ActivityDesign model
+# Add these methods to the ActivityDesign class:
+
+def get_allocated_line_items(self):
+    """Get all PRE line items allocated to this AD"""
+    return self.pre_allocations.select_related(
+        'pre_line_item__category',
+        'pre_line_item__subcategory',
+        'pre_line_item__pre'
+    )
+
+def get_total_allocated_from_pre(self):
+    """Calculate total allocated from PRE line items"""
+    from django.db.models import Sum
+    result = self.pre_allocations.aggregate(
+        total=Sum('allocated_amount')
+    )
+    return result['total'] or Decimal('0.00')
+
+def get_allocation_summary(self):
+    """Get summary of all allocations for this AD"""
+    allocations = []
+    for alloc in self.pre_allocations.all():
+        allocations.append({
+            'line_item': alloc.pre_line_item.item_name,
+            'category': alloc.pre_line_item.category.name if alloc.pre_line_item.category else 'Other',
+            'amount': alloc.allocated_amount,
+            'pre_id': alloc.pre_line_item.pre.id,
+        })
+    return allocations
 
 class RequestApproval(models.Model):
     """Generic approval tracking for all request types"""

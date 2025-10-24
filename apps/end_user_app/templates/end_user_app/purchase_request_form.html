@@ -86,53 +86,37 @@
                             name="budget_allocation" 
                             id="budget_allocation"
                             class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                            hx-get="{% url 'load_source_of_fund' %}" 
-                            hx-target="#source_of_fund_container"
-                            hx-trigger="change"
-                            hx-include="[name=csrfmiddlewaretoken]"  
-                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                            hx-swap="innerHTML"
                             required
                         >
                             <option value="">Select Budget Allocation</option>
                             {% for alloc in budget_allocations %}
                                 <option value="{{ alloc.id }}">
-                                    {{ alloc.approved_budget.title }} - {{ alloc.approved_budget.period }} - {{ alloc.total_allocated|intcomma }}
+                                    {{ alloc.approved_budget.title }} - ₱{{ alloc.remaining_balance|floatformat:2|intcomma }} available
                                 </option>
                             {% empty %}
                                 <option disabled>No allocations found</option>
                             {% endfor %}
                         </select>
-
-
-                        {% comment %} <label for="budget_allocation" class="mb-1 block text-sm font-medium">Budget Allocation</label>
-                        <select id="budget_allocation" name="budget_allocation" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                            <option disabled selected>Select Budget Allocation</option>
-                            {% for alloc in budget_allocations %}
-                                <option value="{{ alloc.id }}">{{ alloc.approved_budget.title }} - {{ alloc.approved_budget.period }} - {{ alloc.total_allocated|intcomma }}</option>
-                            {% empty %}
-                                <option disabled>No allocations found</option>
-                            {% endfor %}
-                        </select> {% endcomment %}
                     </div>
-                    {% comment %} <div>
-                        <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
-                        <div class="relative">
-                            <input type="text" id="sof_search" name="sof_search" autocomplete="off"
-                                placeholder="Search Source of Fund..." 
-                                class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                                oninput="showSofSuggestions(this.value)">
-                            <input type="hidden" id="source_of_fund" name="source_of_fund">
-                            <ul id="sof_suggestions" class="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-auto hidden"></ul>
-                        </div>
-                    </div> {% endcomment %}
+                    
                     <div>
-                        <!-- Source of Fund -->
-                        <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
-                        <div id="source_of_fund_container">
-                            <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
-                            <select name="source_of_fund" id="source_of_fund" class="form-select w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" required>
-                                <option value="">Select Source of Fund</option>
+                        <!-- Source of Fund (NEW: From Approved PRE Line Items) -->
+                        <label for="source_of_fund" class="mb-1 block text-sm font-medium">
+                            Source of Fund (PRE Line Item)
+                            <span class="text-xs text-gray-500">(from approved PREs)</span>
+                        </label>
+                        <div class="relative">
+                            <input type="search" 
+                                id="sof_search" 
+                                placeholder="Search line items..." 
+                                class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" 
+                                oninput="filterSofOptions()" />
+                            
+                            <select name="source_of_fund" 
+                                    id="source_of_fund" 
+                                    class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                    required>
+                                <option value="">Select approved PRE line item</option>
                                 {% for opt in source_of_fund_options %}
                                     <option value="{{ opt.value }}">{{ opt.label }}</option>
                                 {% empty %}
@@ -140,20 +124,14 @@
                                 {% endfor %}
                             </select>
                         </div>
-
-                        {% comment %} <label for="source_of_fund" class="mb-1 block text-sm font-medium">Source of Fund</label>
-                        <div class="relative">
-                            <input type="search" id="sof_search" placeholder="Search..." class="mb-2 w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500" oninput="filterSofOptions()" />
-                            <select id="source_of_fund" name="source_of_fund" class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                                <option disabled selected>Select Source of Fund</option>
-                                {% for opt in source_of_fund_options %}
-                                    <option value="{{ opt.value }}">{{ opt.label }}</option>
-                                {% empty %}
-                                    <option disabled>No approved PRE funds available</option>
-                                {% endfor %}
-                            </select>
-                        </div> {% endcomment %}
-                    </div> 
+                        
+                        {% if not source_of_fund_options %}
+                            <div class="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                                <strong>Note:</strong> You need at least one approved PRE with available funds to create a PR.
+                                <a href="{% url 'department_pre_page' %}" class="underline">Create PRE</a>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
             </section>
 
@@ -306,6 +284,7 @@
         function filterSofOptions() {
             const query = document.getElementById('sof_search').value.toLowerCase();
             const select = document.getElementById('source_of_fund');
+            
             for (const option of select.options) {
                 if (!option.value) continue;
                 option.hidden = !option.text.toLowerCase().includes(query);
@@ -314,38 +293,37 @@
 
         // Listen for htmx response and show success with redirect
         document.body.addEventListener('htmx:afterRequest', function(evt) {
-            try {
-                const xhr = evt.detail.xhr;
-                const data = JSON.parse(xhr.responseText || '{}');
-                if (data && data.success === false) {
-                    showErrorMessage(data.error);
-                }
-                else if (data && data.success) {
-                    const modal = document.getElementById('submit-success-modal');
-                    modal.classList.remove('hidden');
-                    modal.innerHTML = `
-                        <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                            <div class="bg-white rounded-lg p-6 w-full max-w-md">
-                                <h3 class="text-lg font-semibold mb-4">Purchase Request Submitted Successfully</h3>
-                                <p class="text-gray-600 mb-6">Redirecting to preview…</p>
-                            </div>
-                        </div>`;
-                    setTimeout(() => { window.location.href = data.redirect_url; }, 1200);
-                }
-            } catch (e) {
-                // not JSON, ignore
+        try {
+            const xhr = evt.detail.xhr;
+            const data = JSON.parse(xhr.responseText || '{}');
+            
+            if (data && data.success === false) {
+                showErrorMessage(data.error);
             }
-        });
+            else if (data && data.success) {
+                const modal = document.getElementById('submit-success-modal');
+                modal.classList.remove('hidden');
+                modal.innerHTML = `
+                    <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                            <h3 class="text-lg font-semibold mb-4">Purchase Request Submitted Successfully</h3>
+                            <p class="text-gray-600 mb-6">Redirecting to preview…</p>
+                        </div>
+                    </div>`;
+                setTimeout(() => { window.location.href = data.redirect_url; }, 1200);
+            }
+        } catch (e) {
+            // not JSON, ignore
+        }
+    });
 
-        function showErrorMessage(message) {
-        // Create or update error display
+    function showErrorMessage(message) {
         let errorDiv = document.getElementById('budget-error-message');
         if (!errorDiv) {
             errorDiv = document.createElement('div');
             errorDiv.id = 'budget-error-message';
             errorDiv.className = 'rounded-lg bg-red-50 p-4 mb-4 border border-red-200';
             
-            // Insert after the form header
             const form = document.getElementById('main-pr-form');
             form.insertBefore(errorDiv, form.firstChild);
         }
@@ -366,7 +344,6 @@
             </div>
         `;
         
-        // Scroll to error message
         errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 

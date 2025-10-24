@@ -8,6 +8,7 @@ urlpatterns = [
     path('settings/', views.user_settings_page, name='user_settings'),
     path('logout/', views.end_user_logout, name='logout'),
     path('pr-ad-request/purchase_request_form/', views.purchase_request_form, name='purchase_request_form'),
+    path('pr-ad-request/purchase_request_upload_form/', views.purchase_request_upload, name='purchase_request_upload'),
     path('add_purchase_item/', views.add_purchase_request_items, name='add_purchase_item'),
     path('remove-item/<int:item_id>/', views.remove_purchase_item, name='remove_purchase_item'),
     path('preview_purchase_request/<int:pk>/', views.preview_purchase_request, name='end_user_preview_purchase_request'),

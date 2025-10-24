@@ -11,7 +11,8 @@ from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse, HttpResponse
 from django.template.loader import render_to_string
 from decimal import Decimal
-from django.db.models import Sum
+from django.db.models import Sum, Q, F, DecimalField
+from django.db.models.functions import Coalesce
 from django.contrib.humanize.templatetags.humanize import intcomma
 from datetime import datetime
 from apps.admin_panel.utils import log_audit_trail
@@ -21,11 +22,12 @@ from docxtpl import DocxTemplate
 from openpyxl import load_workbook
 import os
 import json
+from django.db import transaction
 from io import BytesIO
 import shutil
 import xlwings as xw
 import tempfile
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument
 from .utils.pre_parser import parse_pre_excel
 from django.core.files.storage import default_storage
 from django.utils import timezone
@@ -118,6 +120,535 @@ def end_user_logout(request):
     )
     logout(request)
     return redirect('end_user_login') # redirect to the login page
+
+def build_pre_source_options_v2(user):
+    """
+    Build available PRE line items as funding source options for a user.
+    Returns approved PRE line items that belong to the user's approved PREs.
+    
+    Args:
+        user: User object (request.user)
+        
+    Returns:
+        QuerySet of PRELineItem objects grouped by PRE, with consumed and available amounts
+    """
+    # Get all approved PREs for this user
+    approved_pres = NewDepartmentPRE.objects.filter(
+        submitted_by=user,
+        status='Approved'
+    ).prefetch_related('line_items')
+    
+    # Build options structure: {pre_id: {line_items: [...], pre_info: {...}}}
+    source_options = []
+    
+    for pre in approved_pres:
+        pre_data = {
+            'pre_id': str(pre.id),
+            'pre_display': f"{pre.department} - FY {pre.fiscal_year}",
+            'line_items': []
+        }
+        
+        # Get all line items for this PRE
+        for line_item in pre.line_items.select_related('category', 'subcategory'):
+            # Calculate consumed amount
+            consumed = calculate_line_item_consumed(line_item)
+            total = line_item.get_total()
+            available = total - consumed
+            
+            # Only include if there's available budget
+            if available > 0:
+                # Build display name
+                category_name = line_item.category.name if line_item.category else 'Other'
+                if line_item.subcategory:
+                    display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
+                else:
+                    display = f"{category_name} - {line_item.item_name}"
+                
+                pre_data['line_items'].append({
+                    'id': line_item.id,
+                    'display': display,
+                    'item_name': line_item.item_name,
+                    'category': category_name,
+                    'total': total,
+                    'consumed': consumed,
+                    'available': available,
+                    'value': f"{pre.id}|{line_item.id}"  # Combined value for form
+                })
+        
+        # Only add PRE if it has available line items
+        if pre_data['line_items']:
+            source_options.append(pre_data)
+    
+    return source_options
+
+
+def calculate_line_item_consumed(line_item):
+    """
+    Calculate the total consumed/allocated amount for a specific PRE line item.
+    Sums up all allocations from approved/pending Purchase Requests.
+    
+    Args:
+        line_item: PRELineItem instance or line_item_id
+        
+    Returns:
+        Decimal: Total consumed amount from all allocations
+    """
+    if isinstance(line_item, PRELineItem):
+        line_item_id = line_item.id
+    else:
+        line_item_id = line_item
+    
+    consumed = NewPurchaseRequestAllocation.objects.filter(
+        pre_line_item_id=line_item_id,
+        purchase_request__status__in=[
+            'Pending', 'Partially Approved', 'Approved'
+        ]
+    ).aggregate(
+        total=Coalesce(
+            Sum('allocated_amount'),
+            Decimal('0.00'),
+            output_field=DecimalField(max_digits=15, decimal_places=2)
+        )
+    )['total']
+    
+    return consumed
+
+
+def allocate_funds_to_purchase_request(purchase_request, pre_id, line_item_id, amount):
+    """
+    Allocate funds from a specific PRE line item to a purchase request.
+    Creates a PurchaseRequestAllocation record linking the PR to the PRE line item.
+    
+    Args:
+        purchase_request: PurchaseRequest instance
+        pre_id: UUID of the DepartmentPRE
+        line_item_id: ID of the PRELineItem
+        amount: Decimal amount to allocate
+        
+    Returns:
+        dict: {
+            'success': bool,
+            'allocation': PurchaseRequestAllocation instance or None,
+            'error': str (if success is False)
+        }
+    """
+    try:
+        # Get the line item
+        line_item = PRELineItem.objects.select_related('pre', 'category', 'subcategory').get(
+            id=line_item_id,
+            pre_id=pre_id,
+            pre__status='Approved'
+        )
+        
+        # Validate availability
+        consumed = calculate_line_item_consumed(line_item)
+        total = line_item.get_total()
+        available = total - consumed
+        
+        if available < amount:
+            return {
+                'success': False,
+                'allocation': None,
+                'error': f'Insufficient funds. Available: ₱{available:,.2f}, Required: ₱{amount:,.2f}'
+            }
+        
+        # Create allocation
+        allocation = NewPurchaseRequestAllocation.objects.create(
+            purchase_request=purchase_request,
+            pre_line_item=line_item,
+            allocated_amount=amount
+        )
+        
+        return {
+            'success': True,
+            'allocation': allocation,
+            'error': None
+        }
+        
+    except PRELineItem.DoesNotExist:
+        return {
+            'success': False,
+            'allocation': None,
+            'error': 'Selected funding source not found or PRE not approved.'
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'allocation': None,
+            'error': f'Error allocating funds: {str(e)}'
+        }
+
+
+# Additional helper function for validation
+def validate_line_item_availability(line_item_id, required_amount):
+    """
+    Validate if a PRE line item has sufficient available funds.
+    
+    Args:
+        line_item_id: ID of the PRELineItem
+        required_amount: Decimal amount needed
+        
+    Returns:
+        dict: {
+            'available': bool,
+            'total': Decimal,
+            'consumed': Decimal,
+            'remaining': Decimal,
+            'message': str
+        }
+    """
+    try:
+        line_item = PRELineItem.objects.get(id=line_item_id)
+        consumed = calculate_line_item_consumed(line_item)
+        total = line_item.get_total()
+        remaining = total - consumed
+        
+        return {
+            'available': remaining >= required_amount,
+            'total': total,
+            'consumed': consumed,
+            'remaining': remaining,
+            'message': f'Available: ₱{remaining:,.2f} of ₱{total:,.2f}'
+        }
+    except PRELineItem.DoesNotExist:
+        return {
+            'available': False,
+            'total': Decimal('0.00'),
+            'consumed': Decimal('0.00'),
+            'remaining': Decimal('0.00'),
+            'message': 'Line item not found'
+        }
+
+
+# Helper to get line item details for display
+def get_line_item_details(pre_id, line_item_id):
+    """
+    Get detailed information about a PRE line item including availability.
+    
+    Args:
+        pre_id: UUID of the DepartmentPRE
+        line_item_id: ID of the PRELineItem
+        
+    Returns:
+        dict with line item details or None if not found
+    """
+    try:
+        line_item = PRELineItem.objects.select_related(
+            'pre', 'category', 'subcategory'
+        ).get(
+            id=line_item_id,
+            pre_id=pre_id
+        )
+        
+        consumed = calculate_line_item_consumed(line_item)
+        total = line_item.get_total()
+        available = total - consumed
+        
+        category_name = line_item.category.name if line_item.category else 'Other'
+        if line_item.subcategory:
+            display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
+        else:
+            display = f"{category_name} - {line_item.item_name}"
+        
+        return {
+            'id': line_item.id,
+            'pre_id': str(line_item.pre.id),
+            'item_name': line_item.item_name,
+            'display': display,
+            'category': category_name,
+            'subcategory': line_item.subcategory.name if line_item.subcategory else None,
+            'total': total,
+            'consumed': consumed,
+            'available': available,
+            'q1': line_item.q1_amount,
+            'q2': line_item.q2_amount,
+            'q3': line_item.q3_amount,
+            'q4': line_item.q4_amount,
+        }
+    except PRELineItem.DoesNotExist:
+        return None
+
+@role_required('end_user', login_url='/')
+def purchase_request_upload(request):
+    """Handle PR document upload with supporting files"""
+    
+    # Get or create draft
+    draft, created = PRDraft.objects.get_or_create(
+        user=request.user
+    )
+    
+    # Get budget allocations for dropdown
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True,
+        remaining_balance__gt=0
+    ).select_related('approved_budget')
+    
+    # Get approved PRE line items as funding sources
+    source_of_fund_options = build_pre_source_options_v2(request.user)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'upload_pr':
+            # Handle PR document upload
+            pr_file = request.FILES.get('pr_document')
+            
+            if not pr_file:
+                messages.error(request, "Please select a PR document to upload.")
+                return redirect('purchase_request_upload')
+            
+            # Validate file type
+            allowed_extensions = ['pdf', 'doc', 'docx']
+            file_ext = pr_file.name.split('.')[-1].lower()
+            
+            if file_ext not in allowed_extensions:
+                messages.error(request, f"Invalid file type. Allowed: {', '.join(allowed_extensions).upper()}")
+                return redirect('purchase_request_upload')
+            
+            # Validate file size (10MB)
+            if pr_file.size > 10 * 1024 * 1024:
+                messages.error(request, "File size must be less than 10MB.")
+                return redirect('purchase_request_upload')
+            
+            # Delete old file if exists
+            if draft.pr_file:
+                draft.pr_file.delete(save=False)
+            
+            # Save new file
+            draft.pr_file = pr_file
+            draft.pr_filename = pr_file.name
+            draft.save()
+            
+            messages.success(request, f"PR document '{pr_file.name}' uploaded successfully.")
+            return redirect('purchase_request_upload')
+        
+        elif action == 'remove_pr':
+            # Remove PR document
+            if draft.pr_file:
+                draft.pr_file.delete(save=False)
+                draft.pr_file = None
+                draft.pr_filename = ''
+                draft.save()
+                messages.info(request, "PR document removed.")
+            return redirect('purchase_request_upload')
+        
+        elif action == 'upload_supporting':
+            # Handle supporting documents upload
+            supporting_docs = request.FILES.getlist('supporting_documents')
+            
+            if not supporting_docs:
+                messages.error(request, "Please select at least one supporting document.")
+                return redirect('purchase_request_upload')
+            
+            # Validate and save each document
+            allowed_extensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']
+            count = 0
+            
+            for doc in supporting_docs:
+                # Check file type
+                file_ext = doc.name.split('.')[-1].lower()
+                if file_ext not in allowed_extensions:
+                    messages.warning(request, f"Skipped '{doc.name}': Invalid file type.")
+                    continue
+                
+                # Check file size
+                if doc.size > 10 * 1024 * 1024:
+                    messages.warning(request, f"Skipped '{doc.name}': File too large (max 10MB).")
+                    continue
+                
+                # Check for duplicates
+                if draft.supporting_documents.filter(file_name=doc.name).exists():
+                    messages.warning(request, f"Skipped '{doc.name}': Already uploaded.")
+                    continue
+                
+                # Save document
+                PRDraftSupportingDocument.objects.create(
+                    draft=draft,
+                    document=doc,
+                    file_name=doc.name,
+                    file_size=doc.size
+                )
+                count += 1
+            
+            if count > 0:
+                messages.success(request, f"Uploaded {count} supporting document(s).")
+            return redirect('purchase_request_upload')
+        
+        elif action == 'remove_supporting':
+            # Remove supporting document
+            doc_id = request.POST.get('doc_id')
+            try:
+                doc = draft.supporting_documents.get(id=doc_id)
+                doc_name = doc.file_name
+                doc.document.delete(save=False)
+                doc.delete()
+                messages.success(request, f"Removed '{doc_name}'")
+            except PRDraftSupportingDocument.DoesNotExist:
+                messages.error(request, "Document not found.")
+            return redirect('purchase_request_upload')
+        
+        elif action == 'clear_draft':
+            # Clear all draft files
+            if draft.pr_file:
+                draft.pr_file.delete(save=False)
+            for doc in draft.supporting_documents.all():
+                doc.document.delete(save=False)
+                doc.delete()
+            draft.delete()
+            messages.info(request, "All draft files cleared.")
+            return redirect('purchase_request_upload')
+        
+        elif action == 'submit':
+            # Validate and submit PR
+            if not draft.pr_file:
+                messages.error(request, "Please upload a PR document first.")
+                return redirect('purchase_request_upload')
+            
+            # Get form data
+            budget_allocation_id = request.POST.get('budget_allocation')
+            source_of_fund = request.POST.get('source_of_fund')
+            total_amount = request.POST.get('total_amount')
+            purpose = request.POST.get('purpose')
+            
+            # Validate required fields
+            if not all([budget_allocation_id, source_of_fund, total_amount, purpose]):
+                messages.error(request, "Please fill in all required fields.")
+                return redirect('purchase_request_upload')
+            
+            try:
+                total_amount = Decimal(total_amount)
+                if total_amount <= 0:
+                    messages.error(request, "Total amount must be greater than zero.")
+                    return redirect('purchase_request_upload')
+            except:
+                messages.error(request, "Invalid total amount.")
+                return redirect('purchase_request_upload')
+            
+            try:
+                # Start transaction
+                with transaction.atomic():
+                    # Get budget allocation
+                    budget_allocation = NewBudgetAllocation.objects.get(
+                        id=budget_allocation_id,
+                        end_user=request.user
+                    )
+                    
+                    # Parse source of fund: "pre_id|line_item_id"
+                    parts = source_of_fund.split('|')
+                    if len(parts) != 2:
+                        raise ValueError("Invalid source of fund format")
+                    
+                    pre_id, line_item_id = parts
+                    
+                    # Get line item
+                    line_item = PRELineItem.objects.select_related('pre', 'category', 'subcategory').get(
+                        id=line_item_id,
+                        pre__status='Approved'
+                    )
+                    
+                    # Validate budget availability
+                    consumed = calculate_line_item_consumed(line_item)
+                    available = line_item.get_total() - consumed
+                    
+                    if available < total_amount:
+                        messages.error(
+                            request,
+                            f"Insufficient funds. Available: ₱{available:,.2f}, Required: ₱{total_amount:,.2f}"
+                        )
+                        return redirect('purchase_request_upload')
+                    
+                    # Generate PR number
+                    from datetime import datetime
+                    pr_count = NewPurchaseRequest.objects.filter(
+                        submitted_by=request.user,
+                        created_at__year=datetime.now().year
+                    ).count()
+                    pr_number = f"{datetime.now().year}-{request.user.id:04d}-{pr_count + 1:04d}"
+                    
+                    # Create Purchase Request
+                    pr = NewPurchaseRequest.objects.create(
+                        submitted_by=request.user,
+                        budget_allocation=budget_allocation,
+                        pr_number=pr_number,
+                        department=request.user.department or 'Unknown',
+                        purpose=purpose,
+                        total_amount=total_amount,
+                        status='Pending',
+                        is_valid=True,
+                        submitted_at=timezone.now(),
+                        source_pre=line_item.pre,
+                        source_line_item=line_item,
+                    )
+                    
+                    # Build display name for source
+                    category_name = line_item.category.name if line_item.category else 'Other'
+                    if line_item.subcategory:
+                        display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
+                    else:
+                        display = f"{category_name} - {line_item.item_name}"
+                    
+                    pr.source_of_fund_display = f"{display} - ₱{total_amount:,.2f}"
+                    
+                    # Move PR file from draft
+                    if draft.pr_file:
+                        from django.core.files.base import ContentFile
+                        with draft.pr_file.open('rb') as f:
+                            pr.uploaded_document.save(draft.pr_filename, ContentFile(f.read()), save=True)
+                    
+                    # Allocate funds
+                    NewPurchaseRequestAllocation.objects.create(
+                        purchase_request=pr,
+                        pre_line_item=line_item,
+                        allocated_amount=total_amount
+                    )
+                    
+                    pr.save()
+                    
+                    # Mark draft as submitted
+                    draft.is_submitted = True
+                    draft.save()
+                    
+                    # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='CREATE',
+                        model_name='PurchaseRequest',
+                        record_id=pr.id,
+                        detail=f'Created PR via upload: {pr_number}, Amount: ₱{total_amount:,.2f}'
+                    )
+                    
+                    messages.success(
+                        request,
+                        f"Purchase Request {pr_number} submitted successfully! Amount: ₱{total_amount:,.2f}"
+                    )
+                    
+                    # Clean up draft
+                    draft.delete()
+                    
+                    return redirect('purchase_request')
+                    
+            except NewBudgetAllocation.DoesNotExist:
+                messages.error(request, "Invalid budget allocation selected.")
+                return redirect('purchase_request_upload')
+            except PRELineItem.DoesNotExist:
+                messages.error(request, "Selected funding source not found or PRE not approved.")
+                return redirect('purchase_request_upload')
+            except Exception as e:
+                messages.error(request, f"Error submitting PR: {str(e)}")
+                print(f"PR submission error: {e}")
+                import traceback
+                traceback.print_exc()
+                return redirect('purchase_request_upload')
+    
+    # GET request
+    context = {
+        'draft': draft,
+        'budget_allocations': budget_allocations,
+        'source_of_fund_options': source_of_fund_options,
+    }
+    
+    return render(request, 'end_user_app/purchase_request_upload_form.html', context)
 
 @role_required('end_user', login_url='/')
 def purchase_request_form(request):
