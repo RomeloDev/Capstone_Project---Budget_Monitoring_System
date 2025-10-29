@@ -9,9 +9,14 @@
             Default Title
         {% endblock title %}</title>
     <link rel="stylesheet" href="{% static "css/dashboard.css" %}">
+    <!-- Choices.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
     {% tailwind_css %}
     <!-- Load HTMX -->
     <script src="{% static 'js/htmx.min.js' %}"></script>
+
+    <!-- Choices.js JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 </head>
 <body>
     {% comment %} <div class="dashboard">

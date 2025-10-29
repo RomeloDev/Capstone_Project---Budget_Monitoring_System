@@ -191,6 +191,9 @@ class PREParser:
             'capital': [],
         }
         
+        # ✅ Track validation warnings
+        validation_warnings = []
+        
         # Extract Receipts
         for item_name, q1, q2, q3, q4, total in self.CELL_MAPPINGS['receipts']:
             q1_val = self._parse_cell_value(q1)
@@ -198,6 +201,18 @@ class PREParser:
             q3_val = self._parse_cell_value(q3)
             q4_val = self._parse_cell_value(q4)
             total_val = self._parse_cell_value(total)
+            
+            # ✅ Calculate correct total from quarters
+            calculated_total = q1_val + q2_val + q3_val + q4_val
+            
+            # ✅ Validate: Check if Excel total matches calculated total
+            if calculated_total > 0 and abs(total_val - calculated_total) > Decimal('0.01'):
+                validation_warnings.append({
+                    'item': item_name,
+                    'excel_total': float(total_val),
+                    'calculated_total': float(calculated_total),
+                    'difference': float(calculated_total - total_val)
+                })
             
             # Only add if there's any value
             if q1_val > 0 or q2_val > 0 or q3_val > 0 or q4_val > 0:
@@ -207,7 +222,7 @@ class PREParser:
                     'q2': q2_val,
                     'q3': q3_val,
                     'q4': q4_val,
-                    'total': total_val
+                    'total': calculated_total
                 })
         
         # Extract Personnel Services
@@ -218,6 +233,16 @@ class PREParser:
             q4_val = self._parse_cell_value(q4)
             total_val = self._parse_cell_value(total)
             
+            calculated_total = q1_val + q2_val + q3_val + q4_val
+            
+            if calculated_total > 0 and abs(total_val - calculated_total) > Decimal('0.01'):
+                validation_warnings.append({
+                    'item': item_name,
+                    'excel_total': float(total_val),
+                    'calculated_total': float(calculated_total),
+                    'difference': float(calculated_total - total_val)
+                })
+            
             if q1_val > 0 or q2_val > 0 or q3_val > 0 or q4_val > 0:
                 extracted_data['personnel'].append({
                     'item_name': item_name,
@@ -225,7 +250,7 @@ class PREParser:
                     'q2': q2_val,
                     'q3': q3_val,
                     'q4': q4_val,
-                    'total': total_val
+                    'total': calculated_total
                 })
         
         # Extract MOOE (nested structure)
@@ -237,6 +262,16 @@ class PREParser:
                 q4_val = self._parse_cell_value(q4)
                 total_val = self._parse_cell_value(total)
                 
+                calculated_total = q1_val + q2_val + q3_val + q4_val
+            
+                if calculated_total > 0 and abs(total_val - calculated_total) > Decimal('0.01'):
+                    validation_warnings.append({
+                        'item': item_name,
+                        'excel_total': float(total_val),
+                        'calculated_total': float(calculated_total),
+                        'difference': float(calculated_total - total_val)
+                    })
+                
                 if q1_val > 0 or q2_val > 0 or q3_val > 0 or q4_val > 0:
                     extracted_data['mooe'].append({
                         'category': category,
@@ -245,7 +280,7 @@ class PREParser:
                         'q2': q2_val,
                         'q3': q3_val,
                         'q4': q4_val,
-                        'total': total_val
+                        'total': calculated_total
                     })
         
         # Extract Capital Outlays (nested structure)
@@ -257,6 +292,16 @@ class PREParser:
                 q4_val = self._parse_cell_value(q4)
                 total_val = self._parse_cell_value(total)
                 
+                calculated_total = q1_val + q2_val + q3_val + q4_val
+            
+                if calculated_total > 0 and abs(total_val - calculated_total) > Decimal('0.01'):
+                    validation_warnings.append({
+                        'item': item_name,
+                        'excel_total': float(total_val),
+                        'calculated_total': float(calculated_total),
+                        'difference': float(calculated_total - total_val)
+                    })
+                
                 if q1_val > 0 or q2_val > 0 or q3_val > 0 or q4_val > 0:
                     extracted_data['capital'].append({
                         'category': category,
@@ -265,8 +310,11 @@ class PREParser:
                         'q2': q2_val,
                         'q3': q3_val,
                         'q4': q4_val,
-                        'total': total_val
+                        'total': calculated_total
                     })
+                    
+        # ✅ Store validation warnings
+        extracted_data['validation_warnings'] = validation_warnings
         
         return extracted_data
     
@@ -312,6 +360,9 @@ def parse_pre_excel(file_path):
             'errors': parser.errors
         }
     
+    # ✅ Get validation warnings
+    validation_warnings = extracted_data.pop('validation_warnings', [])
+    
     # Calculate grand total
     grand_total = parser.calculate_grand_total(extracted_data)
     
@@ -323,5 +374,6 @@ def parse_pre_excel(file_path):
         'data': extracted_data,
         'grand_total': grand_total,
         'fiscal_year': fiscal_year,
+        'validation_warnings': validation_warnings,
         'errors': []
     }

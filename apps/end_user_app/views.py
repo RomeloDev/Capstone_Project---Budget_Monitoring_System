@@ -123,63 +123,82 @@ def end_user_logout(request):
 
 def build_pre_source_options_v2(user):
     """
-    Build available PRE line items as funding source options for a user.
-    Returns approved PRE line items that belong to the user's approved PREs.
+    Build available PRE line items as funding source options.
+    Directly queries PRELineItem for better performance and reliability.
     
     Args:
         user: User object (request.user)
         
     Returns:
-        QuerySet of PRELineItem objects grouped by PRE, with consumed and available amounts
+        List of dicts with PRE groups and their available line items
     """
-    # Get all approved PREs for this user
-    approved_pres = NewDepartmentPRE.objects.filter(
-        submitted_by=user,
-        status='Approved'
-    ).prefetch_related('line_items')
+    from collections import defaultdict
     
-    # Build options structure: {pre_id: {line_items: [...], pre_info: {...}}}
-    source_options = []
+    # 🔥 DIRECT QUERY: Get all line items from user's approved PREs
+    line_items = PRELineItem.objects.filter(
+        pre__submitted_by=user,
+        pre__status__in=['Approved', 'Partially Approved']  # Include both statuses
+    ).select_related(
+        'pre',
+        'pre__budget_allocation',
+        'category',
+        'subcategory'
+    ).order_by(
+        'pre__fiscal_year',
+        'category__sort_order',
+        'item_name'
+    )
     
-    for pre in approved_pres:
-        pre_data = {
-            'pre_id': str(pre.id),
-            'pre_display': f"{pre.department} - FY {pre.fiscal_year}",
-            'line_items': []
-        }
+    # Group line items by PRE
+    pre_groups = defaultdict(lambda: {
+        'line_items': [],
+        'pre_display': '',
+        'pre_id': ''
+    })
+    
+    for line_item in line_items:
+        # Calculate total budget for this line item
+        total = line_item.get_total()
         
-        # Get all line items for this PRE
-        for line_item in pre.line_items.select_related('category', 'subcategory'):
-            # Calculate consumed amount
-            consumed = calculate_line_item_consumed(line_item)
-            total = line_item.get_total()
-            available = total - consumed
+        # Skip if no budget allocated
+        if total <= 0:
+            continue
+        
+        # Calculate consumed amount
+        consumed = calculate_line_item_consumed(line_item)
+        available = total - consumed
+        
+        # Only include line items with available budget
+        if available > 0:
+            pre_key = str(line_item.pre.id)
             
-            # Only include if there's available budget
-            if available > 0:
-                # Build display name
-                category_name = line_item.category.name if line_item.category else 'Other'
-                if line_item.subcategory:
-                    display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
-                else:
-                    display = f"{category_name} - {line_item.item_name}"
-                
-                pre_data['line_items'].append({
-                    'id': line_item.id,
-                    'display': display,
-                    'item_name': line_item.item_name,
-                    'category': category_name,
-                    'total': total,
-                    'consumed': consumed,
-                    'available': available,
-                    'value': f"{pre.id}|{line_item.id}"  # Combined value for form
-                })
-        
-        # Only add PRE if it has available line items
-        if pre_data['line_items']:
-            source_options.append(pre_data)
+            # Set PRE info (only once per PRE)
+            if not pre_groups[pre_key]['pre_display']:
+                pre_groups[pre_key]['pre_display'] = f"{line_item.pre.department} - FY {line_item.pre.fiscal_year}"
+                pre_groups[pre_key]['pre_id'] = pre_key
+            
+            # Build display name
+            category_name = line_item.category.name if line_item.category else 'Other'
+            if line_item.subcategory:
+                display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
+            else:
+                display = f"{category_name} - {line_item.item_name}"
+            
+            # Add line item to group
+            pre_groups[pre_key]['line_items'].append({
+                'id': line_item.id,
+                'display': display,
+                'item_name': line_item.item_name,
+                'category': category_name,
+                'total': total,
+                'consumed': consumed,
+                'available': available,
+                'value': f"{line_item.pre.id}|{line_item.id}",
+                'label': f"{display} (Available: ₱{available:,.2f})"
+            })
     
-    return source_options
+    # Convert defaultdict to list
+    return list(pre_groups.values())
 
 
 def calculate_line_item_consumed(line_item):
@@ -367,6 +386,91 @@ def get_line_item_details(pre_id, line_item_id):
         }
     except PRELineItem.DoesNotExist:
         return None
+    
+@role_required('end_user', login_url='/')
+def get_pre_line_items(request):
+    """
+    AJAX endpoint to get PRE line items for a specific budget allocation.
+    Returns line items that belong to approved PREs linked to the allocation.
+    """
+    if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+    
+    allocation_id = request.GET.get('allocation_id')
+    
+    if not allocation_id:
+        return JsonResponse({'success': False, 'error': 'Budget allocation ID is required'}, status=400)
+    
+    try:
+        # Verify the allocation belongs to the user
+        allocation = NewBudgetAllocation.objects.get(
+            id=allocation_id,
+            end_user=request.user,
+            is_active=True
+        )
+        
+        # Get all approved PREs for this budget allocation
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation=allocation,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related(
+            'line_items__category',
+            'line_items__subcategory'
+        )
+        
+        # Build line items list
+        line_items_data = []
+        
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                # Calculate budget
+                total = line_item.get_total()
+                
+                if total <= 0:
+                    continue
+                
+                consumed = calculate_line_item_consumed(line_item)
+                available = total - consumed
+                
+                # Only include if available
+                if available > 0:
+                    category_name = line_item.category.name if line_item.category else 'Other'
+                    if line_item.subcategory:
+                        display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
+                    else:
+                        display = f"{category_name} - {line_item.item_name}"
+                    
+                    line_items_data.append({
+                        'id': line_item.id,
+                        'pre_id': str(pre.id),
+                        'pre_display': f"{pre.department} - FY {pre.fiscal_year}",
+                        'display': display,
+                        'item_name': line_item.item_name,
+                        'category': category_name,
+                        'total': float(total),
+                        'consumed': float(consumed),
+                        'available': float(available),
+                        'value': f"{pre.id}|{line_item.id}",
+                        'label': f"{display} (Available: ₱{available:,.2f})"
+                    })
+        
+        return JsonResponse({
+            'success': True,
+            'line_items': line_items_data,
+            'allocation_id': allocation_id,
+            'allocation_name': allocation.approved_budget.title
+        })
+        
+    except NewBudgetAllocation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Budget allocation not found or does not belong to you'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error loading line items: {str(e)}'
+        }, status=500)
 
 @role_required('end_user', login_url='/')
 def purchase_request_upload(request):
@@ -385,16 +489,19 @@ def purchase_request_upload(request):
     ).select_related('approved_budget')
     
     # Get approved PRE line items as funding sources
-    source_of_fund_options = build_pre_source_options_v2(request.user)
+    # source_of_fund_options = build_pre_source_options_v2(request.user)
     
     if request.method == 'POST':
         action = request.POST.get('action')
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         
         if action == 'upload_pr':
             # Handle PR document upload
             pr_file = request.FILES.get('pr_document')
             
             if not pr_file:
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': 'Please select a PR document to upload.'})
                 messages.error(request, "Please select a PR document to upload.")
                 return redirect('purchase_request_upload')
             
@@ -403,12 +510,18 @@ def purchase_request_upload(request):
             file_ext = pr_file.name.split('.')[-1].lower()
             
             if file_ext not in allowed_extensions:
-                messages.error(request, f"Invalid file type. Allowed: {', '.join(allowed_extensions).upper()}")
+                error_msg = f"Invalid file type. Allowed: {', '.join(allowed_extensions).upper()}"
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
                 return redirect('purchase_request_upload')
             
             # Validate file size (10MB)
             if pr_file.size > 10 * 1024 * 1024:
-                messages.error(request, "File size must be less than 10MB.")
+                error_msg = "File size must be less than 10MB."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
                 return redirect('purchase_request_upload')
             
             # Delete old file if exists
@@ -420,7 +533,10 @@ def purchase_request_upload(request):
             draft.pr_filename = pr_file.name
             draft.save()
             
-            messages.success(request, f"PR document '{pr_file.name}' uploaded successfully.")
+            success_msg = f"PR document '{pr_file.name}' uploaded successfully."
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': success_msg})
+            messages.success(request, success_msg)
             return redirect('purchase_request_upload')
         
         elif action == 'remove_pr':
@@ -430,7 +546,17 @@ def purchase_request_upload(request):
                 draft.pr_file = None
                 draft.pr_filename = ''
                 draft.save()
-                messages.info(request, "PR document removed.")
+                
+                success_msg = "PR document removed."
+                if is_ajax:
+                    return JsonResponse({'success': True, 'message': success_msg})
+                messages.info(request, success_msg)
+            else:
+                error_msg = "No PR document to remove."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.warning(request, error_msg)
+                
             return redirect('purchase_request_upload')
         
         elif action == 'upload_supporting':
@@ -438,28 +564,31 @@ def purchase_request_upload(request):
             supporting_docs = request.FILES.getlist('supporting_documents')
             
             if not supporting_docs:
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': 'Please select at least one supporting document.'})
                 messages.error(request, "Please select at least one supporting document.")
                 return redirect('purchase_request_upload')
             
             # Validate and save each document
             allowed_extensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']
             count = 0
+            errors = []
             
             for doc in supporting_docs:
                 # Check file type
                 file_ext = doc.name.split('.')[-1].lower()
                 if file_ext not in allowed_extensions:
-                    messages.warning(request, f"Skipped '{doc.name}': Invalid file type.")
+                    errors.append(f"Skipped '{doc.name}': Invalid file type.")
                     continue
                 
                 # Check file size
                 if doc.size > 10 * 1024 * 1024:
-                    messages.warning(request, f"Skipped '{doc.name}': File too large (max 10MB).")
+                    errors.append(f"Skipped '{doc.name}': File too large (max 10MB).")
                     continue
                 
                 # Check for duplicates
                 if draft.supporting_documents.filter(file_name=doc.name).exists():
-                    messages.warning(request, f"Skipped '{doc.name}': Already uploaded.")
+                    errors.append(f"Skipped '{doc.name}': Already uploaded.")
                     continue
                 
                 # Save document
@@ -470,9 +599,26 @@ def purchase_request_upload(request):
                     file_size=doc.size
                 )
                 count += 1
+                
+            if is_ajax:
+                if count > 0:
+                    return JsonResponse({
+                        'success': True, 
+                        'message': f"Uploaded {count} supporting document(s).",
+                        'errors': errors
+                    })
+                else:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': 'No documents were uploaded.',
+                        'errors': errors
+                    })
             
             if count > 0:
                 messages.success(request, f"Uploaded {count} supporting document(s).")
+                
+            for error in errors:
+                messages.warning(request, error)
             return redirect('purchase_request_upload')
         
         elif action == 'remove_supporting':
@@ -483,9 +629,17 @@ def purchase_request_upload(request):
                 doc_name = doc.file_name
                 doc.document.delete(save=False)
                 doc.delete()
-                messages.success(request, f"Removed '{doc_name}'")
+                
+                success_msg = f"Removed '{doc_name}'"
+                if is_ajax:
+                    return JsonResponse({'success': True, 'message': success_msg})
+                messages.success(request, success_msg)
             except PRDraftSupportingDocument.DoesNotExist:
-                messages.error(request, "Document not found.")
+                error_msg = "Document not found."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
+            
             return redirect('purchase_request_upload')
         
         elif action == 'clear_draft':
@@ -496,7 +650,11 @@ def purchase_request_upload(request):
                 doc.document.delete(save=False)
                 doc.delete()
             draft.delete()
-            messages.info(request, "All draft files cleared.")
+            
+            success_msg = "All draft files cleared."
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': success_msg})
+            messages.info(request, success_msg)
             return redirect('purchase_request_upload')
         
         elif action == 'submit':
@@ -645,7 +803,7 @@ def purchase_request_upload(request):
     context = {
         'draft': draft,
         'budget_allocations': budget_allocations,
-        'source_of_fund_options': source_of_fund_options,
+        #'source_of_fund_options': source_of_fund_options,
     }
     
     return render(request, 'end_user_app/purchase_request_upload_form.html', context)
@@ -1388,6 +1546,7 @@ def upload_pre(request, allocation_id):
                     'grand_total': str(result['grand_total']),
                     'fiscal_year': result['fiscal_year'],
                     'pre_filename': draft.pre_filename,
+                    'validation_warnings': result.get('validation_warnings', [])
                 }
                 
                 messages.success(request, "Files validated successfully. Please review the extracted data.")
@@ -1500,7 +1659,7 @@ def preview_pre(request):
     """Preview extracted PRE data before final submission"""
     
     # Get data from session
-    upload_data = request.session.get('pre_upload_data')
+    upload_data = request.session.get('pre_upload_data') 
     supporting_docs_info = request.session.get('supporting_docs_info', [])
     
     if not upload_data:
@@ -1510,6 +1669,7 @@ def preview_pre(request):
     # Parse extracted data
     extracted_data = json.loads(upload_data['extracted_data'])
     grand_total = Decimal(upload_data['grand_total'])
+    validation_warnings = upload_data.get('validation_warnings', [])
     
     # Calculate section totals
     def calculate_section_totals(items):
@@ -1583,13 +1743,36 @@ def preview_pre(request):
                     draft_id = upload_data.get('draft_id')
                     draft = PREDraft.objects.get(id=draft_id, user=request.user)
                     
+                    # ✅ Recalculate grand total from extracted data
+                    recalculated_total = Decimal('0')
+                    for category in ['receipts', 'personnel', 'mooe', 'capital']:
+                        for item in extracted_data.get(category, []):
+                            item_total = (
+                                Decimal(str(item.get('q1', 0))) +
+                                Decimal(str(item.get('q2', 0))) +
+                                Decimal(str(item.get('q3', 0))) +
+                                Decimal(str(item.get('q4', 0)))
+                            )
+                            recalculated_total += item_total
+                    
+                    # ✅ Use recalculated total
+                    print(f"📊 Session grand_total: ₱{grand_total:,.2f}")
+                    print(f"📊 Recalculated total: ₱{recalculated_total:,.2f}")
+                    
+                    if abs(grand_total - recalculated_total) > Decimal('0.01'):
+                        print(f"⚠️ Total mismatch! Using recalculated: ₱{recalculated_total:,.2f}")
+                        print(f"   Session: ₱{grand_total:,.2f}")
+                        print(f"   Using recalculated value.")
+                    
+                    final_total = recalculated_total
+                    
                     # 1. Create DepartmentPRE record
                     pre = NewDepartmentPRE.objects.create(
                         submitted_by=request.user,
                         department=allocation.department,
                         budget_allocation=allocation,
                         fiscal_year=allocation.approved_budget.fiscal_year,
-                        total_amount=grand_total,
+                        total_amount=final_total,
                         status='Pending',
                         is_valid=True,
                         submitted_at=timezone.now(),
@@ -1686,6 +1869,7 @@ def preview_pre(request):
         'personnel_total': personnel_total,
         'mooe_total': mooe_total,
         'capital_total': capital_total,
+        'validation_warnings': validation_warnings,
     }
     
     return render(request, 'end_user_app/preview_pre.html', context)

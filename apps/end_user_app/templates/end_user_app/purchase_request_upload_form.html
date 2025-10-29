@@ -47,7 +47,7 @@
                                 <p class="text-sm text-gray-600">{{ draft.pr_file.size|filesizeformat }}</p>
                             </div>
                         </div>
-                        <button type="submit" name="action" value="remove_pr" 
+                        <button type="submit" onclick="removePRDocument()" 
                                 class="text-red-600 hover:text-red-800 font-medium text-sm">
                             Remove
                         </button>
@@ -58,8 +58,7 @@
                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
                     <input type="file" name="pr_document" id="pr_document" 
                            accept=".pdf,.doc,.docx" 
-                           class="hidden" 
-                           onchange="document.getElementById('upload-pr-btn').click()">
+                           class="hidden" >
                     <label for="pr_document" class="cursor-pointer">
                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
@@ -70,7 +69,6 @@
                         <p class="mt-1 text-xs text-gray-500">PDF, DOC, DOCX up to 10MB</p>
                     </label>
                 </div>
-                <button type="submit" name="action" value="upload_pr" id="upload-pr-btn" class="hidden"></button>
             {% endif %}
         </section>
 
@@ -100,7 +98,7 @@
                             <form method="post" class="inline">
                                 {% csrf_token %}
                                 <input type="hidden" name="doc_id" value="{{ doc.id }}">
-                                <button type="submit" name="action" value="remove_supporting" 
+                                <button type="submit" onclick="removeSupportingDocument({{ doc.id }})" 
                                         class="text-red-600 hover:text-red-800 font-medium text-sm">
                                     Remove
                                 </button>
@@ -115,8 +113,7 @@
                 <input type="file" name="supporting_documents" id="supporting_documents" 
                        multiple 
                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" 
-                       class="hidden" 
-                       onchange="document.getElementById('upload-support-btn').click()">
+                       class="hidden" >
                 <label for="supporting_documents" class="cursor-pointer">
                     <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
@@ -127,7 +124,6 @@
                     <p class="mt-1 text-xs text-gray-500">PDF, DOC, DOCX, JPG, PNG up to 10MB each</p>
                 </label>
             </div>
-            <button type="submit" name="action" value="upload_supporting" id="upload-support-btn" class="hidden"></button>
         </section>
 
         <!-- Step 3: Funding Details -->
@@ -149,7 +145,7 @@
                         <option value="">Select Budget Allocation</option>
                         {% for alloc in budget_allocations %}
                             <option value="{{ alloc.id }}">
-                                {{ alloc.approved_budget.title }} - ₱{{ alloc.remaining_balance|floatformat:2|intcomma }}
+                                {{ alloc.approved_budget.title }} - ₱{{ alloc.pre_amount_used|floatformat:2|intcomma }}
                             </option>
                         {% endfor %}
                     </select>
@@ -162,16 +158,14 @@
                     </label>
                     <select name="source_of_fund" id="source_of_fund"
                             class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                            required>
-                        <option value="">Select approved PRE line item</option>
-                        {% for opt in source_of_fund_options %}
-                            <option value="{{ opt.value }}">{{ opt.label }}</option>
-                        {% empty %}
-                            <option disabled>No approved PRE funds available</option>
-                        {% endfor %}
+                            required
+                            disabled>
+                        <option value="">First select a budget allocation</option>
                     </select>
-                    <p class="mt-1 text-sm text-gray-500">Select which PRE line item will fund this purchase request</p>
-                </div>
+                    <p class="mt-1 text-sm text-gray-500" id="source_of_fund_help">
+                        Select a budget allocation first to see available PRE line items.
+                    </p>
+                </div>             
 
                 <!-- Total Amount -->
                 <div>
@@ -251,4 +245,366 @@
         </div>
     {% endif %}
 </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ✅ Initialize Choices.js
+    const budgetAllocationChoice = new Choices('#budget_allocation', {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Search budget allocations...',
+        itemSelectText: 'Click to select',
+        shouldSort: false,
+    });
+    
+    const sourceOfFundChoice = new Choices('#source_of_fund', {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Search PRE line items...',
+        itemSelectText: 'Click to select',
+        shouldSort: false,
+    });
+    
+    // Disable source of fund initially
+    sourceOfFundChoice.disable();
+    
+    // ✅ Get the actual select elements
+    const budgetAllocationSelect = document.getElementById('budget_allocation');
+    const sourceOfFundSelect = document.getElementById('source_of_fund');
+    const sourceOfFundHelp = document.getElementById('source_of_fund_help');
+    
+    // ✅ Listen to Choices.js change event
+    budgetAllocationSelect.addEventListener('change', function(event) {
+        const allocationId = event.target.value;
+        
+        console.log('Budget allocation changed:', allocationId);
+        
+        if (!allocationId) {
+            // Reset source of fund
+            sourceOfFundChoice.clearStore();
+            sourceOfFundChoice.setChoices([
+                { value: '', label: 'First select a budget allocation', selected: true, disabled: false }
+            ], 'value', 'label', true);
+            sourceOfFundChoice.disable();
+            sourceOfFundHelp.textContent = 'Select a budget allocation first to see available PRE line items.';
+            sourceOfFundHelp.className = 'mt-1 text-sm text-gray-500 font-medium';
+            return;
+        }
+        
+        // Show loading state
+        sourceOfFundChoice.clearStore();
+        sourceOfFundChoice.setChoices([
+            { value: '', label: 'Loading line items...', selected: true, disabled: false }
+        ], 'value', 'label', true);
+        sourceOfFundChoice.disable();
+        sourceOfFundHelp.textContent = 'Loading available PRE line items...';
+        sourceOfFundHelp.className = 'mt-1 text-sm text-blue-600';
+        
+        // ✅ FIXED: Correct URL
+        const url = `/end_user/get-pre-line-items/?allocation_id=${allocationId}`;
+        
+        console.log('Fetching from URL:', url);
+        
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            if (data.success) {
+                populateSourceOfFundChoices(data.line_items);
+                
+                if (data.line_items.length === 0) {
+                    sourceOfFundHelp.textContent = 'No approved PRE line items available for this budget allocation.';
+                    sourceOfFundHelp.className = 'mt-1 text-sm text-amber-600';
+                } else {
+                    sourceOfFundHelp.textContent = `${data.line_items.length} line item(s) available. Select one to continue.`;
+                    sourceOfFundHelp.className = 'mt-1 text-sm text-green-600';
+                }
+            } else {
+                sourceOfFundChoice.clearStore();
+                sourceOfFundChoice.setChoices([
+                    { value: '', label: 'Error loading line items', selected: true, disabled: false }
+                ], 'value', 'label', true);
+                sourceOfFundHelp.textContent = data.error || 'Failed to load line items.';
+                sourceOfFundHelp.className = 'mt-1 text-sm text-red-600';
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            sourceOfFundChoice.clearStore();
+            sourceOfFundChoice.setChoices([
+                { value: '', label: 'Error loading line items', selected: true, disabled: false }
+            ], 'value', 'label', true);
+            sourceOfFundHelp.textContent = 'Failed to load line items. Please try again.';
+            sourceOfFundHelp.className = 'mt-1 text-sm text-red-600';
+        });
+    });
+    
+    // ✅ Populate Source of Fund with Choices.js
+    function populateSourceOfFundChoices(lineItems) {
+        if (lineItems.length === 0) {
+            sourceOfFundChoice.clearStore();
+            sourceOfFundChoice.setChoices([
+                { value: '', label: 'No approved PRE line items available', selected: true, disabled: false }
+            ], 'value', 'label', true);
+            sourceOfFundChoice.disable();
+            return;
+        }
+        
+        // Group by PRE
+        const preGroups = {};
+        lineItems.forEach(item => {
+            if (!preGroups[item.pre_display]) {
+                preGroups[item.pre_display] = [];
+            }
+            preGroups[item.pre_display].push(item);
+        });
+        
+        // Build choices array with optgroups
+        const choices = [
+            { value: '', label: 'Select approved PRE line item', selected: true, disabled: false }
+        ];
+        
+        Object.keys(preGroups).forEach(preDisplay => {
+            const items = preGroups[preDisplay];
+            const totalAvailable = items.reduce((sum, item) => sum + item.available, 0);
+            
+            // Add items with group label
+            items.forEach(item => {
+                choices.push({
+                    value: item.value,
+                    label: item.label,
+                    customProperties: {
+                        available: item.available,
+                        preDisplay: preDisplay
+                    }
+                });
+            });
+        });
+        
+        // Clear and set new choices
+        sourceOfFundChoice.clearStore();
+        sourceOfFundChoice.setChoices(choices, 'value', 'label', true);
+        sourceOfFundChoice.enable();
+    }
+    
+    // ✅ File upload handlers
+    const prFileInput = document.getElementById('pr_document');
+    const supportingDocsInput = document.getElementById('supporting_documents');
+    
+    if (prFileInput) {
+        prFileInput.addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                uploadPRDocument(this.files[0]);
+            }
+        });
+    }
+    
+    if (supportingDocsInput) {
+        supportingDocsInput.addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                uploadSupportingDocuments(this.files);
+            }
+        });
+    }
+    
+    // Upload PR Document
+    function uploadPRDocument(file) {
+        const formData = new FormData();
+        formData.append('pr_document', file);
+        formData.append('action', 'upload_pr');
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        showLoading('Uploading PR document...');
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showMessage(data.message, 'success');
+                location.reload();
+            } else {
+                showMessage(data.error || 'Upload failed', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showMessage('Upload failed: ' + error.message, 'error');
+        });
+    }
+    
+    // Upload Supporting Documents
+    function uploadSupportingDocuments(files) {
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('supporting_documents', files[i]);
+        }
+        formData.append('action', 'upload_supporting');
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        showLoading('Uploading supporting documents...');
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showMessage(data.message, 'success');
+                location.reload();
+            } else {
+                showMessage(data.error || 'Upload failed', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showMessage('Upload failed: ' + error.message, 'error');
+        });
+    }
+    
+    // Validate amount against selected line item
+    const totalAmountInput = document.getElementById('total_amount');
+    
+    sourceOfFundSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption && selectedOption.dataset.available) {
+            const available = parseFloat(selectedOption.dataset.available);
+            totalAmountInput.max = available;
+            totalAmountInput.placeholder = `Max: ₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+        }
+    });
+    
+    totalAmountInput.addEventListener('input', function() {
+        const selectedOption = sourceOfFundSelect.options[sourceOfFundSelect.selectedIndex];
+        if (selectedOption && selectedOption.dataset.available) {
+            const available = parseFloat(selectedOption.dataset.available);
+            const amount = parseFloat(this.value);
+            
+            if (amount > available) {
+                this.setCustomValidity(`Amount exceeds available budget (₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
+            } else {
+                this.setCustomValidity('');
+            }
+        }
+    });
+});
+
+// ✅ Global functions (accessible from onclick)
+function removePRDocument() {
+    if (!confirm('Are you sure you want to remove this PR document?')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'remove_pr');
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    showLoading('Removing PR document...');
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            showMessage(data.message, 'success');
+            location.reload();
+        } else {
+            showMessage(data.error || 'Remove failed', 'error');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showMessage('Remove failed: ' + error.message, 'error');
+    });
+}
+
+function removeSupportingDocument(docId) {
+    if (!confirm('Are you sure you want to remove this document?')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'remove_supporting');
+    formData.append('doc_id', docId);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    showLoading('Removing document...');
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            showMessage(data.message, 'success');
+            location.reload();
+        } else {
+            showMessage(data.error || 'Remove failed', 'error');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showMessage('Remove failed: ' + error.message, 'error');
+    });
+}
+
+// Helper functions
+function showLoading(message) {
+    const loader = document.createElement('div');
+    loader.id = 'ajax-loader';
+    loader.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    loader.innerHTML = `
+        <div class="bg-white rounded-lg p-6 shadow-xl">
+            <div class="flex items-center space-x-3">
+                <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-gray-700 font-medium">${message}</span>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(loader);
+}
+
+function hideLoading() {
+    const loader = document.getElementById('ajax-loader');
+    if (loader) loader.remove();
+}
+
+function showMessage(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `fixed top-4 right-4 z-50 rounded-lg p-4 shadow-lg ${
+        type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 
+        'bg-red-50 border border-red-200 text-red-800'
+    }`;
+    alertDiv.innerHTML = message;
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
 {% endblock %}

@@ -95,7 +95,7 @@ class ApprovedBudget(models.Model):
 class SupportingDocument(models.Model):
     """Stores multiple supporting documents for each approved budget"""
     approved_budget = models.ForeignKey(
-        ApprovedBudget, 
+        'ApprovedBudget', 
         on_delete=models.CASCADE, 
         related_name='supporting_documents'
     )
@@ -155,7 +155,7 @@ class SupportingDocument(models.Model):
 
 class BudgetAllocation(models.Model):
     """Budget allocations distributed to departments from approved budgets"""
-    approved_budget = models.ForeignKey(ApprovedBudget, on_delete=models.CASCADE, related_name='allocations')
+    approved_budget = models.ForeignKey('ApprovedBudget', on_delete=models.CASCADE, related_name='allocations')
     department = models.CharField(max_length=255)
     end_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='budget_allocations')
     allocated_amount = models.DecimalField(max_digits=15, decimal_places=2)
@@ -301,16 +301,28 @@ class DepartmentPRE(models.Model):
     
     def approve_with_documents(self, admin_user):
         """Final approval after document upload"""
+        was_already_approved = self.status == 'Approved'
+        
         self.status = 'Approved'
         self.final_approved_at = timezone.now()
         self.admin_approved_by = admin_user
         self.admin_approved_at = timezone.now()
-        self.save()
         
         # Update budget allocation
-        if self.budget_allocation:
-            self.budget_allocation.pre_amount_used += self.total_amount
+        if self.budget_allocation and not was_already_approved:
+            # Calculate correct total from line items
+            correct_total = sum(item.get_total() for item in self.line_items.all())
+            
+            # Update PRE total_amount if it doesn't match
+            if self.total_amount != correct_total:
+                print(f"⚠️ PRE total mismatch detected! Correcting: ₱{self.total_amount:,.2f} → ₱{correct_total:,.2f}")
+                self.total_amount = correct_total
+            
+            # Update allocation with correct total
+            self.budget_allocation.pre_amount_used += correct_total
             self.budget_allocation.update_remaining_balance()
+            
+        self.save()
     
     class Meta:
         ordering = ['-created_at']

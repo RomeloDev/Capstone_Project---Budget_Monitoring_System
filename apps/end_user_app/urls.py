@@ -9,6 +9,7 @@ urlpatterns = [
     path('logout/', views.end_user_logout, name='logout'),
     path('pr-ad-request/purchase_request_form/', views.purchase_request_form, name='purchase_request_form'),
     path('pr-ad-request/purchase_request_upload_form/', views.purchase_request_upload, name='purchase_request_upload'),
+    path('get-pre-line-items/', views.get_pre_line_items, name='get_pre_line_items'),
     path('add_purchase_item/', views.add_purchase_request_items, name='add_purchase_item'),
     path('remove-item/<int:item_id>/', views.remove_purchase_item, name='remove_purchase_item'),
     path('preview_purchase_request/<int:pk>/', views.preview_purchase_request, name='end_user_preview_purchase_request'),
