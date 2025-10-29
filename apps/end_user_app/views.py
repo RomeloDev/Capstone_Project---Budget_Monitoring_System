@@ -5,7 +5,7 @@ from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
 from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations, PREBudgetRealignment, PREDraft, PREDraftSupportingDocument
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse, HttpResponse
@@ -27,10 +27,32 @@ from io import BytesIO
 import shutil
 import xlwings as xw
 import tempfile
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument
 from .utils.pre_parser import parse_pre_excel
 from django.core.files.storage import default_storage
 from django.utils import timezone
+
+def generate_pr_number():
+    """Generate unique PR number in format PR-YYYY-NNNN"""
+    from datetime import datetime
+    from apps.budgets.models import PurchaseRequest
+    
+    year = datetime.now().year
+    
+    # Get the last PR number for this year
+    last_pr = PurchaseRequest.objects.filter(
+        pr_number__startswith=f'PR-{year}-'
+    ).order_by('-pr_number').first()
+    
+    if last_pr:
+        # Extract the sequence number and increment
+        last_sequence = int(last_pr.pr_number.split('-')[-1])
+        new_sequence = last_sequence + 1
+    else:
+        # First PR of the year
+        new_sequence = 1
+    
+    return f'PR-{year}-{new_sequence:04d}'
 
 # Create your views here.
 @role_required('end_user', login_url='/')
@@ -674,23 +696,29 @@ def purchase_request_upload(request):
             return redirect('purchase_request_upload')
         
         elif action == 'submit':
-            # Validate and submit PR
-            if not draft.pr_file:
-                messages.error(request, "Please upload a PR document first.")
-                return redirect('purchase_request_upload')
-            
-            # Get form data
+             # Get form data
             budget_allocation_id = request.POST.get('budget_allocation')
             source_of_fund = request.POST.get('source_of_fund')
             total_amount = request.POST.get('total_amount')
             purpose = request.POST.get('purpose')
             
+            # Validate required fields
+            if not all([budget_allocation_id, source_of_fund, total_amount, purpose]):
+                messages.error(request, "All fields are required.")
+                return redirect('purchase_request_upload')
+            
+            # Validate draft has PR file
+            if not draft.pr_file:
+                messages.error(request, "Please upload a PR document first.")
+                return redirect('purchase_request_upload')
+            
+            # Parse source_of_fund value
             if '|' in source_of_fund:
                 parts = source_of_fund.split('|')
-                if len(parts) == 3:  # ✅ NEW: Expect 3 parts (pre_id|line_item_id|quarter)
+                if len(parts) == 3:  # ✅ Expect 3 parts (pre_id|line_item_id|quarter)
                     pre_id = parts[0]
                     line_item_id = parts[1]
-                    quarter = parts[2]  # ✅ NEW: Extract quarter
+                    quarter = parts[2]  # ✅ Extract quarter
                 else:
                     messages.error(request, "Invalid source of fund format.")
                     return redirect('purchase_request_upload')
@@ -698,123 +726,124 @@ def purchase_request_upload(request):
                 messages.error(request, "Invalid source of fund selection.")
                 return redirect('purchase_request_upload')
             
-            # Validate required fields
-            if not all([budget_allocation_id, source_of_fund, total_amount, purpose]):
-                messages.error(request, "Please fill in all required fields.")
+            # ✅ Validate quarter
+            if quarter not in ['Q1', 'Q2', 'Q3', 'Q4']:
+                messages.error(request, "Invalid quarter selected.")
                 return redirect('purchase_request_upload')
             
+            # Validate amount
             try:
                 total_amount = Decimal(total_amount)
                 if total_amount <= 0:
-                    messages.error(request, "Total amount must be greater than zero.")
+                    messages.error(request, "Amount must be greater than zero.")
                     return redirect('purchase_request_upload')
-            except:
-                messages.error(request, "Invalid total amount.")
+            except (ValueError, InvalidOperation):
+                messages.error(request, "Invalid amount format.")
                 return redirect('purchase_request_upload')
             
+            # Validate line item availability for the specific quarter
             try:
-                # Start transaction
+                line_item = PRELineItem.objects.get(id=line_item_id)
+                pre = line_item.pre
+                
+                # Get quarter amount
+                quarter_amount = getattr(line_item, f'{quarter.lower()}_amount', Decimal('0'))
+                
+                # Calculate consumed for this quarter
+                consumed = NewPurchaseRequestAllocation.objects.filter(
+                    pre_line_item=line_item,
+                    quarter=quarter,  # ✅ Filter by quarter
+                    purchase_request__status__in=['Pending', 'Partially Approved', 'Approved']
+                ).aggregate(
+                    total=Coalesce(
+                        Sum('allocated_amount'),
+                        Decimal('0.00'),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )['total']
+                
+                available = quarter_amount - consumed
+                
+                if total_amount > available:
+                    messages.error(request, 
+                        f"Amount (₱{total_amount:,.2f}) exceeds available budget for {quarter} "
+                        f"(₱{available:,.2f}).")
+                    return redirect('purchase_request_upload')
+                
+            except PRELineItem.DoesNotExist:
+                messages.error(request, "Selected PRE line item not found.")
+                return redirect('purchase_request_upload')
+            
+            # Create Purchase Request
+            try:
+                from django.db import transaction
+                from django.core.files.base import ContentFile
+                
                 with transaction.atomic():
-                    # Get budget allocation
-                    budget_allocation = NewBudgetAllocation.objects.get(
-                        id=budget_allocation_id,
-                        end_user=request.user
-                    )
-                    
-                    # Parse source of fund: "pre_id|line_item_id"
-                    parts = source_of_fund.split('|')
-                    if len(parts) != 2:
-                        raise ValueError("Invalid source of fund format")
-                    
-                    pre_id, line_item_id = parts
-                    
-                    # Get line item
-                    line_item = PRELineItem.objects.select_related('pre', 'category', 'subcategory').get(
-                        id=line_item_id,
-                        pre__status='Approved'
-                    )
-                    
-                    # Validate budget availability
-                    consumed = calculate_line_item_consumed(line_item)
-                    available = line_item.get_total() - consumed
-                    
-                    if available < total_amount:
-                        messages.error(
-                            request,
-                            f"Insufficient funds. Available: ₱{available:,.2f}, Required: ₱{total_amount:,.2f}"
-                        )
-                        return redirect('purchase_request_upload')
-                    
                     # Generate PR number
-                    from datetime import datetime
-                    pr_count = NewPurchaseRequest.objects.filter(
-                        submitted_by=request.user,
-                        created_at__year=datetime.now().year
-                    ).count()
-                    pr_number = f"{datetime.now().year}-{request.user.id:04d}-{pr_count + 1:04d}"
+                    pr_number = generate_pr_number()
                     
-                    # Create Purchase Request
+                    # Get budget allocation
+                    budget_allocation = NewBudgetAllocation.objects.get(id=budget_allocation_id)
+                    
+                    # ✅ CORRECTED: Create PR with correct field names
                     pr = NewPurchaseRequest.objects.create(
-                        submitted_by=request.user,
-                        budget_allocation=budget_allocation,
                         pr_number=pr_number,
-                        department=request.user.department or 'Unknown',
+                        submitted_by=request.user,  # ✅ Correct field name
+                        department=budget_allocation.department,  # ✅ Get from allocation
+                        budget_allocation=budget_allocation,
+                        source_pre=pre,  # ✅ Link to PRE
+                        source_line_item=line_item,  # ✅ Link to line item
+                        source_of_fund_display=f"{line_item.item_name} - {quarter}",  # ✅ Human-readable
                         purpose=purpose,
                         total_amount=total_amount,
                         status='Pending',
-                        is_valid=True,
-                        submitted_at=timezone.now(),
-                        source_pre=line_item.pre,
-                        source_line_item=line_item,
+                        uploaded_document=draft.pr_file,  # ✅ Correct field name
                     )
                     
-                    # Build display name for source
-                    category_name = line_item.category.name if line_item.category else 'Other'
-                    if line_item.subcategory:
-                        display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
-                    else:
-                        display = f"{category_name} - {line_item.item_name}"
+                    # Copy supporting documents from draft
+                    for draft_doc in draft.supporting_documents.all():
+                        # Read the draft document
+                        draft_doc.document.open('rb')
+                        file_content = draft_doc.document.read()
+                        draft_doc.document.close()
+                        
+                        # Create new supporting document for PR
+                        pr_doc = PurchaseRequestSupportingDocument.objects.create(
+                            purchase_request=pr,
+                            file_name=draft_doc.file_name,
+                            file_size=draft_doc.file_size
+                        )
+                        
+                        # Save the file
+                        pr_doc.document.save(
+                            draft_doc.file_name,
+                            ContentFile(file_content),
+                            save=True
+                        )
                     
-                    pr.source_of_fund_display = f"{display} - ₱{total_amount:,.2f}"
-                    
-                    # Move PR file from draft
-                    if draft.pr_file:
-                        from django.core.files.base import ContentFile
-                        with draft.pr_file.open('rb') as f:
-                            pr.uploaded_document.save(draft.pr_filename, ContentFile(f.read()), save=True)
-                    
-                    # Allocate funds
+                    # ✅ Create allocation with quarter
                     NewPurchaseRequestAllocation.objects.create(
                         purchase_request=pr,
                         pre_line_item=line_item,
-                        quarter=quarter,
-                        allocated_amount=total_amount
+                        quarter=quarter,  # ✅ Save quarter
+                        allocated_amount=total_amount,
+                        notes=f"Allocated from {line_item.item_name} - {quarter}"
                     )
                     
-                    pr.save()
-                    
-                    # Mark draft as submitted
-                    draft.is_submitted = True
-                    draft.save()
-                    
-                    # Log audit trail
-                    log_audit_trail(
-                        request=request,
-                        action='CREATE',
-                        model_name='PurchaseRequest',
-                        record_id=pr.id,
-                        detail=f'Created PR via upload: {pr_number}, Amount: ₱{total_amount:,.2f}'
-                    )
-                    
-                    messages.success(
-                        request,
-                        f"Purchase Request {pr_number} submitted successfully! Amount: ₱{total_amount:,.2f}"
-                    )
-                    
-                    # Clean up draft
+                    # Clear draft
                     draft.delete()
                     
-                    return redirect('purchase_request')
+                    messages.success(request, 
+                        f"Purchase Request {pr_number} submitted successfully! "
+                        f"Allocated ₱{total_amount:,.2f} from {line_item.item_name} - {quarter}.")
+                    return redirect('purchase_request_upload')
+                    
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f"Error creating purchase request: {str(e)}")
+                return redirect('purchase_request_upload')
                     
             except NewBudgetAllocation.DoesNotExist:
                 messages.error(request, "Invalid budget allocation selected.")

@@ -263,7 +263,7 @@ class PREParser:
                 total_val = self._parse_cell_value(total)
                 
                 calculated_total = q1_val + q2_val + q3_val + q4_val
-            
+                
                 if calculated_total > 0 and abs(total_val - calculated_total) > Decimal('0.01'):
                     validation_warnings.append({
                         'item': item_name,
@@ -293,7 +293,7 @@ class PREParser:
                 total_val = self._parse_cell_value(total)
                 
                 calculated_total = q1_val + q2_val + q3_val + q4_val
-            
+                
                 if calculated_total > 0 and abs(total_val - calculated_total) > Decimal('0.01'):
                     validation_warnings.append({
                         'item': item_name,
@@ -312,7 +312,7 @@ class PREParser:
                         'q4': q4_val,
                         'total': calculated_total
                     })
-                    
+        
         # ✅ Store validation warnings
         extracted_data['validation_warnings'] = validation_warnings
         
@@ -363,7 +363,7 @@ def parse_pre_excel(file_path):
     # ✅ Get validation warnings
     validation_warnings = extracted_data.pop('validation_warnings', [])
     
-    # Calculate grand total
+    # Calculate grand total (from corrected values)
     grand_total = parser.calculate_grand_total(extracted_data)
     
     # Get fiscal year
@@ -374,6 +374,6 @@ def parse_pre_excel(file_path):
         'data': extracted_data,
         'grand_total': grand_total,
         'fiscal_year': fiscal_year,
-        'validation_warnings': validation_warnings,
+        'validation_warnings': validation_warnings,  # ✅ Include warnings
         'errors': []
     }

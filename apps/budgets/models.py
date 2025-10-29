@@ -962,3 +962,26 @@ class PRDraftSupportingDocument(models.Model):
     
     def __str__(self):
         return f"{self.file_name} ({self.draft.user.username})"
+    
+
+class PurchaseRequestSupportingDocument(models.Model):
+    """Supporting documents for Purchase Requests"""
+    purchase_request = models.ForeignKey(
+        PurchaseRequest,
+        on_delete=models.CASCADE,
+        related_name='supporting_documents'
+    )
+    document = models.FileField(
+        upload_to='pr_supporting_docs/%Y/%m/',
+        help_text='Supporting document file'
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField(help_text='File size in bytes')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'purchase_request_supporting_documents'
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.file_name} for PR {self.purchase_request.pr_number}"
