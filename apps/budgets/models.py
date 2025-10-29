@@ -698,6 +698,17 @@ class PurchaseRequestAllocation(models.Model):
         help_text='The PRE line item providing the funds'
     )
     
+    quarter = models.CharField(
+        max_length=2,
+        choices=[
+            ('Q1', 'Quarter 1'),
+            ('Q2', 'Quarter 2'),
+            ('Q3', 'Quarter 3'),
+            ('Q4', 'Quarter 4'),
+        ],
+        help_text='Which quarter of the PRE line item is being used'
+    )
+    
     allocated_amount = models.DecimalField(
         max_digits=15,
         decimal_places=2,
@@ -749,6 +760,17 @@ class ActivityDesignAllocation(models.Model):
         on_delete=models.PROTECT,  # Don't allow deleting line items that have allocations
         related_name='ad_allocations',
         help_text='The PRE line item providing the funds'
+    )
+    
+    quarter = models.CharField(
+        max_length=2,
+        choices=[
+            ('Q1', 'Quarter 1'),
+            ('Q2', 'Quarter 2'),
+            ('Q3', 'Quarter 3'),
+            ('Q4', 'Quarter 4'),
+        ],
+        help_text='Which quarter of the PRE line item is being used'
     )
     
     allocated_amount = models.DecimalField(

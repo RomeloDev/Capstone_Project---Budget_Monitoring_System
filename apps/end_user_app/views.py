@@ -390,8 +390,7 @@ def get_line_item_details(pre_id, line_item_id):
 @role_required('end_user', login_url='/')
 def get_pre_line_items(request):
     """
-    AJAX endpoint to get PRE line items for a specific budget allocation.
-    Returns line items that belong to approved PREs linked to the allocation.
+    AJAX endpoint to get PRE line items with quarterly breakdown.
     """
     if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
@@ -402,14 +401,12 @@ def get_pre_line_items(request):
         return JsonResponse({'success': False, 'error': 'Budget allocation ID is required'}, status=400)
     
     try:
-        # Verify the allocation belongs to the user
         allocation = NewBudgetAllocation.objects.get(
             id=allocation_id,
             end_user=request.user,
             is_active=True
         )
         
-        # Get all approved PREs for this budget allocation
         approved_pres = NewDepartmentPRE.objects.filter(
             budget_allocation=allocation,
             status__in=['Approved', 'Partially Approved']
@@ -418,41 +415,55 @@ def get_pre_line_items(request):
             'line_items__subcategory'
         )
         
-        # Build line items list
         line_items_data = []
         
         for pre in approved_pres:
             for line_item in pre.line_items.all():
-                # Calculate budget
-                total = line_item.get_total()
+                category_name = line_item.category.name if line_item.category else 'Other'
+                if line_item.subcategory:
+                    display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
+                else:
+                    display = f"{category_name} - {line_item.item_name}"
                 
-                if total <= 0:
-                    continue
-                
-                consumed = calculate_line_item_consumed(line_item)
-                available = total - consumed
-                
-                # Only include if available
-                if available > 0:
-                    category_name = line_item.category.name if line_item.category else 'Other'
-                    if line_item.subcategory:
-                        display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
-                    else:
-                        display = f"{category_name} - {line_item.item_name}"
+                # ✅ Add quarterly breakdown
+                quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+                for quarter in quarters:
+                    # Get quarter amount
+                    quarter_amount = getattr(line_item, f'{quarter.lower()}_amount', Decimal('0'))
                     
-                    line_items_data.append({
-                        'id': line_item.id,
-                        'pre_id': str(pre.id),
-                        'pre_display': f"{pre.department} - FY {pre.fiscal_year}",
-                        'display': display,
-                        'item_name': line_item.item_name,
-                        'category': category_name,
-                        'total': float(total),
-                        'consumed': float(consumed),
-                        'available': float(available),
-                        'value': f"{pre.id}|{line_item.id}",
-                        'label': f"{display} (Available: ₱{available:,.2f})"
-                    })
+                    if quarter_amount <= 0:
+                        continue
+                    
+                    # ✅ FIXED: Calculate consumed amount for this quarter
+                    consumed = NewPurchaseRequestAllocation.objects.filter(
+                        pre_line_item=line_item,
+                        quarter=quarter,
+                        purchase_request__status__in=['Pending', 'Partially Approved', 'Approved']
+                    ).aggregate(
+                        total=Coalesce(
+                            Sum('allocated_amount'),
+                            Decimal('0.00'),
+                            output_field=DecimalField(max_digits=15, decimal_places=2)
+                        )
+                    )['total']
+                    
+                    available = quarter_amount - consumed
+                    
+                    if available > 0:
+                        line_items_data.append({
+                            'id': line_item.id,
+                            'pre_id': str(pre.id),
+                            'pre_display': f"{pre.department} - FY {pre.fiscal_year}",
+                            'display': display,
+                            'item_name': line_item.item_name,
+                            'category': category_name,
+                            'quarter': quarter,
+                            'quarter_amount': float(quarter_amount),
+                            'consumed': float(consumed),
+                            'available': float(available),
+                            'value': f"{pre.id}|{line_item.id}|{quarter}",
+                            'label': f"{display} - {quarter} (Available: ₱{available:,.2f})"
+                        })
         
         return JsonResponse({
             'success': True,
@@ -464,9 +475,14 @@ def get_pre_line_items(request):
     except NewBudgetAllocation.DoesNotExist:
         return JsonResponse({
             'success': False,
-            'error': 'Budget allocation not found or does not belong to you'
+            'error': 'Budget allocation not found'
         }, status=404)
     except Exception as e:
+        # ✅ Add detailed error logging
+        import traceback
+        print(f"Error in get_pre_line_items: {str(e)}")
+        traceback.print_exc()
+        
         return JsonResponse({
             'success': False,
             'error': f'Error loading line items: {str(e)}'
@@ -669,6 +685,19 @@ def purchase_request_upload(request):
             total_amount = request.POST.get('total_amount')
             purpose = request.POST.get('purpose')
             
+            if '|' in source_of_fund:
+                parts = source_of_fund.split('|')
+                if len(parts) == 3:  # ✅ NEW: Expect 3 parts (pre_id|line_item_id|quarter)
+                    pre_id = parts[0]
+                    line_item_id = parts[1]
+                    quarter = parts[2]  # ✅ NEW: Extract quarter
+                else:
+                    messages.error(request, "Invalid source of fund format.")
+                    return redirect('purchase_request_upload')
+            else:
+                messages.error(request, "Invalid source of fund selection.")
+                return redirect('purchase_request_upload')
+            
             # Validate required fields
             if not all([budget_allocation_id, source_of_fund, total_amount, purpose]):
                 messages.error(request, "Please fill in all required fields.")
@@ -758,6 +787,7 @@ def purchase_request_upload(request):
                     NewPurchaseRequestAllocation.objects.create(
                         purchase_request=pr,
                         pre_line_item=line_item,
+                        quarter=quarter,
                         allocated_amount=total_amount
                     )
                     

@@ -359,32 +359,38 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Group by PRE
+        // ✅ Group by PRE and Line Item
         const preGroups = {};
         lineItems.forEach(item => {
-            if (!preGroups[item.pre_display]) {
-                preGroups[item.pre_display] = [];
+            const groupKey = `${item.pre_display}|${item.item_name}`;
+            if (!preGroups[groupKey]) {
+                preGroups[groupKey] = {
+                    pre_display: item.pre_display,
+                    item_name: item.item_name,
+                    display: item.display,
+                    quarters: []
+                };
             }
-            preGroups[item.pre_display].push(item);
+            preGroups[groupKey].quarters.push(item);
         });
         
-        // Build choices array with optgroups
+        // Build choices array
         const choices = [
-            { value: '', label: 'Select approved PRE line item', selected: true, disabled: false }
+            { value: '', label: 'Select approved PRE line item and quarter', selected: true, disabled: false }
         ];
         
-        Object.keys(preGroups).forEach(preDisplay => {
-            const items = preGroups[preDisplay];
-            const totalAvailable = items.reduce((sum, item) => sum + item.available, 0);
+        Object.keys(preGroups).forEach(groupKey => {
+            const group = preGroups[groupKey];
             
-            // Add items with group label
-            items.forEach(item => {
+            // Add each quarter as a separate option
+            group.quarters.forEach(quarterItem => {
                 choices.push({
-                    value: item.value,
-                    label: item.label,
+                    value: quarterItem.value,
+                    label: `${quarterItem.display} - ${quarterItem.quarter} (Available: ₱${quarterItem.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`,
                     customProperties: {
-                        available: item.available,
-                        preDisplay: preDisplay
+                        available: quarterItem.available,
+                        quarter: quarterItem.quarter,
+                        preDisplay: quarterItem.pre_display
                     }
                 });
             });
