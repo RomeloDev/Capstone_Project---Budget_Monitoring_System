@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/admin_panel/templatetags/pagination_tags.py
 from django import template
 
 register = template.Library()

@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/end_user_app/urls.py
 from django.urls import path
 from . import views
 
@@ -29,4 +30,5 @@ urlpatterns = [
     path('pre/download_pre_template/', views.download_pre_template, name='download_pre_template'),
     path('pre/upload_pre/<int:allocation_id>/', views.upload_pre, name='upload_pre'),
     path('pre/view/<uuid:pre_id>/', views.view_pre_detail, name='view_pre_detail'),
+    path('pr/preview/<uuid:pr_id>/', views.preview_submitted_pr, name='preview_submitted_pr'),
 ]

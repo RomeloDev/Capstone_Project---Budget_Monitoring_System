@@ -1,0 +1,430 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block title %}Purchase Request Details{% endblock %}
+
+{% block main-content %}
+<div class="max-w-7xl mx-auto px-4 py-3">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ pr.pr_number }}</h1>
+                <p class="text-gray-600 mt-1">Purchase Request Details</p>
+            </div>
+            <div>
+                {% if pr.status == 'Pending' %}
+                    <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                        {{ pr.status }}
+                    </span>
+                {% elif pr.status == 'Approved' %}
+                    <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        {{ pr.status }}
+                    </span>
+                {% elif pr.status == 'Partially Approved' %}
+                    <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        {{ pr.status }}
+                    </span>
+                {% else %}
+                    <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                        {{ pr.status }}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: PR Details -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Basic Information -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">PR Number</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ pr.pr_number }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Department</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ pr.department }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Submitted By</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ pr.submitted_by.fullname }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Date Submitted</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ pr.created_at|date:"M d, Y g:i A" }}</dd>
+                    </div>
+                    <div class="md:col-span-2">
+                        <dt class="text-sm font-medium text-gray-500">Purpose</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ pr.purpose }}</dd>
+                    </div>
+                </dl>
+            </div>
+
+            <!-- Budget Information -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Budget Information</h2>
+                <dl class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <dt class="text-sm font-medium text-gray-500">Total Amount</dt>
+                        <dd class="text-lg font-bold text-gray-900">₱{{ pr.total_amount|floatformat:2|intcomma }}</dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-sm font-medium text-gray-500">Source of Fund</dt>
+                        <dd class="text-sm text-gray-900">{{ pr.source_of_fund_display }}</dd>
+                    </div>
+                    {% if allocation %}
+                    <div class="flex justify-between items-center">
+                        <dt class="text-sm font-medium text-gray-500">PRE Line Item</dt>
+                        <dd class="text-sm text-gray-900">{{ allocation.pre_line_item.item_name }}</dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-sm font-medium text-gray-500">Quarter</dt>
+                        <dd class="text-sm text-gray-900">{{ allocation.quarter }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+
+            <!-- Documents -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Documents</h2>
+                
+                <!-- PR Document -->
+                {% if pr.uploaded_document %}
+                <div class="mb-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">Purchase Request Document</h3>
+                    <div class="flex items-center p-3 bg-blue-50 rounded-lg">
+                        <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-900">{{ pr.uploaded_document.name|basename }}</p>
+                            <p class="text-sm text-gray-600">{{ pr.uploaded_document.size|filesizeformat }}</p>
+                        </div>
+                        <a href="{{ pr.uploaded_document.url }}" target="_blank" 
+                           class="ml-4 px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                            View
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Supporting Documents -->
+                {% if pr.supporting_documents.all %}
+                <div>
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">Supporting Documents</h3>
+                    <div class="space-y-2">
+                        {% for doc in pr.supporting_documents.all %}
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                            <svg class="w-6 h-6 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                            </svg>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900">{{ doc.file_name }}</p>
+                                <p class="text-xs text-gray-600">{{ doc.file_size|filesizeformat }}</p>
+                            </div>
+                            <a href="{{ doc.document.url }}" target="_blank" 
+                               class="ml-4 text-blue-600 hover:text-blue-800 text-sm">
+                                View
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right Column: Actions -->
+        <div class="space-y-6">
+            <!-- Download PDFs (Only for Partially Approved) -->
+            {% if pr.status == 'Partially Approved' %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Download Documents</h2>
+                
+                <!-- Main PR Document -->
+                {% if pr.partially_approved_pdf %}
+                <a href="{{ pr.partially_approved_pdf.url }}" target="_blank" download
+                class="flex items-center justify-between p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition mb-3">
+                    <div class="flex items-center">
+                        <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">PR Document (PDF)</p>
+                            <p class="text-xs text-gray-600">Converted and ready to print</p>
+                        </div>
+                    </div>
+                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                </a>
+                {% elif pr.uploaded_document %}
+                <!-- ✅ FIX: Show original if no PDF available -->
+                <a href="{{ pr.uploaded_document.url }}" target="_blank" download
+                class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition mb-3">
+                    <div class="flex items-center">
+                        <svg class="w-8 h-8 text-yellow-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">PR Document (Original)</p>
+                            <p class="text-xs text-gray-600">⚠️ PDF conversion failed - download original file</p>
+                        </div>
+                    </div>
+                    <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                </a>
+                <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-3">
+                    <p class="text-xs text-yellow-800 flex items-center">
+                        <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                        PDF conversion failed. Please convert this document manually before printing.
+                    </p>
+                </div>
+                {% endif %}
+                
+                <!-- Supporting Documents -->
+                {% if pr.supporting_documents.all %}
+                <p class="text-sm font-medium text-gray-700 mb-2">Supporting Documents:</p>
+                <div class="space-y-2">
+                    {% for doc in pr.supporting_documents.all %}
+                    {% if not doc.is_signed_copy %}
+                    <a href="{{ doc.document.url }}" target="_blank" download
+                    class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition">
+                        <div class="flex items-center min-w-0 flex-1">
+                            <svg class="w-5 h-5 text-gray-600 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <p class="text-sm text-gray-900 truncate">{{ doc.file_name }}</p>
+                        </div>
+                        <svg class="w-4 h-4 text-gray-600 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                    </a>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Upload Signed Copy Button -->
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <a href="{% url 'admin_upload_pr_signed_copy' pr_id=pr.id %}" 
+                    class="block w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition font-medium text-center">
+                        <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        Upload Signed Copy
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Manual PDF Upload Notice -->
+            {% if pr.status == 'Partially Approved' and not pr.partially_approved_pdf %}
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+                <h3 class="text-sm font-semibold text-yellow-900 mb-2">📄 Manual PDF Upload Needed</h3>
+                <p class="text-xs text-yellow-800 mb-3">
+                    Automatic conversion failed. Please convert the document manually and upload the PDF:
+                </p>
+                
+                <form method="post" enctype="multipart/form-data" action="{% url 'admin_manual_pdf_upload' pr_id=pr.id %}">
+                    {% csrf_token %}
+                    <div class="flex items-center space-x-2">
+                        <input type="file" name="manual_pdf" accept=".pdf" required
+                            class="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                            Upload PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Action Card for Pending -->
+            {% if pr.status == 'Pending' %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
+                
+                <!-- Approve Form -->
+                <form method="post" action="{% url 'handle_purchase_request' pr.id %}" class="mb-3">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="approve" 
+                            class="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Approve PR
+                    </button>
+                </form>
+                
+                <!-- Reject Button (Opens Modal) -->
+                <button type="button" 
+                        onclick="openRejectModal()"
+                        class="w-full bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-medium flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                    Reject PR
+                </button>
+                
+                <!-- Warning Message -->
+                <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div class="flex items-start">
+                        <svg class="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div class="text-sm text-yellow-800">
+                            <p class="font-medium">Important:</p>
+                            <p class="mt-1">Approving will convert documents to PDF. Rejecting will return ₱{{ pr.total_amount|floatformat:2|intcomma }} back to budget.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Status Display for Approved/Rejected -->
+            {% if pr.status == 'Approved' %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="text-center">
+                    <svg class="w-16 h-16 text-green-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Fully Approved</h3>
+                    <p class="text-sm text-gray-600 mb-4">This PR has been fully approved and processed.</p>
+                    
+                    <!-- Download Main Approved Document -->
+                    {% if pr.approved_documents %}
+                    <a href="{{ pr.approved_documents.url }}" target="_blank" download
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition mb-3">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        Download Main Signed Copy
+                    </a>
+                    {% endif %}
+                    
+                    <!-- Download Signed Supporting Documents -->
+                    {% with signed_docs=pr.supporting_documents.all %}
+                    {% if signed_docs %}
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <p class="text-sm font-medium text-gray-700 mb-2">Signed Supporting Documents:</p>
+                        <div class="space-y-2">
+                            {% for doc in signed_docs %}
+                            {% if doc.is_signed_copy %}  <!-- ✅ Filter in template loop -->
+                            <a href="{{ doc.document.url }}" target="_blank" download
+                            class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition">
+                                <div class="flex items-center min-w-0 flex-1">
+                                    <svg class="w-5 h-5 text-green-600 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <p class="text-sm text-gray-900 truncate">{{ doc.file_name }}</p>
+                                </div>
+                                <svg class="w-4 h-4 text-gray-600 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                            </a>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    
+                    <!-- Admin Notes -->
+                    {% if pr.admin_notes %}
+                    <div class="mt-4 p-3 bg-gray-50 rounded-lg text-left">
+                        <p class="text-xs font-medium text-gray-700 mb-1">Admin Notes:</p>
+                        <p class="text-sm text-gray-900">{{ pr.admin_notes }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Approval Timestamp -->
+                    <div class="mt-4 text-xs text-gray-500">
+                        Fully approved on {{ pr.final_approved_at|date:"M d, Y g:i A" }}
+                    </div>
+                </div>
+            </div>
+            {% elif pr.status == 'Rejected' %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="text-center">
+                    <svg class="w-16 h-16 text-red-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Rejected</h3>
+                    <p class="text-sm text-gray-600">This PR has been rejected. Budget has been returned.</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Back Button -->
+            <a href="{% url 'department_pr_request' %}" 
+            class="block w-full text-center bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition">
+                ← Back to List
+            </a>
+        </div>
+
+        <!-- Keep the reject modal at the bottom -->
+        <!-- Reject Confirmation Modal -->
+        <div id="rejectModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div class="p-6">
+                    <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold text-gray-900 text-center mb-2">
+                        Reject Purchase Request?
+                    </h3>
+                    
+                    <p class="text-sm text-gray-600 text-center mb-6">
+                        This will reject PR <strong>{{ pr.pr_number }}</strong> and return 
+                        <strong class="text-red-600">₱{{ pr.total_amount|floatformat:2|intcomma }}</strong> 
+                        back to the budget. This action cannot be undone.
+                    </p>
+                    
+                    <form method="post" action="{% url 'handle_purchase_request' pr.id %}" class="space-y-3">
+                        {% csrf_token %}
+                        <button type="submit" name="action" value="reject" 
+                                class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                            Yes, Reject PR
+                        </button>
+                        <button type="button" onclick="closeRejectModal()" 
+                                class="w-full bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition">
+                            Cancel
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function openRejectModal() {
+    document.getElementById('rejectModal').classList.remove('hidden');
+    document.getElementById('rejectModal').classList.add('flex');
+}
+
+function closeRejectModal() {
+    document.getElementById('rejectModal').classList.add('hidden');
+    document.getElementById('rejectModal').classList.remove('flex');
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeRejectModal();
+    }
+});
+</script>
+{% endblock %}

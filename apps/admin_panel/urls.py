@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/admin_panel/urls.py
 from django.urls import path
 from . import views
 
@@ -6,7 +7,10 @@ urlpatterns = [
     path('client_accounts/', views.client_accounts, name='client_accounts'),
     path('budget_allocation/', views.budget_allocation, name='budget_allocation'),
     path('departments-pr-request/', views.departments_pr_request, name='department_pr_request'),
-    path('departments-request/<int:request_id>/', views.handle_departments_request, name='handle_purchase_request'),
+    # path('departments-request/<int:request_id>/', views.handle_departments_request, name='handle_purchase_request'),
+    # Purchase Request Management
+    path('pr/<uuid:pr_id>/preview/', views.admin_preview_pr, name='admin_preview_pr'),
+    path('pr/<uuid:request_id>/handle/', views.handle_departments_request, name='handle_purchase_request'),
     path('institutional-funds/', views.institutional_funds, name='institutional_funds'),
     path('admin_logout/', views.admin_logout, name='admin_logout'),
     path('registration/', views.register_account, name='register_account'),
@@ -46,4 +50,7 @@ urlpatterns = [
     # PRE Approved Document Upload
     path('pre/<uuid:pre_id>/upload-approved-doc/', views.admin_upload_approved_document, name='admin_upload_approved_document'),
     path('pre/<uuid:pre_id>/quick-approve-upload/', views.admin_quick_approve_with_upload, name='admin_quick_approve_upload'),
+    # PR Signed Copy Upload
+    path('pr/<uuid:pr_id>/upload-signed-copy/', views.admin_upload_pr_signed_copy, name='admin_upload_pr_signed_copy'),
+    path('pr/<uuid:pr_id>/manual-pdf-upload/', views.admin_manual_pdf_upload, name='admin_manual_pdf_upload'),
 ]

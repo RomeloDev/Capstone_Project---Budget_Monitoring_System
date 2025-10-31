@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/budgets/models.py
 from django.db import models
 from apps.users.models import User
 from django.core.validators import FileExtensionValidator
@@ -361,6 +362,14 @@ class DepartmentPRE(models.Model):
             self.save()
             return True
         return False
+    
+    def get_total_remaining(self):
+        """Calculate total remaining budget across all line items and quarters"""
+        total_remaining = Decimal('0')
+        for line_item in self.line_items.all():
+            for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+                total_remaining += line_item.get_quarter_available(quarter)
+        return total_remaining
 
 
 class PurchaseRequest(models.Model):
@@ -445,11 +454,19 @@ class PurchaseRequest(models.Model):
     
     # Workflow Files
     partially_approved_pdf = models.FileField(
-        upload_to='pr_pdfs/%Y/%m/',
+        upload_to='pr/partially_approved_pdfs/',
         null=True,
         blank=True,
-        help_text="PDF generated when partially approved"
+        help_text="Auto-generated PDF when admin partially approves"
     )
+    
+    approved_documents = models.FileField(
+        upload_to='pr/approved_documents/',
+        null=True,
+        blank=True,
+        help_text="Scanned signed copy uploaded by admin"
+    )
+    
     final_approved_scan = models.FileField(
         upload_to='pr_scanned/%Y/%m/',
         null=True,
@@ -466,11 +483,22 @@ class PurchaseRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
-    partially_approved_at = models.DateTimeField(null=True, blank=True)
-    final_approved_at = models.DateTimeField(null=True, blank=True)
+    partially_approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When admin partially approved"
+    )
+    final_approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When admin uploaded signed copy (full approval)"
+    )
     
     # Admin notes
-    admin_notes = models.TextField(blank=True)
+    admin_notes = models.TextField(
+        blank=True,
+        help_text="Admin notes when uploading signed copy"
+    )
     rejection_reason = models.TextField(blank=True)
     
     class Meta:
@@ -661,6 +689,40 @@ class PRELineItem(models.Model):
     
     def get_total(self):
         return (self.q1_amount or 0) + (self.q2_amount or 0) + (self.q3_amount or 0) + (self.q4_amount or 0)
+    
+    def get_quarter_amount(self, quarter):
+        """Get the amount for a specific quarter"""
+        return getattr(self, f'{quarter.lower()}_amount', Decimal('0'))
+
+    def get_quarter_consumed(self, quarter):
+        """Calculate consumed amount for a specific quarter"""
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+        
+        consumed = PurchaseRequestAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            purchase_request__status='Approved'
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+        
+        # Also include AD allocations
+        ad_consumed = ActivityDesignAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            activity_design__status='Approved'
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+        
+        return consumed + ad_consumed
+
+    def get_quarter_available(self, quarter):
+        """Calculate available amount for a specific quarter"""
+        quarter_amount = self.get_quarter_amount(quarter)
+        consumed = self.get_quarter_consumed(quarter)
+        return quarter_amount - consumed
 
 
 class PREReceipt(models.Model):
@@ -978,6 +1040,21 @@ class PurchaseRequestSupportingDocument(models.Model):
     file_name = models.CharField(max_length=255)
     file_size = models.BigIntegerField(help_text='File size in bytes')
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    # 🔥 NEW FIELD
+    is_signed_copy = models.BooleanField(
+        default=False,
+        help_text="True if this is the signed version uploaded by admin"
+    )
+    
+    # 🔥 NEW FIELD - Track who uploaded signed copy
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who uploaded this document (admin for signed copies)"
+    )
     
     class Meta:
         db_table = 'purchase_request_supporting_documents'

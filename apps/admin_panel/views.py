@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/admin_panel/views.py
 from datetime import datetime, timedelta
 import decimal
 from django.shortcuts import render, redirect, get_object_or_404
@@ -227,229 +228,451 @@ def register_account(request):
 
 @role_required('admin', login_url='/admin/')
 def departments_pr_request(request):
-    STATUS = (
+    """
+    Admin view to manage Purchase Requests from departments
+    Uses NEW models from budgets app
+    """
+    STATUS_CHOICES = (
         ('Pending', 'Pending'),
         ('Partially Approved', 'Partially Approved'),
         ('Rejected', 'Rejected'),
         ('Approved', 'Approved')
     )
-    departments = User.objects.filter(is_staff=False, is_approving_officer=False).values_list('department', flat=True).distinct()
+    
+    # Get distinct departments from users who submitted PRs
+    departments = User.objects.filter(
+        is_staff=False, 
+        is_approving_officer=False,
+        purchase_requests__isnull=False  # Has submitted PRs
+    ).values_list('department', flat=True).distinct()
+    
+    # ✅ NEW: Use NewPurchaseRequest from budgets app
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
     
     try:
-        users_purchase_requests = PurchaseRequest.objects.filter(pr_status='Submitted').select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
-    except PurchaseRequest.DoesNotExist:
-        users_purchase_requests = None
+        users_purchase_requests = NewPurchaseRequest.objects.select_related(
+            'submitted_by',
+            'budget_allocation__approved_budget',
+            'source_pre',
+            'source_line_item'
+        ).prefetch_related(
+            'supporting_documents',
+            'pre_allocations'
+        ).order_by('-created_at')
+        
+    except Exception as e:
+        print(f"Error loading PRs: {e}")
+        users_purchase_requests = NewPurchaseRequest.objects.none()
     
+    # ✅ Calculate status counts
     status_counts = {
         'total': users_purchase_requests.count(),
-        'pending': users_purchase_requests.filter(submitted_status='Pending').count(),
-        'approved': users_purchase_requests.filter(submitted_status='Approved').count(),
-        'partially_approved': users_purchase_requests.filter(submitted_status='Partially Approved').count(),
-        'rejected': users_purchase_requests.filter(submitted_status='Rejected').count(),
+        'pending': users_purchase_requests.filter(status='Pending').count(),
+        'approved': users_purchase_requests.filter(status='Approved').count(),
+        'partially_approved': users_purchase_requests.filter(status='Partially Approved').count(),
+        'rejected': users_purchase_requests.filter(status='Rejected').count(),
     }
     
+    # Apply filters
     filter_department = request.GET.get('department')
     if filter_department:
-        users_purchase_requests = PurchaseRequest.objects.filter(requested_by__department=filter_department, pr_status='Submitted',).select_related('requested_by', 'budget_allocation__approved_budget', 'source_pre')
+        users_purchase_requests = users_purchase_requests.filter(
+            submitted_by__department=filter_department
+        )
         
     status_filter = request.GET.get('status')
     if status_filter:
-        users_purchase_requests = users_purchase_requests.filter(submitted_status=status_filter, pr_status='Submitted')
-        
-    context = {'users_purchase_requests': users_purchase_requests,     'departments': departments, 'status_choices': STATUS, 'status_counts': status_counts}
+        users_purchase_requests = users_purchase_requests.filter(status=status_filter)
+    
+    context = {
+        'users_purchase_requests': users_purchase_requests,
+        'departments': departments,
+        'status_choices': STATUS_CHOICES,
+        'status_counts': status_counts
+    }
     
     return render(request, 'admin_panel/departments_pr_request.html', context)
 
 @role_required('admin', login_url='/admin/')
 def handle_departments_request(request, request_id):
     """
-    Optional admin handler for PRs. Aligns with model fields and updates allocation.
-    Note: Approving Officer flow is canonical; consider removing this view if redundant.
+    Admin handler for PRs with document conversion
     """
-    purchase_request = get_object_or_404(PurchaseRequest, id=request_id)
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    from apps.budgets.models import PurchaseRequestAllocation as NewPurchaseRequestAllocation
+    from .document_converter import convert_pr_documents_to_pdf  # ← NEW IMPORT
+    
+    purchase_request = get_object_or_404(
+        NewPurchaseRequest.objects.select_related(
+            'submitted_by',
+            'budget_allocation',
+            'source_pre',
+            'source_line_item'
+        ).prefetch_related('pre_allocations', 'supporting_documents'),
+        id=request_id
+    )
 
     if request.method == 'POST':
         action = request.POST.get('action')
+        
+        # Get allocation info for detailed feedback
+        allocation = purchase_request.pre_allocations.first()
+        line_item_name = allocation.pre_line_item.item_name if allocation else "Unknown"
+        quarter = allocation.quarter if allocation else "Unknown"
 
-        allocation = purchase_request.budget_allocation
         if action == 'approve':
-            if allocation is None:
-                messages.error(request, 'No budget allocation linked to this request.')
+            if purchase_request.status != 'Pending':
+                messages.warning(request, 
+                    f"PR {purchase_request.pr_number} cannot be approved. "
+                    f"Current status: {purchase_request.status}")
                 return redirect('department_pr_request')
             
-            # if purchase_request.source_pre and purchase_request.source_item_key:
-            #     try:
-            #         line_item = PRELineItemBudget.objects.get(
-            #             pre=purchase_request.source_pre, 
-            #             item_key=purchase_request.source_item_key,
-            #             quarter=purchase_request.source_quarter
-            #             )
-                    
-            #         # Check if sufficient budget remains
-            #         if line_item.remaining_amount >= purchase_request.total_amount:
-            #             line_item.consumed_amount += purchase_request.total_amount
-            #             line_item.save()
-                        
-            #         else:
-            #             messages.error(request, f"Insufficient budget in {line_item}. Remaining: ₱{line_item.remaining_amount}")
-            #             return redirect('department_pr_request')
-            #     except PRELineItemBudget.DoesNotExist:
-            #         messages.error(request, "Budget line item not found.")
-            #         return redirect('department_pr_request')
-            
-            # if purchase_request.source_pre and purchase_request.source_item_key:
-            #     try:
-            #         # Simple query first - no annotations
-            #         all_items = PRELineItemBudget.objects.filter(
-            #             pre=purchase_request.source_pre,
-            #             item_key=purchase_request.source_item_key
-            #         )
-                    
-            #         available_items = [item for item in all_items if item.remaining_amount > 0]
-                    
-            #         remaining_to_allocate = purchase_request.total_amount
-                    
-            #         for item in available_items:
-            #             if remaining_to_allocate <= 0:
-            #                 break
-                        
-            #             allocation_amount = min(item.remaining_amount, remaining_to_allocate)
-            #             if allocation_amount > 0:
-            #                 item.consumed_amount += allocation_amount
-            #                 item.save()
-            #                 remaining_to_allocate -= allocation_amount
-                            
-            #     except Exception as e:
-            #         messages.error(request, f"Error processing budget: {e}")
-            #         return redirect('department_pr_request')
-                    
-                #     print(f"DEBUG: Found {all_items.count()} items for {purchase_request.source_item_key}")
-                    
-                #     # Filter in Python for remaining budget
-                #     available_items = []
-                #     for item in all_items:
-                #         remaining = item.remaining_amount
-                #         print(f"DEBUG: {item.quarter} - Allocated: ₱{item.allocated_amount}, Consumed: ₱{item.consumed_amount}, Remaining: ₱{remaining}")
-                #         if remaining > 0:
-                #             available_items.append(item)
-                    
-                #     if not available_items:
-                #         messages.error(request, f"No budget available for {purchase_request.source_item_key}. All quarters consumed.")
-                #         return redirect('department_pr_request')
-                    
-                #     # Calculate total available
-                #     total_available = sum(item.remaining_amount for item in available_items)
-                #     print(f"DEBUG: Total available across all quarters: ₱{total_available}")
-                    
-                #     if total_available < purchase_request.total_amount:
-                #         messages.error(request, f"Insufficient total budget. Available: ₱{total_available}, Required: ₱{purchase_request.total_amount}")
-                #         return redirect('department_pr_request')
-                    
-                #     # Distribute across quarters - ROBUST VERSION
-                #     remaining_to_allocate = purchase_request.total_amount
-                #     allocated_quarters = []
-                #     total_allocated = Decimal('0')
-
-                #     for item in available_items:
-                #         if remaining_to_allocate <= Decimal('0'):
-                #             print(f"DEBUG: Breaking loop - remaining_to_allocate: ₱{remaining_to_allocate}")
-                #             break
-                        
-                #         allocation_amount = min(item.remaining_amount, remaining_to_allocate)
-                        
-                #         if allocation_amount > Decimal('0'):
-                #             # Update the item
-                #             item.consumed_amount += allocation_amount
-                #             item.save()
-                            
-                #             # Track the allocation
-                #             allocated_quarters.append(f"{item.quarter.upper()}: ₱{allocation_amount}")
-                #             total_allocated += allocation_amount
-                #             remaining_to_allocate -= allocation_amount
-                            
-                #             print(f"DEBUG: Allocated ₱{allocation_amount} from {item.quarter}")
-                #             print(f"DEBUG: Remaining to allocate: ₱{remaining_to_allocate}")
-
-                #     # Verify the allocation
-                #     print(f"DEBUG: Total allocated: ₱{total_allocated}")
-                #     print(f"DEBUG: Purchase request amount: ₱{purchase_request.total_amount}")
-                #     print(f"DEBUG: Final remaining: ₱{remaining_to_allocate}")
-
-                #     if total_allocated != purchase_request.total_amount:
-                #         print(f"ERROR: Allocation mismatch! Expected: ₱{purchase_request.total_amount}, Actual: ₱{total_allocated}")
-
-                #     messages.success(request, f"Budget updated: {', '.join(allocated_quarters)} (Total: ₱{total_allocated})")
-                    
-                # except Exception as e:
-                #     print(f"DEBUG ERROR: {e}")
-                #     messages.error(request, f"Error processing budget allocation: {e}")
-                #     return redirect('department_pr_request')
-
-            # Check remaining budget before approval (this is the BudgetAllocation object)
-            # if allocation.remaining_budget < (purchase_request.total_amount or 0):
-            #     messages.error(request, 'Insufficient remaining budget to approve this request.')
-            #     return redirect('department_pr_request')
-            
-            # allocation.spent = (allocation.spent or 0) + (purchase_request.total_amount or 0)
-            # allocation.save(update_fields=['spent', 'updated_at'])
-            purchase_request.pr_status = 'Submitted'
-            purchase_request.submitted_status = 'Partially Approved'
-            purchase_request.approved_by_admin = True
-            purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at', 'approved_by_admin'])
-            
-            log_audit_trail(
-                request=request,
-                action='APPROVE',
-                model_name='PurchaseRequest',
-                record_id=purchase_request.id,
-                detail=f'Purchase Request {purchase_request.pr_no} have been Partially Approved by Admin'
-            )
-            
-            messages.success(request, 'Purchase Request approved successfully.')
-        elif action == 'reject':
             try:
-                allocations = PurchaseRequestAllocation.objects.filter(purchase_request=purchase_request).select_related('pre_line_item')
+                # 1. Update status to Partially Approved
+                purchase_request.status = 'Partially Approved'
+                purchase_request.partially_approved_at = timezone.now()
+                purchase_request.save(update_fields=['status', 'partially_approved_at', 'updated_at'])
+                
+                # 2. 🔥 AUTO-CONVERT DOCUMENTS TO PDF
+                print(f"🔄 Starting document conversion for PR {purchase_request.pr_number}")
+                conversion_results = convert_pr_documents_to_pdf(purchase_request)
+
+                # 3. Check conversion results and show appropriate messages
+                if conversion_results['main_document']:
+                    if conversion_results['main_document_format'] == 'PDF':
+                        messages.success(request, 
+                            f'✅ PR {purchase_request.pr_number} partially approved!')
+                        messages.info(request,
+                            f'📄 Main document converted to PDF successfully.')
+                    else:
+                        messages.success(request, 
+                            f'✅ PR {purchase_request.pr_number} partially approved!')
+                        messages.info(request,
+                            f'📄 Main document already in PDF format.')
+                else:
+                    # Conversion completely failed
+                    messages.success(request, 
+                        f'✅ PR {purchase_request.pr_number} partially approved!')
+                    messages.warning(request,
+                        f'⚠️ Document conversion failed. Original files are available for download. Manual PDF conversion may be needed.')
+
+                # Show specific warnings (only if there are issues)
+                if conversion_results['warnings']:
+                    for warning in conversion_results['warnings']:
+                        messages.warning(request, warning)
+
+                # Show errors (if any critical errors)
+                if conversion_results['errors']:
+                    for error in conversion_results['errors']:
+                        messages.error(request, f"❌ {error}")
+                
+                # 4. Log audit trail
+                log_audit_trail(
+                    request=request,
+                    action='APPROVE',
+                    model_name='PurchaseRequest',
+                    record_id=purchase_request.id,
+                    detail=f'Purchase Request {purchase_request.pr_number} partially approved by Admin. '
+                           f'Amount: ₱{purchase_request.total_amount:,.2f} from {line_item_name} - {quarter}. '
+                           f'Documents converted: Main={conversion_results["main_document"]}, '
+                           f'Supporting={len(conversion_results["supporting_docs"])}'
+                )
+                
+                # 5. Create notification for end user
+                from apps.budgets.models import SystemNotification
+                SystemNotification.objects.create(
+                    recipient=purchase_request.submitted_by,
+                    title='PR Partially Approved - Ready to Print',
+                    message=f'Your PR {purchase_request.pr_number} has been partially approved. '
+                            f'Download the PDF documents, print them, and get them signed by the Approving Officer.',
+                    content_type='pr',
+                    object_id=purchase_request.id
+                )
+                
+            except Exception as e:
+                print(f"❌ Error in approval process: {e}")
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f"Error processing approval: {str(e)}")
+                return redirect('department_pr_request')
+            
+        elif action == 'reject':
+            if purchase_request.status != 'Pending':
+                messages.warning(request, 
+                    f"PR {purchase_request.pr_number} cannot be rejected. "
+                    f"Current status: {purchase_request.status}")
+                return redirect('department_pr_request')
+            
+            try:
+                # Get allocations
+                allocations = NewPurchaseRequestAllocation.objects.filter(
+                    purchase_request=purchase_request
+                ).select_related('pre_line_item')
+                
+                if not allocations.exists():
+                    messages.warning(request, "No allocations found to reverse.")
+                    return redirect('department_pr_request')
                 
                 total_released = Decimal('0')
                 released_details = []
                 
+                # Reverse allocations
                 for pr_allocation in allocations:
                     line_item = pr_allocation.pre_line_item
                     allocated_amount = pr_allocation.allocated_amount
                     
+                    # Return budget to line item
                     line_item.consumed_amount -= allocated_amount
                     line_item.save()
                     
                     total_released += allocated_amount
-                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
+                    released_details.append(
+                        f"{line_item.item_name} {pr_allocation.quarter}: ₱{allocated_amount:,.2f}"
+                    )
                     
-                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
+                    print(f"✅ Released ₱{allocated_amount} back to {line_item.item_name} {pr_allocation.quarter}")
                     
-                # Delete allocations after reversal
+                # Delete allocations
                 allocations.delete()
                 
-                purchase_request.pr_status = 'Submitted'
-                purchase_request.submitted_status = 'Rejected'
+                # Update PR status
+                purchase_request.status = 'Rejected'
+                purchase_request.save(update_fields=['status', 'updated_at'])
                 
-                purchase_request.save(update_fields=['pr_status', 'submitted_status', 'updated_at'])
-                
+                # Log audit trail
                 log_audit_trail(
                     request=request,
                     action='REJECT',
                     model_name='PurchaseRequest',
                     record_id=purchase_request.id,
-                    detail=f'Purchase Request {purchase_request.pr_no} have been Rejected by Admin'
+                    detail=f'Purchase Request {purchase_request.pr_number} rejected by Admin. '
+                           f'Released ₱{total_released:,.2f} back to budget. '
+                           f'Details: {", ".join(released_details)}'
                 )
                 
-                messages.error(request, f"Purchase Request PR-{purchase_request.pr_no} has been Rejected")
-                messages.success(request, f'Released ₱{total_released:,.2f} back to budget.')
+                # Create notification
+                from apps.budgets.models import SystemNotification
+                SystemNotification.objects.create(
+                    recipient=purchase_request.submitted_by,
+                    title='PR Rejected',
+                    message=f'Your PR {purchase_request.pr_number} has been rejected. '
+                            f'₱{total_released:,.2f} has been returned to your budget.',
+                    content_type='pr',
+                    object_id=purchase_request.id
+                )
+                
+                messages.success(request, 
+                    f'❌ Purchase Request {purchase_request.pr_number} has been rejected.')
+                messages.info(request, 
+                    f'💰 Released ₱{total_released:,.2f} back to budget')
+                
+                # Show detailed breakdown if multiple allocations
+                if len(released_details) > 1:
+                    for detail in released_details:
+                        messages.info(request, f"  • {detail}")
                 
             except Exception as e:
-                print(f"DEBUG ERROR: {e}")
-                messages.error(request, f"Error processing rejection: {e}")
+                print(f"❌ ERROR: {e}")
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f"Error processing rejection: {str(e)}")
                 return redirect('department_pr_request')
+        
+        else:
+            messages.error(request, "Invalid action specified.")
 
     return redirect('department_pr_request')
+
+@role_required('admin', login_url='/admin/')
+def admin_manual_pdf_upload(request, pr_id):
+    """Admin manually uploads converted PDF if auto-conversion failed"""
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    
+    pr = get_object_or_404(NewPurchaseRequest, id=pr_id)
+    
+    if request.method == 'POST' and request.FILES.get('manual_pdf'):
+        pdf_file = request.FILES['manual_pdf']
+        
+        # Validate it's a PDF
+        if not pdf_file.name.lower().endswith('.pdf'):
+            messages.error(request, "Please upload a PDF file")
+            return redirect('admin_preview_pr', pr_id=pr_id)
+        
+        # Save it
+        pr.partially_approved_pdf = pdf_file
+        pr.save()
+        
+        messages.success(request, "PDF uploaded successfully!")
+    
+    return redirect('admin_preview_pr', pr_id=pr_id)
+
+@role_required('admin', login_url='/admin/')
+def admin_upload_pr_signed_copy(request, pr_id):
+    """
+    Admin uploads scanned signed PR copy + signed supporting documents
+    Changes status: Partially Approved → Approved
+    """
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    from apps.budgets.models import PurchaseRequestSupportingDocument  # ✅ CORRECT MODEL
+    
+    pr = get_object_or_404(
+        NewPurchaseRequest.objects.select_related('submitted_by', 'budget_allocation'),
+        id=pr_id
+    )
+    
+    # Check if PR is in correct status
+    if pr.status != 'Partially Approved':
+        messages.error(request, 
+            f'Cannot upload signed copy. PR status is "{pr.status}". '
+            f'Only "Partially Approved" PRs can receive signed documents.')
+        return redirect('admin_preview_pr', pr_id=pr_id)
+    
+    if request.method == 'POST':
+        main_signed_file = request.FILES.get('signed_copy')
+        supporting_signed_files = request.FILES.getlist('supporting_signed_copies')  # Multiple files
+        admin_notes = request.POST.get('notes', '').strip()
+        
+        if not main_signed_file:
+            messages.error(request, "Main PR signed copy is required.")
+            return redirect('admin_upload_pr_signed_copy', pr_id=pr_id)
+        
+        # Validate main file
+        allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
+        file_ext = main_signed_file.name.split('.')[-1].lower()
+        
+        if file_ext not in allowed_extensions:
+            messages.error(request, 
+                f"Invalid file type for main document. Allowed: {', '.join(allowed_extensions).upper()}")
+            return redirect('admin_upload_pr_signed_copy', pr_id=pr_id)
+        
+        # Validate file size (max 10MB)
+        max_size = 10 * 1024 * 1024
+        if main_signed_file.size > max_size:
+            messages.error(request, "Main document size must be less than 10MB.")
+            return redirect('admin_upload_pr_signed_copy', pr_id=pr_id)
+        
+        try:
+            # Save the main signed copy
+            pr.approved_documents = main_signed_file
+            pr.status = 'Approved'
+            pr.final_approved_at = timezone.now()
+            pr.admin_notes = admin_notes
+            pr.save()
+            
+            uploaded_count = 1  # Main document
+            skipped_files = []
+            
+            # Process supporting signed documents
+            if supporting_signed_files:
+                for supporting_file in supporting_signed_files:
+                    # Validate each supporting file
+                    file_ext = supporting_file.name.split('.')[-1].lower()
+                    
+                    if file_ext not in allowed_extensions:
+                        skipped_files.append(f"{supporting_file.name} (invalid format)")
+                        continue
+                    
+                    if supporting_file.size > max_size:
+                        skipped_files.append(f"{supporting_file.name} (too large)")
+                        continue
+                    
+                    # ✅ Create supporting document record for signed copy
+                    PurchaseRequestSupportingDocument.objects.create(
+                        purchase_request=pr,
+                        document=supporting_file,
+                        file_name=supporting_file.name,
+                        file_size=supporting_file.size,
+                        uploaded_by=request.user,  # Track admin who uploaded
+                        is_signed_copy=True  # Flag as signed copy
+                    )
+                    uploaded_count += 1
+            
+            # 🔒 Budget is now officially consumed (already deducted on submission)
+            
+            # Log audit trail
+            log_audit_trail(
+                request=request,
+                action='APPROVE',
+                model_name='PurchaseRequest',
+                record_id=pr.id,
+                detail=f'PR {pr.pr_number} fully approved. '
+                       f'Uploaded {uploaded_count} signed document(s). '
+                       f'Budget ₱{pr.total_amount:,.2f} officially consumed.'
+            )
+            
+            # Create notification
+            from apps.budgets.models import SystemNotification
+            SystemNotification.objects.create(
+                recipient=pr.submitted_by,
+                title='PR Fully Approved',
+                message=f'Your PR {pr.pr_number} has been fully approved. '
+                        f'{uploaded_count} signed document(s) uploaded.',
+                content_type='pr',
+                object_id=pr.id
+            )
+            
+            # Success message
+            messages.success(request, 
+                f'✅ PR {pr.pr_number} fully approved! '
+                f'Uploaded {uploaded_count} signed document(s). '
+                f'Budget ₱{pr.total_amount:,.2f} is officially consumed.')
+            
+            # Show warnings for skipped files
+            if skipped_files:
+                messages.warning(request, 
+                    f"Skipped {len(skipped_files)} file(s): {', '.join(skipped_files)}")
+            
+        except Exception as e:
+            print(f"❌ Error uploading signed copy: {e}")
+            import traceback
+            traceback.print_exc()
+            messages.error(request, f'Error uploading file: {str(e)}')
+        
+        return redirect('admin_preview_pr', pr_id=pr_id)
+    
+    # GET request - show upload form
+    original_docs = pr.supporting_documents.filter(is_signed_copy=False)
+
+    context = {
+        'pr': pr,
+        'supporting_docs_count': original_docs.count(),
+        'original_supporting_docs': original_docs,  # Pass the actual documents too
+    }
+    
+    return render(request, 'admin_panel/upload_pr_signed_copy.html', context)
+
+@role_required('admin', login_url='/admin/')
+def admin_preview_pr(request, pr_id):
+    """
+    Admin preview of Purchase Request details
+    """
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    
+    pr = get_object_or_404(
+        NewPurchaseRequest.objects.select_related(
+            'submitted_by',
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'source_pre',
+            'source_line_item',
+            'source_line_item__category'
+        ).prefetch_related(
+            'supporting_documents',
+            'pre_allocations',
+            'pre_allocations__pre_line_item'
+        ),
+        id=pr_id
+    )
+    
+    # Get allocation details
+    allocation = pr.pre_allocations.first()
+    
+    context = {
+        'pr': pr,
+        'allocation': allocation,
+    }
+    
+    return render(request, 'admin_panel/preview_pr.html', context)
 
 @role_required('admin', login_url='/admin/')
 def budget_allocation(request):

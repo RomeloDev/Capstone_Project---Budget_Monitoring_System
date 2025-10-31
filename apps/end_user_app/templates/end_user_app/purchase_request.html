@@ -158,7 +158,7 @@
                 <h2 class="text-xl font-semibold text-gray-900">Purchase Requests</h2>
                 <div class="flex items-center space-x-2">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        Procurable Items
+                        Uploaded PRs
                     </span>
                     <span class="text-sm text-gray-500">{{ purchase_requests|length }} total</span>
                 </div>
@@ -169,96 +169,151 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PR No.</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entity Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fund Cluster</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Office/Section</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PR Number</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source of Fund</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Requested</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Submitted</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for purchase in purchase_requests %}
+                    {% for pr in purchase_requests %}
                         <tr class="hover:bg-gray-50 transition-colors duration-200">
+                            <!-- PR Number -->
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">PR-{{ purchase.pr_no }}</div>
+                                <div class="text-sm font-medium text-gray-900">{{ pr.pr_number }}</div>
                             </td>
+                            
+                            <!-- Department -->
                             <td class="px-6 py-4">
-                                <div class="text-sm text-gray-900 font-medium">{{ purchase.entity_name|truncatechars:40 }}</div>
-                                {% if purchase.source_of_fund_display %}
-                                <div class="text-xs text-gray-500">{{ purchase.source_of_fund_display|truncatechars:40 }}</div>
-                                {% endif %}
+                                <div class="text-sm text-gray-900 font-medium">{{ pr.department }}</div>
+                                <div class="text-xs text-gray-500">{{ pr.submitted_by.get_full_name }}</div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ purchase.fund_cluster|default:"Not specified" }}</div>
-                            </td>
+                            
+                            <!-- Purpose (truncated) -->
                             <td class="px-6 py-4">
-                                <div class="text-sm text-gray-900">{{ purchase.office_section|default:"Not specified" }}</div>
+                                <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ pr.purpose }}">
+                                    {{ pr.purpose|truncatechars:50 }}
+                                </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-semibold text-gray-900">
-                                    {% if purchase.total_amount %}
-                                        ₱{{ purchase.total_amount|floatformat:2|intcomma }}
+                            
+                            <!-- Source of Fund -->
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-700">
+                                    {% if pr.source_of_fund_display %}
+                                        {{ pr.source_of_fund_display|truncatechars:40 }}
                                     {% else %}
-                                        <span class="text-gray-400">Not calculated</span>
+                                        <span class="text-gray-400">Not specified</span>
                                     {% endif %}
                                 </div>
                             </td>
+                            
+                            <!-- Total Amount -->
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ purchase.created_at|date:"M d, Y" }}</div>
-                                <div class="text-xs text-gray-500">{{ purchase.created_at|time:"H:i" }}</div>
+                                <div class="text-sm font-semibold text-gray-900">
+                                    ₱{{ pr.total_amount|floatformat:2|intcomma }}
+                                </div>
                             </td>
+                            
+                            <!-- Date Submitted -->
                             <td class="px-6 py-4 whitespace-nowrap">
-                                {% if purchase.submitted_status == 'Pending' %}
+                                <div class="text-sm text-gray-900">{{ pr.created_at|date:"M d, Y" }}</div>
+                                <div class="text-xs text-gray-500">{{ pr.created_at|time:"g:i A" }}</div>
+                            </td>
+                            
+                            <!-- Status Badge -->
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if pr.status == 'Pending' %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                                         <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                                             <circle cx="4" cy="4" r="3"/>
                                         </svg>
                                         Pending
                                     </span>
-                                {% elif purchase.submitted_status == 'Approved' %}
+                                {% elif pr.status == 'Approved' %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                         <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                                             <circle cx="4" cy="4" r="3"/>
                                         </svg>
                                         Approved
                                     </span>
-                                {% elif purchase.submitted_status == 'Partially Approved' %}
+                                {% elif pr.status == 'Partially Approved' %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                         <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                                             <circle cx="4" cy="4" r="3"/>
                                         </svg>
                                         Partially Approved
                                     </span>
-                                {% else %}
+                                {% elif pr.status == 'Rejected' %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                         <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                                             <circle cx="4" cy="4" r="3"/>
                                         </svg>
                                         Rejected
                                     </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        {{ pr.status }}
+                                    </span>
                                 {% endif %}
                             </td>
+                            
+                            <!-- Actions -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                <a href="{% url 'end_user_preview_purchase_request' purchase.id %}" 
-                                   class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 transition duration-200">
+                                <a href="{% url 'preview_submitted_pr' pr_id=pr.id %}" 
+                                class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 transition duration-200">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
                                     View Details
                                 </a>
+
+                                <!-- Download PDF Button (Only for Partially Approved) -->
+                                {% if pr.status == 'Partially Approved' %}
+                                    {% if pr.partially_approved_pdf %}
+                                    <a href="{{ pr.partially_approved_pdf.url }}" 
+                                    download
+                                    class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                        </svg>
+                                        Download PDF
+                                    </a>
+                                    {% endif %}
+                                {% endif %}
+                                
+                                <!-- Edit Button (Only for Draft/Pending) -->
+                                {% if pr.status == 'Draft' or pr.status == 'Pending' %}
+                                <a href="{% url 'edit_purchase_request' pr_id=pr.id %}" 
+                                class="inline-flex items-center px-3 py-2 bg-gray-600 text-white text-xs font-medium rounded-md hover:bg-gray-700 transition">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                    </svg>
+                                    Edit
+                                </a>
+                                {% endif %}
                             </td>
                         </tr>
-                        {% empty %}
+                    {% empty %}
                         <tr>
-                            <td colspan="8" class="px-6 py-8 text-center text-gray-500">
+                            <td colspan="8" class="px-6 py-12 text-center text-gray-500">
                                 <div class="flex flex-col items-center">
-                                    <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                     </svg>
-                                    <p class="text-lg font-medium">No purchase requests found</p>
-                                    <p class="text-sm">
-                                        <a href="{% url 'purchase_request_form' %}" class="text-blue-600 hover:text-blue-800">Create your first purchase request</a>
-                                    </p>
+                                    <p class="text-lg font-medium text-gray-900 mb-2">No purchase requests found</p>
+                                    <p class="text-sm text-gray-600 mb-4">Get started by creating your first purchase request</p>
+                                    <a href="{% url 'purchase_request_upload' %}" 
+                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                        </svg>
+                                        Create Purchase Request
+                                    </a>
                                 </div>
                             </td>
                         </tr>
@@ -538,15 +593,11 @@
                 </div>
                 <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
                     <span class="text-gray-700 font-medium">Pending:</span>
-                    <span class="text-xl font-bold text-yellow-600">
-                        {% for pr in purchase_requests %}{% if pr.submitted_status == 'Pending' %}1{% endif %}{% empty %}0{% endfor %}
-                    </span>
+                    <span class="text-xl font-bold text-yellow-600">{{ pr_pending_count }}</span>
                 </div>
                 <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
                     <span class="text-gray-700 font-medium">Approved:</span>
-                    <span class="text-xl font-bold text-green-600">
-                        {% for pr in purchase_requests %}{% if pr.submitted_status == 'Approved' %}1{% endif %}{% empty %}0{% endfor %}
-                    </span>
+                    <span class="text-xl font-bold text-green-600">{{ pr_approved_count }}</span>
                 </div>
             </div>
         </div>
@@ -566,15 +617,11 @@
                 </div>
                 <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
                     <span class="text-gray-700 font-medium">Pending:</span>
-                    <span class="text-xl font-bold text-yellow-600">
-                        {% for ad in activity_designs %}{% if ad.status == 'Pending' %}1{% endif %}{% empty %}0{% endfor %}
-                    </span>
+                    <span class="text-xl font-bold text-yellow-600">{{ ad_pending_count }}</span>
                 </div>
                 <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
                     <span class="text-gray-700 font-medium">Approved:</span>
-                    <span class="text-xl font-bold text-green-600">
-                        {% for ad in activity_designs %}{% if ad.status == 'Approved' %}1{% endif %}{% empty %}0{% endfor %}
-                    </span>
+                    <span class="text-xl font-bold text-green-600">{{ ad_approved_count }}</span>
                 </div>
             </div>
         </div>

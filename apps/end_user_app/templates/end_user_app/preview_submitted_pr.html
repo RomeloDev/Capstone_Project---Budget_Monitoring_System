@@ -1,0 +1,886 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+{% load custom_filters %}
+{% load pr_filters %}
+
+{% block title %}Purchase Request {{ pr.pr_number }}{% endblock %}
+
+{% block main-content %}
+<main class="mx-auto max-w-5xl p-4 md:p-8">
+    
+    <!-- Success Alert (shown right after submission) -->
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">
+                        Purchase Request Submitted Successfully
+                    </h3>
+                    <div class="mt-2 text-sm text-green-700">
+                        <p>{{ message }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Header Card -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+            <div class="mb-4 md:mb-0">
+                <div class="flex items-center space-x-3">
+                    <h1 class="text-2xl font-bold text-gray-900">{{ pr.pr_number }}</h1>
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full
+                        {% if pr.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                        {% elif pr.status == 'Partially Approved' %}bg-blue-100 text-blue-800
+                        {% elif pr.status == 'Approved' %}bg-green-100 text-green-800
+                        {% elif pr.status == 'Rejected' %}bg-red-100 text-red-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ pr.status }}
+                    </span>
+                </div>
+                <p class="text-gray-600 mt-2">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Submitted on {{ pr.created_at|date:"F d, Y g:i A" }}
+                </p>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-3">
+                <a href="{% url 'user_purchase_request' %}" 
+                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Back to List
+                </a>
+                
+                <!-- Download PDF Button (For Partially Approved/Approved) -->
+                {% if pr.status == 'Partially Approved' or pr.status == 'Approved' %}
+                    {% if pr.partially_approved_pdf %}
+                    <a href="{{ pr.partially_approved_pdf.url }}" 
+                    download
+                    class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        Download PDF
+                    </a>
+                    {% endif %}
+                {% endif %}
+                
+                <!-- Print Button -->
+                <button onclick="window.print()" 
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                    </svg>
+                    Print
+                </button>
+                
+                {% if can_cancel %}
+                <button onclick="confirmCancel()" 
+                        class="inline-flex items-center px-4 py-2 border border-red-300 rounded-md text-red-700 bg-white hover:bg-red-50 transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                    Cancel Request
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Stats Row -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+            <div>
+                <p class="text-sm text-gray-500">Total Amount</p>
+                <p class="text-2xl font-bold text-blue-600">₱{{ pr.total_amount|floatformat:2|intcomma }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Department</p>
+                <p class="text-lg font-semibold text-gray-900">{{ pr.department }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Submitted By</p>
+                <p class="text-lg font-semibold text-gray-900">{{ pr.submitted_by.get_full_name }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left Column (2/3 width) -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Purpose Section -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Purpose
+                </h2>
+                <div class="prose max-w-none">
+                    <p class="text-gray-700 whitespace-pre-wrap">{{ pr.purpose }}</p>
+                </div>
+            </div>
+
+            <!-- Download Documents Section (Only for Partially Approved & Approved) -->
+            {% if pr.status == 'Partially Approved' or pr.status == 'Approved' %}
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg shadow-sm border-2 border-green-200 p-6">
+                <div class="flex items-center mb-4">
+                    <div class="flex-shrink-0">
+                        <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-xl font-bold text-gray-900">
+                            {% if pr.status == 'Partially Approved' %}
+                                📄 Documents Ready for Printing
+                            {% else %}
+                                ✅ Approved Documents
+                            {% endif %}
+                        </h2>
+                        <p class="text-sm text-gray-600 mt-1">
+                            {% if pr.status == 'Partially Approved' %}
+                                Download and print these documents to get them signed by the Approving Officer
+                            {% else %}
+                                Your approved and signed documents
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <!-- Main PR PDF -->
+                    {% if pr.partially_approved_pdf %}
+                    <div class="bg-white rounded-lg p-4 shadow-sm border border-green-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center flex-1 min-w-0">
+                                <div class="flex-shrink-0">
+                                    <svg class="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                    </svg>
+                                </div>
+                                <div class="ml-4 min-w-0 flex-1">
+                                    <p class="text-lg font-bold text-gray-900">Purchase Request Document (PDF)</p>
+                                    <p class="text-sm text-gray-600">
+                                        {% if pr.status == 'Partially Approved' %}
+                                            ✓ Converted and ready to print
+                                        {% else %}
+                                            ✓ Approved document
+                                        {% endif %}
+                                    </p>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        {{ pr.partially_approved_pdf.size|filesizeformat }} • PDF Format
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="ml-4 flex-shrink-0">
+                                <a href="{{ pr.partially_approved_pdf.url }}" 
+                                download
+                                class="inline-flex items-center px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-md">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                    </svg>
+                                    Download PDF
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% elif pr.uploaded_document %}
+                    <!-- Fallback: Show original if PDF not available -->
+                    <div class="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-300">
+                        <div class="flex items-start">
+                            <svg class="w-6 h-6 text-yellow-600 mt-1 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-yellow-900">PDF Conversion Not Available</p>
+                                <p class="text-sm text-yellow-800 mt-1">
+                                    The automatic PDF conversion failed. You can download the original document below and convert it manually.
+                                </p>
+                                <a href="{{ pr.uploaded_document.url }}" 
+                                download
+                                class="inline-flex items-center mt-3 px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-md hover:bg-yellow-700">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                    </svg>
+                                    Download Original Document
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Supporting Documents -->
+                    {% if pr.supporting_documents.exists %}
+                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Supporting Documents 
+                            <span class="ml-2 px-2 py-0.5 bg-gray-200 text-gray-700 text-xs rounded-full">
+                                {{ pr.supporting_documents.count }}
+                            </span>
+                        </h3>
+                        <div class="space-y-2">
+                            {% for doc in pr.supporting_documents.all %}
+                            {% if not doc.is_signed_copy %}
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                                <div class="flex items-center flex-1 min-w-0">
+                                    <svg class="w-8 h-8 text-gray-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="font-medium text-gray-900 truncate">{{ doc.file_name }}</p>
+                                        <p class="text-sm text-gray-600">{{ doc.file_size|filesizeformat }}</p>
+                                    </div>
+                                </div>
+                                <a href="{{ doc.document.url }}" 
+                                download
+                                class="ml-4 inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 flex-shrink-0">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                    </svg>
+                                    Download
+                                </a>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Instructions Card (Only for Partially Approved) -->
+                {% if pr.status == 'Partially Approved' %}
+                <div class="mt-4 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <div class="flex items-start">
+                        <svg class="w-6 h-6 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="flex-1">
+                            <h4 class="text-sm font-semibold text-blue-900 mb-2">📝 Next Steps:</h4>
+                            <ol class="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                                <li>Download the PR document PDF above</li>
+                                <li>Print the document</li>
+                                <li>Bring the printed document to the Approving Officer for signature</li>
+                                <li>Return the signed copy to the Admin Office</li>
+                                <li>Wait for final approval notification</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Uploaded Documents Section -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    Uploaded Documents
+                </h2>
+                
+                <!-- Main PR Document -->
+                <div class="mb-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">Purchase Request Document</h3>
+                    {% if pr.uploaded_document %}
+                    <div class="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                        <div class="flex items-center flex-1 min-w-0">
+                            <svg class="w-10 h-10 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <div class="min-w-0">
+                                <p class="font-medium text-gray-900 truncate">
+                                    {{ pr.uploaded_document.name|basename }}
+                                </p>
+                                <p class="text-sm text-gray-600">
+                                    {{ pr.uploaded_document.size|filesizeformat }}
+                                </p>
+                            </div>
+                        </div>
+                        <a href="{{ pr.uploaded_document.url }}" 
+                           target="_blank"
+                           class="ml-4 inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors flex-shrink-0">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            View
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                        <svg class="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-gray-500 text-sm">No document uploaded</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Supporting Documents -->
+                {% if pr.supporting_documents.exists %}
+                <div>
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">
+                        Supporting Documents 
+                        <span class="ml-1 px-2 py-0.5 bg-gray-200 text-gray-700 text-xs rounded-full">
+                            {{ pr.supporting_documents.count }}
+                        </span>
+                    </h3>
+                    <div class="space-y-2">
+                        {% for doc in pr.supporting_documents.all %}
+                        <div class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="flex items-center flex-1 min-w-0">
+                                <svg class="w-8 h-8 text-gray-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <div class="min-w-0">
+                                    <p class="font-medium text-gray-900 truncate">{{ doc.file_name }}</p>
+                                    <p class="text-sm text-gray-600">{{ doc.file_size|filesizeformat }}</p>
+                                </div>
+                            </div>
+                            <a href="{{ doc.document.url }}" 
+                               target="_blank"
+                               class="ml-4 text-blue-600 hover:text-blue-800 font-medium text-sm flex-shrink-0">
+                                View →
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">Supporting Documents</h3>
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                        <p class="text-gray-500 text-sm">No supporting documents uploaded</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Status History (if not pending) -->
+            {% if pr.status != 'Pending' and pr.status != 'Draft' %}
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    Status Timeline
+                </h2>
+                <div class="flow-root">
+                    <ul class="-mb-8">
+                        <!-- Submitted -->
+                        <li>
+                            <div class="relative pb-8">
+                                <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                                <div class="relative flex space-x-3">
+                                    <div>
+                                        <span class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center ring-8 ring-white">
+                                            <svg class="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Submitted</p>
+                                            <p class="text-sm text-gray-500">Purchase request created and submitted</p>
+                                        </div>
+                                        <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                            <time datetime="{{ pr.created_at|date:'c' }}">
+                                                {{ pr.created_at|date:"M d, Y" }}<br>
+                                                <span class="text-xs">{{ pr.created_at|date:"g:i A" }}</span>
+                                            </time>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        
+                        <!-- Partially Approved -->
+                        {% if pr.partially_approved_at %}
+                        <li>
+                            <div class="relative pb-8">
+                                <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                                <div class="relative flex space-x-3">
+                                    <div>
+                                        <span class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
+                                            <svg class="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Partially Approved</p>
+                                            <p class="text-sm text-gray-500">Initial approval granted</p>
+                                        </div>
+                                        <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                            <time datetime="{{ pr.partially_approved_at|date:'c' }}">
+                                                {{ pr.partially_approved_at|date:"M d, Y" }}<br>
+                                                <span class="text-xs">{{ pr.partially_approved_at|date:"g:i A" }}</span>
+                                            </time>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Final Approval -->
+                        {% if pr.final_approved_at %}
+                        <li>
+                            <div class="relative pb-8">
+                                <div class="relative flex space-x-3">
+                                    <div>
+                                        <span class="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center ring-8 ring-white">
+                                            <svg class="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Finally Approved</p>
+                                            <p class="text-sm text-gray-500">Purchase request fully approved</p>
+                                        </div>
+                                        <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                            <time datetime="{{ pr.final_approved_at|date:'c' }}">
+                                                {{ pr.final_approved_at|date:"M d, Y" }}<br>
+                                                <span class="text-xs">{{ pr.final_approved_at|date:"g:i A" }}</span>
+                                            </time>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Rejection -->
+                        {% if pr.status == 'Rejected' %}
+                        <li>
+                            <div class="relative pb-8">
+                                <div class="relative flex space-x-3">
+                                    <div>
+                                        <span class="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center ring-8 ring-white">
+                                            <svg class="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1 pt-1.5">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900">Rejected</p>
+                                            {% if pr.rejection_reason %}
+                                            <div class="mt-2 p-3 bg-red-50 border border-red-200 rounded">
+                                                <p class="text-sm text-red-800">
+                                                    <strong>Reason:</strong> {{ pr.rejection_reason }}
+                                                </p>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- Right Column (1/3 width) - Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            
+            <!-- Funding Information Card -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    Funding Details
+                </h2>
+                <dl class="space-y-4">
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Budget Allocation</dt>
+                        <dd class="mt-1 text-sm text-gray-900 font-medium">
+                            {{ pr.budget_allocation.approved_budget.title }}
+                        </dd>
+                        <dd class="mt-1 text-xs text-gray-500">
+                            FY {{ pr.budget_allocation.approved_budget.fiscal_year }}
+                        </dd>
+                    </div>
+                    
+                    <div class="border-t border-gray-200 pt-4">
+                        <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Source of Fund</dt>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {{ pr.source_of_fund_display }}
+                        </dd>
+                    </div>
+                    
+                    {% if allocation %}
+                    <div class="border-t border-gray-200 pt-4">
+                        <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">PRE Line Item</dt>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {% if allocation.pre_line_item.category %}
+                                {{ allocation.pre_line_item.category.name }}
+                                {% if allocation.pre_line_item.subcategory %}
+                                    - {{ allocation.pre_line_item.subcategory.name }}
+                                {% endif %}
+                            {% endif %}
+                        </dd>
+                        <dd class="mt-1 text-sm text-gray-700">
+                            {{ allocation.pre_line_item.item_name }}
+                        </dd>
+                    </div>
+                    
+                    <div class="border-t border-gray-200 pt-4">
+                        <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Quarter</dt>
+                        <dd class="mt-1">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ allocation.quarter }}
+                            </span>
+                        </dd>
+                    </div>
+                    
+                    <div class="border-t border-gray-200 pt-4">
+                        <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Allocated Amount</dt>
+                        <dd class="mt-1 text-lg font-bold text-green-600">
+                            ₱{{ allocation.allocated_amount|floatformat:2|intcomma }}
+                        </dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+
+            <!-- Budget Summary Card -->
+            {% comment %} <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 p-6">
+                <h3 class="text-sm font-semibold text-blue-900 mb-3 flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    Budget Summary
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-blue-700">Total Budget</span>
+                        <span class="text-sm font-semibold text-blue-900">
+                            ₱{{ pr.budget_allocation.allocated_amount|floatformat:2|intcomma }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-blue-700">This Request</span>
+                        <span class="text-sm font-semibold text-blue-900">
+                            ₱{{ pr.total_amount|floatformat:2|intcomma }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-blue-300">
+                        <span class="text-sm text-blue-700">Remaining</span>
+                        <span class="text-sm font-semibold text-blue-900">
+                            ₱{{ pr.budget_allocation.remaining_balance|floatformat:2|intcomma }}
+                        </span>
+                    </div>
+                </div>
+            </div> {% endcomment %}
+
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+                <div class="flex items-center mb-4">
+                    <svg class="w-6 h-6 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <h3 class="text-lg font-semibold text-blue-900">Budget Summary</h3>
+                </div>
+                
+                <!-- Section 1: Budget Allocation Overview -->
+                <div class="bg-white rounded-lg p-4 mb-4 shadow-sm">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                        <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                        Budget Allocation Overview
+                    </h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Budget Allocated:</span>
+                            <span class="font-bold text-gray-900">₱{{ pr.budget_allocation.allocated_amount|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Used (All PRs/ADs):</span>
+                            <span class="font-semibold text-orange-600">₱{{ pr.budget_allocation.get_total_used|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span class="text-gray-900 font-medium">Budget Allocation Remaining:</span>
+                            <span class="font-bold text-green-600">₱{{ pr.budget_allocation.remaining_balance|floatformat:2|intcomma }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Section 2: PRE Overview -->
+                {% with allocation=pr.pre_allocations.first %}
+                {% if allocation %}
+                <div class="bg-white rounded-lg p-4 mb-4 shadow-sm">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                        <span class="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                        PRE Overview
+                    </h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">PRE Name:</span>
+                            <span class="font-medium text-gray-900">{{ allocation.pre_line_item.pre.department }} - FY {{ allocation.pre_line_item.pre.fiscal_year }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">PRE Grand Total (All Quarters):</span>
+                            <span class="font-bold text-gray-900">₱{{ allocation.pre_line_item.pre.total_amount|floatformat:2|intcomma }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Section 3: Selected Line Item & Quarter Details -->
+                <div class="bg-white rounded-lg p-4 mb-4 shadow-sm border-2 border-indigo-200">
+                    <h4 class="text-sm font-semibold text-indigo-700 mb-3 flex items-center">
+                        <span class="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span>
+                        Selected: {{ allocation.pre_line_item.item_name }} - {{ allocation.quarter }}
+                    </h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Category:</span>
+                            <span class="font-medium text-gray-900">{{ allocation.pre_line_item.category.name }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Quarter:</span>
+                            <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md font-semibold text-xs">{{ allocation.quarter }}</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span class="text-gray-600">{{ allocation.quarter }} Original Amount:</span>
+                            <span class="font-bold text-gray-900">
+                                ₱{% if allocation.quarter == 'Q1' %}{{ allocation.pre_line_item.q1_amount|floatformat:2|intcomma }}
+                                {% elif allocation.quarter == 'Q2' %}{{ allocation.pre_line_item.q2_amount|floatformat:2|intcomma }}
+                                {% elif allocation.quarter == 'Q3' %}{{ allocation.pre_line_item.q3_amount|floatformat:2|intcomma }}
+                                {% else %}{{ allocation.pre_line_item.q4_amount|floatformat:2|intcomma }}{% endif %}
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">This PR Amount:</span>
+                            <span class="font-bold text-blue-600">-₱{{ pr.total_amount|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t-2 border-indigo-200">
+                            <span class="text-gray-900 font-semibold">
+                                {{ allocation.quarter }} 
+                                {% if pr.status == 'Pending' %}Projected Remaining:{% else %}Current Remaining:{% endif %}
+                            </span>
+                            <span class="font-bold text-green-600 text-lg">
+                                ₱{{ allocation.pre_line_item|get_quarter_remaining:allocation.quarter|floatformat:2|intcomma }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endwith %}
+                
+                <!-- Legend -->
+                <div class="mt-4 pt-4 border-t border-blue-200">
+                    <p class="text-xs text-gray-600 mb-2 font-medium">💡 Understanding the Budget Flow:</p>
+                    <ul class="text-xs text-gray-600 space-y-1">
+                        <li class="flex items-start">
+                            <span class="text-blue-500 mr-2">•</span>
+                            <span><strong>Budget Allocation</strong> = Your total budget pool for all expenses</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-purple-500 mr-2">•</span>
+                            <span><strong>PRE Grand Total</strong> = Total planned budget across all line items and quarters</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-indigo-500 mr-2">•</span>
+                            <span><strong>Line Item Quarter</strong> = Specific budget for this category in this quarter</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>This PR deducts from <strong>both</strong> the Budget Allocation and the specific Quarter</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Admin Notes (if any) -->
+            {% if pr.admin_notes %}
+            <div class="bg-amber-50 rounded-lg border border-amber-200 p-6">
+                <h3 class="text-sm font-semibold text-amber-900 mb-2 flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+                    </svg>
+                    Admin Notes
+                </h3>
+                <p class="text-sm text-amber-800 whitespace-pre-wrap">{{ pr.admin_notes }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Rejection Reason (if rejected) -->
+            {% if pr.status == 'Rejected' and pr.rejection_reason %}
+            <div class="bg-red-50 rounded-lg border border-red-200 p-6">
+                <h3 class="text-sm font-semibold text-red-900 mb-2 flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Rejection Reason
+                </h3>
+                <p class="text-sm text-red-800 whitespace-pre-wrap">{{ pr.rejection_reason }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Help Card -->
+            <div class="bg-gray-50 rounded-lg border border-gray-200 p-6">
+                <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Need Help?
+                </h3>
+                <p class="text-xs text-gray-600 mb-3">
+                    Your purchase request is currently <strong>{{ pr.status }}</strong>. 
+                    {% if pr.status == 'Pending' %}
+                        It will be reviewed by the admin soon.
+                    {% elif pr.status == 'Approved' %}
+                        You can proceed with your procurement.
+                    {% elif pr.status == 'Rejected' %}
+                        Please review the rejection reason and submit a new request if needed.
+                    {% endif %}
+                </p>
+                <a href="{% url 'user_settings' %}" 
+                   class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    Contact Support →
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+</main>
+
+<!-- Cancel Confirmation Modal (hidden by default) -->
+<div id="cancelModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mt-4">Cancel Purchase Request?</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">
+                    Are you sure you want to cancel this purchase request? This action cannot be undone.
+                </p>
+            </div>
+            <div class="items-center px-4 py-3">
+                <button onclick="closeModal()" 
+                        class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 mb-2">
+                    No, Keep It
+                </button>
+                <button onclick="cancelRequest()" 
+                        class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    Yes, Cancel Request
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Cancel request functionality
+function confirmCancel() {
+    document.getElementById('cancelModal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('cancelModal').classList.add('hidden');
+}
+
+function cancelRequest() {
+    // Show loading state
+    const modal = document.getElementById('cancelModal');
+    modal.innerHTML = `
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12">
+                    <svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mt-4">Cancelling...</h3>
+            </div>
+        </div>
+    `;
+    
+    // TODO: Implement actual cancel functionality
+    // For now, redirect to PR list
+    setTimeout(() => {
+        window.location.href = "{% url 'user_purchase_request' %}";
+    }, 1500);
+}
+
+// Print functionality
+window.addEventListener('beforeprint', () => {
+    // Hide action buttons when printing
+    document.querySelectorAll('button, .no-print').forEach(el => {
+        el.style.display = 'none';
+    });
+});
+
+window.addEventListener('afterprint', () => {
+    // Show action buttons after printing
+    document.querySelectorAll('button, .no-print').forEach(el => {
+        el.style.display = '';
+    });
+});
+
+// Close modal on outside click
+window.onclick = function(event) {
+    const modal = document.getElementById('cancelModal');
+    if (event.target == modal) {
+        closeModal();
+    }
+}
+</script>
+
+<!-- Print Styles -->
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    body {
+        background: white;
+    }
+    
+    .shadow-sm, .shadow-lg {
+        box-shadow: none !important;
+    }
+    
+    .border {
+        border: 1px solid #e5e7eb !important;
+    }
+}
+</style>
+
+{% endblock %}

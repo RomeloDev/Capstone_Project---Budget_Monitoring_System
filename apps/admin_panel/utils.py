@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/admin_panel/utils.py
 def log_audit_trail(request, action, model_name, record_id=None, detail=None):
     """
     Utility function to create audit trail entries

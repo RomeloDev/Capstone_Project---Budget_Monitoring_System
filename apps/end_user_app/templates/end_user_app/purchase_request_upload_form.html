@@ -58,7 +58,7 @@
                                 <p class="text-sm text-gray-600">{{ draft.pr_file.size|filesizeformat }}</p>
                             </div>
                         </div>
-                        <button type="submit" onclick="removePRDocument()" 
+                        <button type="button" onclick="removePRDocument()" 
                                 class="text-red-600 hover:text-red-800 font-medium text-sm">
                             Remove
                         </button>
@@ -106,14 +106,10 @@
                                     <p class="text-sm text-gray-600">{{ doc.file_size|filesizeformat }}</p>
                                 </div>
                             </div>
-                            <form method="post" class="inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="doc_id" value="{{ doc.id }}">
-                                <button type="submit" onclick="removeSupportingDocument({{ doc.id }})" 
-                                        class="text-red-600 hover:text-red-800 font-medium text-sm">
-                                    Remove
-                                </button>
-                            </form>
+                            <button type="button" onclick="removeSupportingDocument({{ doc.id }})" 
+                                    class="text-red-600 hover:text-red-800 font-medium text-sm">
+                                Remove
+                            </button>
                         </div>
                     {% endfor %}
                 </div>
@@ -208,7 +204,7 @@
         </section>
 
         <!-- Action Buttons -->
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between mt-3 mb-3">
             <button type="submit" name="action" value="clear_draft"
                     class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
                 Clear All

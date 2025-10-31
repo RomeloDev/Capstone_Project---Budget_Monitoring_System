@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/admin_panel/pdf_generator.py
 """
 PRE PDF Generator using ReportLab
 Generates formatted PRE documents for printing and signatures

@@ -1,3 +1,4 @@
+# bb_budget_monitoring_system/apps/end_user_app/views.py
 from django.conf import settings
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -105,27 +106,65 @@ def view_budget(request):
 
 @role_required('end_user', login_url='/')
 def purchase_request(request):
+    """
+    Display all Purchase Requests and Activity Designs for the current user
+    Uses NEW models from budgets app
+    """
     try:
-        # ✅ Existing: Get Purchase Requests
-        purchase_requests = PurchaseRequest.objects.filter(
-            requested_by=request.user, 
-            pr_status="Submitted"
-        ).select_related('source_pre').order_by('-created_at')
+        # ✅ NEW: Get Purchase Requests using NEW model
+        purchase_requests = NewPurchaseRequest.objects.filter(
+            submitted_by=request.user
+        ).select_related(
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'source_pre',
+            'source_line_item',
+            'source_line_item__category'
+        ).prefetch_related(
+            'supporting_documents',
+            'pre_allocations'
+        ).order_by('-created_at')
         
-        # ✅ NEW: Get Activity Designs for the same user
+        # ✅ Calculate status counts for PRs
+        pr_pending_count = purchase_requests.filter(status='Pending').count()
+        pr_approved_count = purchase_requests.filter(status='Approved').count()
+        pr_rejected_count = purchase_requests.filter(status='Rejected').count()
+        
+        # ✅ Activity Designs (still using old model - no new version yet)
         activity_designs = ActivityDesign.objects.filter(
             requested_by=request.user
-        ).select_related('source_pre', 'budget_allocation').order_by('-created_at')
+        ).select_related(
+            'source_pre', 
+            'budget_allocation'
+        ).order_by('-created_at')
         
-    except PurchaseRequest.DoesNotExist:
-        purchase_requests = None
-    except ActivityDesign.DoesNotExist:
-        activity_designs = None
+        # ✅ Calculate status counts for ADs
+        ad_pending_count = activity_designs.filter(status='Pending').count()
+        ad_approved_count = activity_designs.filter(status='Approved').count()
+        ad_rejected_count = activity_designs.filter(status='Rejected').count()
+        
+    except Exception as e:
+        # Better error handling
+        print(f"Error loading requests: {e}")
+        purchase_requests = []
+        activity_designs = []
+        pr_pending_count = 0
+        pr_approved_count = 0
+        pr_rejected_count = 0
+        ad_pending_count = 0
+        ad_approved_count = 0
+        ad_rejected_count = 0
     
-    # ✅ Pass both datasets to template
+    # ✅ Pass everything to template
     return render(request, 'end_user_app/purchase_request.html', {
         'purchase_requests': purchase_requests,
-        'activity_designs': activity_designs,  # Add this line
+        'activity_designs': activity_designs,
+        'pr_pending_count': pr_pending_count,
+        'pr_approved_count': pr_approved_count,
+        'pr_rejected_count': pr_rejected_count,
+        'ad_pending_count': ad_pending_count,
+        'ad_approved_count': ad_approved_count,
+        'ad_rejected_count': ad_rejected_count,
     })
 
 @role_required('end_user', login_url='/')
@@ -837,7 +876,18 @@ def purchase_request_upload(request):
                     messages.success(request, 
                         f"Purchase Request {pr_number} submitted successfully! "
                         f"Allocated ₱{total_amount:,.2f} from {line_item.item_name} - {quarter}.")
-                    return redirect('purchase_request_upload')
+                    
+                     # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='CREATE',
+                        model_name='PurchaseRequest',
+                        record_id=pr.id,
+                        detail=f'Submitted Purchase Request {pr_number}'
+                    )
+                    
+                    # ✅ NEW: Redirect to preview instead of upload form
+                    return redirect('preview_submitted_pr', pr_id=pr.id)
                     
             except Exception as e:
                 import traceback
@@ -866,6 +916,50 @@ def purchase_request_upload(request):
     }
     
     return render(request, 'end_user_app/purchase_request_upload_form.html', context)
+
+@role_required('end_user', login_url='/')
+def preview_submitted_pr(request, pr_id):
+    """
+    Preview page for submitted Purchase Request
+    Shows all details, uploaded documents, and current status
+    User can only view their own PRs
+    """
+    pr = get_object_or_404(
+        NewPurchaseRequest.objects.select_related(
+            'submitted_by',
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'source_pre',
+            'source_line_item',
+            'source_line_item__category',
+            'source_line_item__subcategory'
+        ).prefetch_related(
+            'supporting_documents',
+            'pre_allocations',
+            'pre_allocations__pre_line_item',
+            'pre_allocations__pre_line_item__category'
+        ),
+        id=pr_id,
+        submitted_by=request.user  # ✅ Security: Only show user's own PRs
+    )
+    
+    # Get allocation details (should only be one for upload-based PRs)
+    allocation = pr.pre_allocations.first()
+    
+    # Check if user can cancel (only pending PRs)
+    can_cancel = pr.status == 'Pending'
+    
+    # Check if user can edit (only draft PRs - shouldn't happen for submitted PRs)
+    can_edit = pr.status == 'Draft'
+    
+    context = {
+        'pr': pr,
+        'allocation': allocation,
+        'can_cancel': can_cancel,
+        'can_edit': can_edit,
+    }
+    
+    return render(request, 'end_user_app/preview_submitted_pr.html', context)
 
 @role_required('end_user', login_url='/')
 def purchase_request_form(request):

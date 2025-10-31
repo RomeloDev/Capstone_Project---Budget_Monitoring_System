@@ -1,3 +1,4 @@
+<!-- bb_budget_monitoring_system/apps/admin_panel/templates/admin_panel/departments_pr_request.html -->
 {% extends "admin_base_template/dashboard.html" %}
 
 {% load humanize %}
@@ -144,43 +145,93 @@
           </tr>
         </thead>
         <tbody>
-          {% for pr in users_purchase_requests %}
-            <tr class="border-b border-gray-300">
-              <td class="px-4 py-2 text-left">{{ pr.requested_by.department }}</td>
-              <td class="px-4 py-2 text-left">{{ pr.requested_by.fullname }}</td>
-              <td class="px-4 py-2 text-left">{{ pr.created_at }}</td>
-              <td class="px-3 py-2 text-left">
-                {% if pr.submitted_status == 'Pending' %}
-                    <span class="inline-flex rounded-full bg-yellow-100 px-2 text-xs font-semibold leading-5 text-yellow-800">{{ pr.submitted_status }}</span>
-                {% elif pr.submitted_status == 'Approved' %}
-                    <span class="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">{{ pr.submitted_status }}</span>
-                {% elif pr.submitted_status == 'Partially Approved' %}
-                    <span class="inline-flex rounded-full bg-blue-100 px-2 text-xs font-semibold leading-5 text-blue-600">{{ pr.submitted_status }}</span>
-                {% elif pr.submitted_status == 'Rejected' %}
-                    <span class="inline-flex rounded-full bg-red-100 px-2 text-xs font-semibold leading-5 text-red-700">{{ pr.submitted_status }}</span>
-                {% else %}
-                    <span class="inline-flex rounded-full bg-gray-100 px-2 text-xs font-semibold leading-5 text-gray-800">{{ pr.submitted_status }}</span>
-                {% endif %}
-              </td>
-              <td class="px-4 py-2 text-left">{{ pr.purpose }}</td>
-              <td class="py-2 px-4 border-b space-x-2">
-                  
-                  <a href="{% url "preview_purchase_request" pr.id %}" type="submit" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">View Details</a>
-                  
-                  {% if pr.submitted_status == 'Pending' %}
-                  <form method="post" action="{% url 'handle_purchase_request' pr.id %}" class="inline">
-                      {% csrf_token %}
-                      <button type="submit" name="action" value="approve" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
-                      <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2">Reject</button>
-                  </form>
-                  {% endif %}
-              </td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="6" class="text-center py-4 text-gray-500">No Purchase Requests found.</td>
-            </tr>
-          {% endfor %}
+            {% for pr in users_purchase_requests %}
+                <tr class="border-b border-gray-300 hover:bg-gray-50">
+                    <!-- Department -->
+                    <td class="px-4 py-2 text-left">{{ pr.department }}</td>
+                    
+                    <!-- Submitted By -->
+                    <td class="px-4 py-2 text-left">
+                        <div class="font-medium">{{ pr.submitted_by.fullname }}</div>
+                        <div class="text-xs text-gray-500">{{ pr.submitted_by.email }}</div>
+                    </td>
+                    
+                    <!-- Submitted At -->
+                    <td class="px-4 py-2 text-left">
+                        <div>{{ pr.created_at|date:"M d, Y" }}</div>
+                        <div class="text-xs text-gray-500">{{ pr.created_at|time:"g:i A" }}</div>
+                    </td>
+                    
+                    <!-- Status -->
+                    <td class="px-3 py-2 text-left">
+                        {% if pr.status == 'Pending' %}
+                            <span class="inline-flex rounded-full bg-yellow-100 px-2 text-xs font-semibold leading-5 text-yellow-800">
+                                {{ pr.status }}
+                            </span>
+                        {% elif pr.status == 'Approved' %}
+                            <span class="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
+                                {{ pr.status }}
+                            </span>
+                        {% elif pr.status == 'Partially Approved' %}
+                            <span class="inline-flex rounded-full bg-blue-100 px-2 text-xs font-semibold leading-5 text-blue-600">
+                                {{ pr.status }}
+                            </span>
+                        {% elif pr.status == 'Rejected' %}
+                            <span class="inline-flex rounded-full bg-red-100 px-2 text-xs font-semibold leading-5 text-red-700">
+                                {{ pr.status }}
+                            </span>
+                        {% else %}
+                            <span class="inline-flex rounded-full bg-gray-100 px-2 text-xs font-semibold leading-5 text-gray-800">
+                                {{ pr.status }}
+                            </span>
+                        {% endif %}
+                    </td>
+                    
+                    <!-- Purpose -->
+                    <td class="px-4 py-2 text-left">
+                        <div class="max-w-xs truncate" title="{{ pr.purpose }}">
+                            {{ pr.purpose|truncatechars:50 }}
+                        </div>
+                    </td>
+                    
+                    <!-- Actions -->
+                    <td class="py-2 px-4 border-b space-x-2">
+                        <!-- View Details Button -->
+                        <a href="{% url 'admin_preview_pr' pr_id=pr.id %}" 
+                          class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                            View Details
+                        </a>
+                        
+                        <!-- Approve/Reject Buttons (only for Pending) -->
+                        {% if pr.status == 'Pending' %}
+                        <form method="post" action="{% url 'handle_purchase_request' pr.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" name="action" value="approve" 
+                                    class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">
+                                Approve
+                            </button>
+                            <button type="submit" name="action" value="reject" 
+                                    class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2"
+                                    onclick="return confirm('Are you sure you want to reject this PR? This will return the allocated budget.')">
+                                Reject
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-8 text-gray-500">
+                        <div class="flex flex-col items-center">
+                            <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <p class="text-lg font-medium">No Purchase Requests found</p>
+                            <p class="text-sm text-gray-600">Purchase requests will appear here when submitted by end users</p>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
         </tbody>
       </table>
     </section>
