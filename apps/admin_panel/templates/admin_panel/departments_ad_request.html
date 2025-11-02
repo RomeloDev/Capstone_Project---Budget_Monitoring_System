@@ -5,107 +5,333 @@
 
 {% block main-content %}
 <div class="flex flex-col w-full">
-    <!-- Header Section -->
-    <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
-    <div class="sm:flex sm:items-center">
-        <div class="sm:flex-auto">
-            <h1 class="text-2xl font-bold text-white">Department's Activity Design Requests</h1>
-            <p class="mt-2 text-sm text-gray-50">Manage submitted Activity Design requests approved by the Approving Officer.</p>
-        </div>
-    </div>
-    </header>
+  <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
+    <h1 class="text-[20px] font-bold">Department's Activity Design Requests</h1>
+    <p class="text-sm text-blue-100 mt-1">Manage submitted Activity Design requests approved by the Approving Officer.</p>
+  </header>
 
-    <div class="p-4 sm:p-6 lg:p-8">
-    <!-- Filter Section -->
-    <section class="bg-white p-6 rounded-lg shadow-md">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Filter Activity Design Requests</h2>
-        <form method="get" class="mt-4 grid gap-4 md:grid-cols-4">
-            {% csrf_token %}
-            <div>
-                <label for="department" class="block text-sm font-medium text-gray-700">Department</label>
-                <select name="department" id="department" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">All Departments</option>
-                    {% for dept in departments %}
-                        <option value="{{ dept }}" {% if selected_department == dept %}selected{% endif %}>{{ dept }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+  <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
 
-            <div>
-                <label for="status" class="block text-sm font-medium text-gray-700">Select Status</label>
-                <select name="status" id="status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="" >ALL STATUS</option>
-                    {% for code, label in status_choices %}
-                        <option value="{{ label }}" {% if request.GET.status == label %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="flex items-end">
-                <button type="submit" class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">Filter</button>
-            </div>
-        </form>
-    </section>
-
-    <!-- Table Section -->
-    <div class="mt-8 flex flex-col">
-        <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-            <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-                <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                    <table class="min-w-full divide-y divide-gray-300">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Department</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Title of Activity</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Submitted By</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Submitted At</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            {% for ad in activity_designs %}
-                            <tr>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{ ad.requested_by.department }}</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{ ad.title_of_activity }}</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{ ad.requested_by.fullname }}</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{ ad.created_at|date:"M d, Y H:i" }}</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm">
-                                    {% if ad.status == 'Pending' %}
-                                        <span class="inline-flex rounded-full bg-yellow-100 px-2 text-xs font-semibold leading-5 text-yellow-800">{{ ad.status }}</span>
-                                    {% elif ad.status == 'Partially Approved' %}
-                                        <span class="inline-flex rounded-full bg-blue-100 px-2 text-xs font-semibold leading-5 text-blue-800">{{ ad.status }}</span>
-                                    {% elif ad.status == 'Approved' %}
-                                        <span class="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">{{ ad.status }}</span>
-                                    {% elif ad.status == 'Rejected' %}
-                                        <span class="inline-flex rounded-full bg-red-100 px-2 text-xs font-semibold leading-5 text-red-800">{{ ad.status }}</span>
-                                    {% else %}
-                                        <span class="inline-flex rounded-full bg-gray-100 px-2 text-xs font-semibold leading-5 text-gray-800">{{ ad.status }}</span>
-                                    {% endif %}
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm flex gap-2">
-                                    <a href="{% url 'admin_preview_activity_design' ad.id %}" class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-blue-50 hover:bg-blue-700">View Details</a>
-                                    
-                                    {% if ad.status == 'Pending' %}
-                                        <form action="{% url "handle_activity_design_request" ad.id %}" method="post">
-                                            {% csrf_token %}
-                                            <button type="submit" name="action" value="approve" class="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-green-50 hover:bg-green-700">Approve</button>
-                                            <button type="submit" name="action" value="reject" class="inline-flex items-center rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-red-50 hover:bg-red-700">Reject</button>
-                                        </form>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="6" class="px-3 py-4 text-sm text-gray-500 text-center">No Activity Design requests found.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <!-- Dashboard Summary Cards -->
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <!-- Total Requests Card -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Total ADs</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ status_counts.total|default:0 }}</p>
+                    <p class="text-xs text-gray-500 mt-1">All activity designs</p>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
                 </div>
             </div>
         </div>
-    </div>
-    </div>
+
+        <!-- Pending Requests Card -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Pending</p>
+                    <p class="text-3xl font-bold text-gray-900">
+                        {{ status_counts.pending|default:0 }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">Awaiting approval</p>
+                </div>
+                <div class="p-3 bg-yellow-100 rounded-full">
+                    <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Partially Approved Requests Card -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Partially Approved</p>
+                    <p class="text-3xl font-bold text-gray-900">
+                        {{ status_counts.partially_approved|default:0 }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">Partially approved</p>
+                </div>
+                <div class="p-3 bg-blue-200 rounded-full">
+                    <svg class="w-8 h-8 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Approved Requests Card -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Approved</p>
+                    <p class="text-3xl font-bold text-gray-900">
+                        {{ status_counts.approved|default:0 }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">Successfully approved</p>
+                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rejected Requests Card -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Rejected</p>
+                    <p class="text-3xl font-bold text-gray-900">
+                        {{ status_counts.rejected|default:0 }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">Declined requests</p>
+                </div>
+                <div class="p-3 bg-red-100 rounded-full">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Filter Button Section -->
+    <section class="flex justify-between items-center">
+      <button
+        onclick="openFilterModal()"
+        class="bg-blue-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition flex items-center space-x-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+        </svg>
+        <span>Filter Activity Designs</span>
+      </button>
+    </section>
+
+    {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+                <div class="text-white px-4 py-2 mt-1 rounded
+                    {% if message.tags == 'error' %} bg-red-500
+                    {% elif message.tags == 'success' %} bg-green-500
+                    {% else %} bg-gray-500 {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Table Section -->
+    <section class="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+      <h2 class="text-xl mb-2 font-semibold text-gray-800">Submitted Activity Design Requests</h2>
+      <table class="min-w-full table-auto border border-gray-300 text-sm">
+        <thead class="bg-gray-100 border-b-2 text-gray-700 font-semibold">
+          <tr>
+            <th class="px-4 py-2 text-left">AD NUMBER</th>
+            <th class="px-4 py-2 text-left">DEPARTMENT</th>
+            <th class="px-4 py-2 text-left">PURPOSE</th>
+            <th class="px-4 py-2 text-left">FUNDING SOURCES</th>
+            <th class="px-4 py-2 text-right">TOTAL AMOUNT</th>
+            <th class="px-4 py-2 text-left">DATE SUBMITTED</th>
+            <th class="px-4 py-2 text-left">STATUS</th>
+            <th class="px-4 py-2 text-right">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+            {% for ad in ads %}
+                <tr class="border-b border-gray-300 hover:bg-gray-50">
+                    <!-- AD Number -->
+                    <td class="px-4 py-2 text-left">
+                        <div class="text-sm font-medium text-gray-900">{{ ad.ad_number }}</div>
+                    </td>
+
+                    <!-- Department -->
+                    <td class="px-4 py-2 text-left">
+                        <div class="font-medium">{{ ad.department }}</div>
+                        <div class="text-xs text-gray-500">{{ ad.submitted_by.get_full_name }}</div>
+                    </td>
+
+                    <!-- Purpose -->
+                    <td class="px-4 py-2 text-left">
+                        <div class="max-w-xs truncate" title="{{ ad.purpose }}">
+                            {{ ad.purpose|truncatewords:10 }}
+                        </div>
+                    </td>
+
+                    <!-- Funding Sources -->
+                    <td class="px-4 py-2 text-left">
+                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                            {{ ad.pre_allocations.count }} Line Item{{ ad.pre_allocations.count|pluralize }}
+                        </span>
+                    </td>
+
+                    <!-- Total Amount -->
+                    <td class="px-4 py-2 text-right">
+                        <div class="text-sm font-semibold text-gray-900">₱{{ ad.total_amount|floatformat:2|intcomma }}</div>
+                    </td>
+
+                    <!-- Date Submitted -->
+                    <td class="px-4 py-2 text-left">
+                        <div>{{ ad.submitted_at|date:"M d, Y" }}</div>
+                        <div class="text-xs text-gray-500">{{ ad.submitted_at|time:"g:i A" }}</div>
+                    </td>
+
+                    <!-- Status -->
+                    <td class="px-3 py-2 text-left">
+                        {% if ad.status == 'Pending' %}
+                            <span class="inline-flex rounded-full bg-yellow-100 px-2 text-xs font-semibold leading-5 text-yellow-800">
+                                {{ ad.status }}
+                            </span>
+                        {% elif ad.status == 'Approved' %}
+                            <span class="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
+                                {{ ad.status }}
+                            </span>
+                        {% elif ad.status == 'Partially Approved' %}
+                            <span class="inline-flex rounded-full bg-blue-100 px-2 text-xs font-semibold leading-5 text-blue-800">
+                                {{ ad.status }}
+                            </span>
+                        {% elif ad.status == 'Rejected' %}
+                            <span class="inline-flex rounded-full bg-red-100 px-2 text-xs font-semibold leading-5 text-red-700">
+                                {{ ad.status }}
+                            </span>
+                        {% else %}
+                            <span class="inline-flex rounded-full bg-gray-100 px-2 text-xs font-semibold leading-5 text-gray-800">
+                                {{ ad.status }}
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Actions -->
+                    <td class="py-2 px-4 border-b space-x-2 text-right">
+                        <!-- View Details Button -->
+                        <a href="{% url 'admin_preview_ad' ad.id %}"
+                          class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                            View Details
+                        </a>
+
+                        <!-- Approve/Reject Buttons (only for Pending) -->
+                        {% if ad.status == 'Pending' %}
+                        <form method="post" action="{% url 'handle_activity_design_request' ad.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" name="action" value="approve"
+                                    class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">
+                                Approve
+                            </button>
+                            <button type="submit" name="action" value="reject"
+                                    class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 ml-2"
+                                    onclick="return confirm('Are you sure you want to reject this AD? This will return the allocated budget.')">
+                                Reject
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center py-8 text-gray-500">
+                        <div class="flex flex-col items-center">
+                            <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <p class="text-lg font-medium">No Activity Design requests found</p>
+                            <p class="text-sm text-gray-600">Activity Design requests will appear here when submitted by end users</p>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+
 </div>
-{% endblock %}
+
+<!-- Filter Modal -->
+<div id="filterModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+  <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+    <!-- Modal Header -->
+    <div class="flex justify-between items-center pb-3 border-b">
+      <h3 class="text-xl font-semibold text-gray-800">Filter Activity Design Requests</h3>
+      <button onclick="closeFilterModal()" class="text-gray-400 hover:text-gray-600">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="mt-4">
+      <form method="get" class="flex flex-col space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Department Filter -->
+          <div>
+            <label for="department_filter" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+            <select id="department_filter" name="department" class="w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <option value="">-- All Departments --</option>
+              {% for dept in departments %}
+                <option value="{{ dept }}" {% if request.GET.department == dept %}selected{% endif %}>{{ dept }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Status Filter -->
+          <div>
+            <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Select Status</label>
+            <select name="status" id="status" class="w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <option value="">ALL STATUS</option>
+              {% for code, label in status_choices %}
+                <option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="flex justify-end space-x-3 pt-4 border-t">
+          <button type="button" onclick="closeFilterModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition">
+            Cancel
+          </button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
+            Apply Filter
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openFilterModal() {
+    document.getElementById('filterModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeFilterModal() {
+    document.getElementById('filterModal').classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal when clicking outside of it
+document.getElementById('filterModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeFilterModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeFilterModal();
+    }
+});
+</script>
+
+{% endblock main-content %}

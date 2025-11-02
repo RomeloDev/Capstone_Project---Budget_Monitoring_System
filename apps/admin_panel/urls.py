@@ -21,9 +21,18 @@ urlpatterns = [
     path('pre/<int:pk>/', views.admin_preview_pre, name='admin_preview_pre'),
     # path('pre/<int:pk>/action/', views.admin_handle_pre_action, name='admin_handle_pre_action'),
     path('preview_purchase_request/<int:pk>/', views.preview_purchase_request, name='preview_purchase_request'),
-    path('department_activity_design/', views.department_activity_design, name='department_activity_design'),
-    path('handle_activity_design/<int:pk>/', views.handle_activity_design_request, name='handle_activity_design_request'),
+
+    # Activity Design Management
+    path('ad/', views.departments_ad_request, name='departments_ad_request'),
+    path('ad/<uuid:ad_id>/preview/', views.admin_preview_ad, name='admin_preview_ad'),
+    path('ad/<uuid:pk>/handle/', views.handle_activity_design_request, name='handle_activity_design_request'),
+    path('ad/<uuid:ad_id>/upload-signed-copy/', views.admin_upload_ad_signed_copy, name='admin_upload_ad_signed_copy'),
+
+    # Legacy AD URLs (keep for backwards compatibility)
+    path('department_activity_design/', views.departments_ad_request, name='department_activity_design'),
+    path('handle_activity_design/<int:pk>/', views.handle_activity_design_request, name='handle_activity_design_request_legacy'),
     path('admin-preview-activity-design/<int:pk>/', views.admin_preview_activity_design, name='admin_preview_activity_design'),
+
     path('pre_budget_realignment/', views.pre_budget_realignment_admin, name='pre_budget_realignment_admin'),
     path('pre_budget_realignment/<int:pk>/action/', views.handle_pre_realignment_admin_action, name='handle_pre_realignment_admin_action'),
     path('download-document/<int:document_id>/', views.download_document, name='download_document'),

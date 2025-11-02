@@ -676,6 +676,188 @@ def admin_preview_pr(request, pr_id):
     return render(request, 'admin_panel/preview_pr.html', context)
 
 @role_required('admin', login_url='/admin/')
+def admin_preview_ad(request, ad_id):
+    """
+    Admin preview of Activity Design details with multiple line items
+    """
+    from apps.budgets.models import ActivityDesign, ActivityDesignAllocation
+    from decimal import Decimal
+
+    ad = get_object_or_404(
+        ActivityDesign.objects.select_related(
+            'submitted_by',
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'admin_approved_by'
+        ).prefetch_related(
+            'supporting_documents',
+            'pre_allocations',
+            'pre_allocations__pre_line_item',
+            'pre_allocations__pre_line_item__category'
+        ),
+        id=ad_id
+    )
+
+    # Get all allocations with quarter remaining calculations
+    allocations_data = []
+    for allocation in ad.pre_allocations.all():
+        line_item = allocation.pre_line_item
+        quarter = allocation.quarter
+
+        # Get quarter-specific available amount AFTER this allocation
+        # This shows how much budget remains in this quarter after using this AD
+        quarter_total = line_item.get_quarter_amount(quarter)
+        quarter_consumed = line_item.get_quarter_consumed(quarter)
+        quarter_remaining = quarter_total - quarter_consumed
+
+        allocations_data.append({
+            'allocation': allocation,
+            'quarter_remaining': quarter_remaining
+        })
+
+    # Budget summary
+    budget_summary = {
+        'line_items_count': ad.pre_allocations.count(),
+    }
+
+    context = {
+        'ad': ad,
+        'allocations': allocations_data,
+        'budget_summary': budget_summary,
+    }
+
+    return render(request, 'admin_panel/admin_preview_ad.html', context)
+
+@role_required('admin', login_url='/admin/')
+def admin_upload_ad_signed_copy(request, ad_id):
+    """
+    Admin uploads scanned signed AD copy + signed supporting documents
+    Changes status: Partially Approved → Approved
+    """
+    from apps.budgets.models import ActivityDesign, ActivityDesignSupportingDocument
+
+    ad = get_object_or_404(
+        ActivityDesign.objects.select_related('submitted_by', 'budget_allocation'),
+        id=ad_id
+    )
+
+    # Check if AD is in correct status
+    if ad.status != 'Partially Approved':
+        messages.error(request,
+            f'Cannot upload signed copy. AD status is "{ad.status}". '
+            f'Only "Partially Approved" ADs can receive signed documents.')
+        return redirect('admin_preview_ad', ad_id=ad_id)
+
+    if request.method == 'POST':
+        main_signed_file = request.FILES.get('signed_copy')
+        supporting_signed_files = request.FILES.getlist('supporting_signed_copies')  # Multiple files
+        admin_notes = request.POST.get('notes', '').strip()
+
+        if not main_signed_file:
+            messages.error(request, "Main AD signed copy is required.")
+            return redirect('admin_upload_ad_signed_copy', ad_id=ad_id)
+
+        # Validate main file
+        allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
+        file_ext = main_signed_file.name.split('.')[-1].lower()
+
+        if file_ext not in allowed_extensions:
+            messages.error(request,
+                f"Invalid file type for main document. Allowed: {', '.join(allowed_extensions).upper()}")
+            return redirect('admin_upload_ad_signed_copy', ad_id=ad_id)
+
+        # Validate file size (max 10MB)
+        max_size = 10 * 1024 * 1024
+        if main_signed_file.size > max_size:
+            messages.error(request, "Main document size must be less than 10MB.")
+            return redirect('admin_upload_ad_signed_copy', ad_id=ad_id)
+
+        try:
+            # Save the main signed copy
+            ad.approved_document = main_signed_file
+            ad.status = 'Approved'
+            ad.final_approved_at = timezone.now()
+            ad.admin_approved_by = request.user
+            ad.save()
+
+            uploaded_count = 1  # Main document
+            skipped_files = []
+
+            # Process supporting signed documents
+            if supporting_signed_files:
+                for supporting_file in supporting_signed_files:
+                    # Validate each supporting file
+                    file_ext = supporting_file.name.split('.')[-1].lower()
+
+                    if file_ext not in allowed_extensions:
+                        skipped_files.append(f"{supporting_file.name} (invalid format)")
+                        continue
+
+                    if supporting_file.size > max_size:
+                        skipped_files.append(f"{supporting_file.name} (too large)")
+                        continue
+
+                    # Create supporting document record for signed copy
+                    ActivityDesignSupportingDocument.objects.create(
+                        activity_design=ad,
+                        document=supporting_file,
+                        file_name=supporting_file.name,
+                        file_size=supporting_file.size,
+                        uploaded_by=request.user,  # Track admin who uploaded
+                        is_signed_copy=True  # Flag as signed copy
+                    )
+                    uploaded_count += 1
+
+            # Budget is now officially consumed (already deducted on submission)
+
+            # Log audit trail
+            log_audit_trail(
+                request=request,
+                action='APPROVE',
+                model_name='ActivityDesign',
+                record_id=ad.id,
+                detail=f'AD {ad.ad_number} fully approved. '
+                       f'Uploaded {uploaded_count} signed document(s). '
+                       f'Budget ₱{ad.total_amount:,.2f} officially consumed.'
+            )
+
+            # Create notification
+            from apps.budgets.models import SystemNotification
+            SystemNotification.objects.create(
+                recipient=ad.submitted_by,
+                title='AD Fully Approved',
+                message=f'Your AD {ad.ad_number} has been fully approved. '
+                        f'{uploaded_count} signed document(s) uploaded.',
+                content_type='ad',
+                object_id=ad.id
+            )
+
+            # Success message
+            messages.success(request,
+                f'✅ AD {ad.ad_number} fully approved! '
+                f'Uploaded {uploaded_count} signed document(s). '
+                f'Budget ₱{ad.total_amount:,.2f} is officially consumed.')
+
+            # Show warnings for skipped files
+            if skipped_files:
+                messages.warning(request,
+                    f"Skipped {len(skipped_files)} file(s): {', '.join(skipped_files)}")
+
+        except Exception as e:
+            print(f"❌ Error uploading signed copy: {e}")
+            import traceback
+            traceback.print_exc()
+            messages.error(request, f'Error uploading file: {str(e)}')
+
+        return redirect('admin_preview_ad', ad_id=ad_id)
+
+    # GET request - show upload form
+    context = {
+        'ad': ad,
+    }
+    return render(request, 'admin_panel/upload_ad_signed_copy.html', context)
+
+@role_required('admin', login_url='/admin/')
 def budget_allocation(request):
     """Handle budget allocation to departments and end users"""
     
@@ -2395,115 +2577,263 @@ def preview_purchase_request(request, pk:int):
     })
     
 @role_required('admin', login_url='/admin/')
-def department_activity_design(request):
-    STATUS = (
-        ('PENDING', 'Pending'),
-        ('PARTIALLY APPROVED', 'Partially Approved'),
-        ('APPROVED', 'Approved'),
-        ('REJECTED', 'Rejected')
+def departments_ad_request(request):
+    """
+    Enhanced admin view for Activity Design requests with status counts and filtering
+    """
+    from apps.budgets.models import ActivityDesign
+
+    STATUS_CHOICES = (
+        ('Pending', 'Pending'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected')
     )
-    
-    # Get all the activity design request
-    activity_designs = ActivityDesign.objects.all().select_related('requested_by', 'budget_allocation__approved_budget')
-    
-    # Get distinct departments from non-staff, non-approving officer users
+
+    # Get all Activity Designs with related data
+    ads = ActivityDesign.objects.select_related(
+        'submitted_by',
+        'budget_allocation',
+        'budget_allocation__approved_budget'
+    ).prefetch_related(
+        'pre_allocations',
+        'pre_allocations__pre_line_item'
+    ).order_by('-submitted_at')
+
+    # Calculate status counts before filtering
+    status_counts = {
+        'total': ads.count(),
+        'pending': ads.filter(status='Pending').count(),
+        'partially_approved': ads.filter(status='Partially Approved').count(),
+        'approved': ads.filter(status='Approved').count(),
+        'rejected': ads.filter(status='Rejected').count(),
+    }
+
+    # Get distinct departments
     departments = (
         User.objects.filter(is_staff=False, is_approving_officer=False)
         .exclude(department__isnull=True)
         .values_list('department', flat=True)
         .distinct()
+        .order_by('department')
     )
 
+    # Apply filters
     department_filter = request.GET.get('department')
     if department_filter:
-        activity_designs = activity_designs.filter(requested_by__department=department_filter)
+        ads = ads.filter(department=department_filter)
 
     status_filter = request.GET.get('status')
     if status_filter:
-        activity_designs = activity_designs.filter(status=status_filter)
-        
-    # Handle possible DoesNotExist gracefully (though .filter() never raises it)
+        ads = ads.filter(status=status_filter)
+
     context = {
-        'activity_designs': activity_designs,
+        'ads': ads,
+        'status_counts': status_counts,
         'departments': departments,
         'selected_department': department_filter,
-        'status_choices': STATUS,
+        'status_choices': STATUS_CHOICES,
     }
     return render(request, 'admin_panel/departments_ad_request.html', context)
 
 @role_required('admin', login_url='/admin/')
 def admin_preview_activity_design(request, pk: int):
+    from apps.budgets.models import ActivityDesign
     activity_design = get_object_or_404(ActivityDesign, id=pk)
     return render(request, 'admin_panel/preview_activity_design.html', {'activity': activity_design})
 
 @role_required('admin', login_url='/admin/')
-def handle_activity_design_request(request, pk:int):
+def handle_activity_design_request(request, pk):
     """
     View for Admin to approve or reject department activity designs.
     Updates the status of the activity design and associated budget allocation.
+    Accepts UUID as pk parameter.
     """
+    from apps.budgets.models import ActivityDesign
+
     activity_design = get_object_or_404(ActivityDesign, id=pk)
 
     if request.method == 'POST':
         action = request.POST.get('action')
 
-        allocation = activity_design.budget_allocation
         if action == 'approve':
-            if allocation is None:
-                messages.error(request, 'No budget allocation linked to this activity design.')
-                return redirect('department_activity_design')
-            
-            activity_design.status = 'Partially Approved'
-            activity_design.approved_by_admin = True
-            
-            log_audit_trail(
-                request=request,
-                action='APPROVE',
-                model_name='ActivityDesign',
-                record_id=activity_design.id,
-                detail=f'Activity Design id: {activity_design.id} have been Partially Approved by Admin'
-            )
+            if activity_design.status != 'Pending':
+                messages.warning(request,
+                    f"AD {activity_design.ad_number} cannot be approved. "
+                    f"Current status: {activity_design.status}")
+                return redirect('departments_ad_request')
+
+            try:
+                # Get allocations info for detailed feedback
+                allocations = activity_design.pre_allocations.all()
+                line_items_info = ", ".join([
+                    f"{alloc.pre_line_item.item_name} ({alloc.quarter})"
+                    for alloc in allocations[:3]
+                ])
+                if allocations.count() > 3:
+                    line_items_info += f" and {allocations.count() - 3} more"
+
+                # 1. Update status to Partially Approved
+                activity_design.status = 'Partially Approved'
+                activity_design.partially_approved_at = timezone.now()
+                activity_design.save(update_fields=['status', 'partially_approved_at', 'updated_at'])
+
+                # 2. 🔥 AUTO-CONVERT DOCUMENTS TO PDF
+                from .document_converter import convert_ad_documents_to_pdf
+                print(f"🔄 Starting document conversion for AD {activity_design.ad_number}")
+                conversion_results = convert_ad_documents_to_pdf(activity_design)
+
+                # 3. Check conversion results and show appropriate messages
+                if conversion_results['main_document']:
+                    if conversion_results['main_document_format'] == 'PDF':
+                        messages.success(request,
+                            f'✅ AD {activity_design.ad_number} partially approved!')
+                        messages.info(request,
+                            f'📄 Main document converted to PDF successfully.')
+                    else:
+                        messages.success(request,
+                            f'✅ AD {activity_design.ad_number} partially approved!')
+                        messages.info(request,
+                            f'📄 Main document already in PDF format.')
+                else:
+                    # Conversion completely failed
+                    messages.success(request,
+                        f'✅ AD {activity_design.ad_number} partially approved!')
+                    messages.warning(request,
+                        f'⚠️ Document conversion failed. Original files are available for download. Manual PDF conversion may be needed.')
+
+                # Show specific warnings (only if there are issues)
+                if conversion_results['warnings']:
+                    for warning in conversion_results['warnings']:
+                        messages.warning(request, warning)
+
+                # Show errors (if any critical errors)
+                if conversion_results['errors']:
+                    for error in conversion_results['errors']:
+                        messages.error(request, f"❌ {error}")
+
+                # 4. Log audit trail
+                log_audit_trail(
+                    request=request,
+                    action='APPROVE',
+                    model_name='ActivityDesign',
+                    record_id=activity_design.id,
+                    detail=f'Activity Design {activity_design.ad_number} partially approved by Admin. '
+                           f'Amount: ₱{activity_design.total_amount:,.2f} from {allocations.count()} line items: {line_items_info}. '
+                           f'Documents converted: Main={conversion_results["main_document"]}, '
+                           f'Supporting={len(conversion_results["supporting_docs"])}'
+                )
+
+                # 5. Create notification for end user
+                from apps.budgets.models import SystemNotification
+                SystemNotification.objects.create(
+                    recipient=activity_design.submitted_by,
+                    title='AD Partially Approved - Ready to Print',
+                    message=f'Your AD {activity_design.ad_number} has been partially approved. '
+                            f'Download the PDF documents, print them, and get them signed by the Approving Officer.',
+                    content_type='ad',
+                    object_id=activity_design.id
+                )
+
+                messages.info(request,
+                    f'💰 Total Amount: ₱{activity_design.total_amount:,.2f} from {allocations.count()} line item(s)')
+
+            except Exception as e:
+                print(f"❌ Error in approval process: {e}")
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f"Error processing approval: {str(e)}")
+                return redirect('departments_ad_request')
         elif action == 'reject':
             try:
-                allocations = ActivityDesignAllocations.objects.filter(activity_design=activity_design).select_related('pre_line_item')
-                
+                from apps.budgets.models import ActivityDesignAllocation
+
+                # Get allocations
+                allocations = ActivityDesignAllocation.objects.filter(
+                    activity_design=activity_design
+                ).select_related('pre_line_item')
+
+                if not allocations.exists():
+                    messages.warning(request, "No allocations found to reverse.")
+                    return redirect('departments_ad_request')
+
                 total_released = Decimal('0')
                 released_details = []
-                
+
+                # Reverse allocations
                 for ad_allocation in allocations:
                     line_item = ad_allocation.pre_line_item
                     allocated_amount = ad_allocation.allocated_amount
-                    
-                    line_item.consumed_amount -= allocated_amount
-                    line_item.save()
-                    
+                    quarter = ad_allocation.quarter
+
+                    # ✅ NO NEED to update line_item - consumption is calculated dynamically!
+                    # Just track for logging
                     total_released += allocated_amount
-                    released_details.append(f"{line_item.item_key} {line_item.quarter}: ₱{allocated_amount}")
-                    
-                    print(f"Released ₱{allocated_amount} back to {line_item.item_key} {line_item.quarter}")
-                    
-                # Delete allocations after reversal
+                    released_details.append(
+                        f"{line_item.item_name} {quarter}: ₱{allocated_amount:,.2f}"
+                    )
+
+                    print(f"✅ Will release ₱{allocated_amount} from {line_item.item_name} {quarter}")
+
+                # ✅ Delete allocations - this automatically "releases" the budget
                 allocations.delete()
-                
+
+                # Update budget allocation tracking
+                if activity_design.budget_allocation:
+                    activity_design.budget_allocation.ad_amount_used = max(
+                        Decimal('0'),
+                        activity_design.budget_allocation.ad_amount_used - total_released
+                    )
+                    activity_design.budget_allocation.update_remaining_balance()
+                    activity_design.budget_allocation.save()
+
+                print(f"✅ Deleted {len(released_details)} allocation(s), budget automatically released")
+
             except Exception as e:
-                print(f"DEBUG ERROR: {e}")
-                messages.error(request, f"Error processing rejection: {e}")
-                return redirect('ao_activity_design_page')
-            
+                print(f"❌ ERROR: {e}")
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f"Error processing rejection: {str(e)}")
+                return redirect('departments_ad_request')
+
+            # Update AD status
             activity_design.status = 'Rejected'
-            activity_design.approved_by_admin = False
-            
+
+            # Log audit trail
             log_audit_trail(
                 request=request,
                 action='REJECT',
                 model_name='ActivityDesign',
                 record_id=activity_design.id,
-                detail=f'Activity Design id: {activity_design.id} have been Rejected by Admin'
+                detail=f'Activity Design {activity_design.ad_number} rejected by Admin. '
+                       f'Released ₱{total_released:,.2f} back to budget. '
+                       f'Details: {", ".join(released_details)}'
             )
 
-        activity_design.save(update_fields=['status', 'updated_at', 'approved_by_admin'])
+            # Create notification
+            from apps.budgets.models import SystemNotification
+            SystemNotification.objects.create(
+                recipient=activity_design.submitted_by,
+                title='AD Rejected',
+                message=f'Your AD {activity_design.ad_number} has been rejected. '
+                        f'₱{total_released:,.2f} has been returned to your budget.',
+                content_type='ad',
+                object_id=activity_design.id
+            )
 
-    return redirect('department_activity_design')
+            messages.success(request,
+                f'❌ Activity Design {activity_design.ad_number} has been rejected.')
+            messages.info(request,
+                f'💰 Released ₱{total_released:,.2f} back to budget')
+
+            # Show detailed breakdown if multiple allocations
+            if len(released_details) > 1:
+                for detail in released_details:
+                    messages.info(request, f"  • {detail}")
+
+        activity_design.save(update_fields=['status', 'updated_at'])
+
+    return redirect('departments_ad_request')
 
 
 @role_required('admin', login_url='/admin/')

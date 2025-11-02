@@ -234,9 +234,112 @@ def convert_pr_documents_to_pdf(pr):
         print(f"📊 Conversion summary: {successful_conversions}/{total_docs} documents converted successfully")
         
         return results
-        
+
     except Exception as e:
         print(f"❌ Error in convert_pr_documents_to_pdf: {e}")
+        import traceback
+        traceback.print_exc()
+        results['errors'].append(str(e))
+        return results
+
+
+def convert_ad_documents_to_pdf(ad):
+    """
+    Convert all AD documents to PDF when partially approved
+    Handles conversion failures gracefully
+
+    Args:
+        ad: ActivityDesign object
+
+    Returns:
+        dict: Status of conversions
+    """
+    results = {
+        'main_document': False,
+        'main_document_format': None,
+        'supporting_docs': [],
+        'errors': [],
+        'warnings': []
+    }
+
+    try:
+        # Convert main AD document
+        if ad.uploaded_document:
+            original_name = ad.uploaded_document.name
+            original_ext = original_name.split('.')[-1].lower()
+            print(f"🔄 Processing main AD document: {original_name} (format: {original_ext})")
+
+            converted_file = ensure_pdf(ad.uploaded_document)
+
+            if converted_file:
+                # Check if it's actually a PDF
+                if converted_file.name.lower().endswith('.pdf'):
+                    # Save the PDF
+                    ad.partially_approved_pdf = converted_file
+                    ad.save(update_fields=['partially_approved_pdf'])
+                    results['main_document'] = True
+                    results['main_document_format'] = 'PDF'
+                    print(f"✅ Main AD document saved as PDF")
+                else:
+                    # This shouldn't happen, but handle it
+                    results['main_document'] = False
+                    results['main_document_format'] = f'Original ({original_ext})'
+                    results['warnings'].append(
+                        f"File returned is not a PDF: {converted_file.name}"
+                    )
+            else:
+                # Conversion failed
+                results['main_document'] = False
+                results['main_document_format'] = f'Original ({original_ext})'
+                results['warnings'].append(
+                    f"Failed to convert main AD document. Please convert manually before printing."
+                )
+                print(f"⚠️ Main AD document conversion failed")
+
+        # Convert supporting documents
+        supporting_docs = ad.supporting_documents.filter(is_signed_copy=False)
+
+        for doc in supporting_docs:
+            original_name = doc.document.name
+            original_ext = original_name.split('.')[-1].lower()
+            print(f"🔄 Processing AD supporting doc: {doc.file_name} (format: {original_ext})")
+
+            converted_file = ensure_pdf(doc.document)
+
+            if converted_file and converted_file.name.lower().endswith('.pdf'):
+                # Update document with PDF version
+                doc.document = converted_file
+                doc.save()
+                results['supporting_docs'].append({
+                    'name': doc.file_name,
+                    'format': 'PDF',
+                    'success': True
+                })
+                print(f"✅ AD supporting doc converted: {doc.file_name}")
+            else:
+                results['supporting_docs'].append({
+                    'name': doc.file_name,
+                    'format': f'Original ({original_ext})',
+                    'success': False
+                })
+                results['warnings'].append(
+                    f"Failed to convert '{doc.file_name}'"
+                )
+                print(f"⚠️ AD supporting doc conversion failed: {doc.file_name}")
+
+        # Summary
+        successful_conversions = (
+            (1 if results['main_document'] else 0) +
+            sum(1 for doc in results['supporting_docs'] if doc['success'])
+        )
+        total_docs = 1 + len(results['supporting_docs'])
+
+        print(f"📊 AD Conversion summary: {successful_conversions}/{total_docs} documents converted successfully")
+
+        return results
+
+    except Exception as e:
+        print(f"❌ Error in convert_ad_documents_to_pdf: {e}")
         import traceback
         traceback.print_exc()
         results['errors'].append(str(e))

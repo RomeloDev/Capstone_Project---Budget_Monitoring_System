@@ -1,0 +1,226 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Upload Signed AD Copy{% endblock %}
+
+{% block main-content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Back Button -->
+    <div class="mb-6">
+        <a href="{% url 'admin_preview_ad' ad_id=ad.id %}"
+           class="inline-flex items-center text-blue-600 hover:text-blue-800">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to AD Details
+        </a>
+    </div>
+
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Upload Signed Copy</h1>
+                <p class="text-gray-600 mt-2">AD Number: <span class="font-semibold">{{ ad.ad_number }}</span></p>
+            </div>
+            <div>
+                <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <circle cx="10" cy="10" r="6"/>
+                    </svg>
+                    {{ ad.status }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- AD Summary -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+        <h2 class="text-lg font-semibold text-blue-900 mb-4">AD Summary</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-blue-700 font-medium">Department</p>
+                <p class="text-blue-900 font-semibold">{{ ad.department }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-blue-700 font-medium">Submitted By</p>
+                <p class="text-blue-900 font-semibold">{{ ad.submitted_by.get_full_name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-blue-700 font-medium">Total Amount</p>
+                <p class="text-blue-900 font-semibold text-lg">₱{{ ad.total_amount|floatformat:2|intcomma }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-blue-700 font-medium">Partially Approved At</p>
+                <p class="text-blue-900 font-semibold">{{ ad.partially_approved_at|date:"M d, Y g:i A" }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-yellow-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div class="flex-1">
+                <h3 class="text-sm font-semibold text-yellow-900 mb-2">Instructions</h3>
+                <ul class="text-sm text-yellow-800 space-y-1 list-disc list-inside">
+                    <li>Upload the scanned or photographed copy of the AD signed by the Approving Officer</li>
+                    <li>Accepted formats: PDF, JPG, JPEG, PNG</li>
+                    <li>Maximum file size: 10MB</li>
+                    <li>Once uploaded, the AD will be marked as <strong>Fully Approved</strong></li>
+                    <li>Budget will be officially consumed from the PRE line items</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-6">Upload Signed Document</h2>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+
+            <!-- Main AD Signed Copy -->
+            <div>
+                <label for="signed_copy" class="block text-sm font-medium text-gray-700 mb-2">
+                    Main AD Signed Copy <span class="text-red-600">*</span>
+                </label>
+                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition">
+                    <div class="space-y-1 text-center">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="flex text-sm text-gray-600">
+                            <label for="signed_copy" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                                <span>Upload main AD document</span>
+                                <input id="signed_copy" name="signed_copy" type="file" class="sr-only" required
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    onchange="displayFileName(this, 'main-file-name')">
+                            </label>
+                            <p class="pl-1">or drag and drop</p>
+                        </div>
+                        <p class="text-xs text-gray-500">PDF, JPG, JPEG, PNG up to 10MB</p>
+                        <p id="main-file-name" class="text-sm font-medium text-blue-600 mt-2"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Supporting Documents Signed Copies (Always Visible) -->
+            <div>
+                <label for="supporting_signed_copies" class="block text-sm font-medium text-gray-700 mb-2">
+                    Supporting Documents Signed Copies
+                    <span class="text-gray-500">(Optional)</span>
+                </label>
+
+                <!-- Upload Area (Always Visible) -->
+                <div class="flex justify-center px-6 pt-5 pb-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 transition">
+                    <div class="space-y-1 text-center w-full">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="flex text-sm text-gray-600 justify-center">
+                            <label for="supporting_signed_copies" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                <span>Upload supporting documents</span>
+                                <input id="supporting_signed_copies"
+                                    name="supporting_signed_copies"
+                                    type="file"
+                                    class="sr-only"
+                                    multiple
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    onchange="displayMultipleFileNames(this, 'supporting-files-list')">
+                            </label>
+                            <p class="pl-1">or drag and drop</p>
+                        </div>
+                        <p class="text-xs text-gray-500">Select multiple files (PDF, JPG, JPEG, PNG up to 10MB each)</p>
+
+                        <!-- Selected files list -->
+                        <div id="supporting-files-list" class="mt-3 space-y-1 max-w-md mx-auto"></div>
+                    </div>
+                </div>
+
+                <div class="mt-2 p-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600 flex items-start">
+                    <svg class="w-4 h-4 mr-2 flex-shrink-0 text-gray-500 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span>You can upload additional signed supporting documents here if the Approving Officer attached any.</span>
+                </div>
+            </div>
+
+            <!-- Admin Notes (Optional) -->
+            <div>
+                <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
+                    Admin Notes <span class="text-gray-500">(Optional)</span>
+                </label>
+                <textarea id="notes" name="notes" rows="4"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Add any notes about this approval (e.g., 'Signed by Dr. Jane Smith on Oct 30, 2025')"></textarea>
+                <p class="mt-1 text-xs text-gray-500">These notes will be saved with the AD record</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                <a href="{% url 'admin_preview_ad' ad_id=ad.id %}"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Upload & Approve AD
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Warning -->
+    <div class="mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
+        <div class="flex items-start">
+            <svg class="w-5 h-5 text-red-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <div class="flex-1">
+                <h3 class="text-sm font-semibold text-red-900 mb-1">Important</h3>
+                <p class="text-sm text-red-800">
+                    Uploading this document will mark the AD as <strong>Fully Approved</strong>.
+                    The budget of <strong>₱{{ ad.total_amount|floatformat:2|intcomma }}</strong>
+                    will be officially consumed. This action cannot be undone.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function displayFileName(input, elementId) {
+    const fileName = input.files[0]?.name;
+    const fileNameDisplay = document.getElementById(elementId);
+    if (fileName) {
+        fileNameDisplay.textContent = `Selected: ${fileName}`;
+    } else {
+        fileNameDisplay.textContent = '';
+    }
+}
+
+function displayMultipleFileNames(input, elementId) {
+    const filesList = document.getElementById(elementId);
+    filesList.innerHTML = '';
+
+    if (input.files.length > 0) {
+        Array.from(input.files).forEach((file, index) => {
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'flex items-center justify-between bg-blue-50 px-3 py-1 rounded';
+            fileDiv.innerHTML = `
+                <span class="text-xs">${index + 1}. ${file.name}</span>
+                <span class="text-xs text-gray-600">(${(file.size / 1024).toFixed(1)} KB)</span>
+            `;
+            filesList.appendChild(fileDiv);
+        });
+    }
+}
+</script>
+{% endblock %}
