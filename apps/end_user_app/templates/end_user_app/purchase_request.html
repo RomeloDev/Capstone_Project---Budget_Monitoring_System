@@ -395,7 +395,7 @@
                                 {% endif %}
                                 
                                 <!-- Edit Button (Only for Draft/Pending) -->
-                                {% if pr.status == 'Draft' or pr.status == 'Pending' %}
+                                {% comment %} {% if pr.status == 'Draft' or pr.status == 'Pending' %}
                                 <a href="{% url 'edit_purchase_request' pr_id=pr.id %}" 
                                 class="inline-flex items-center px-3 py-2 bg-gray-600 text-white text-xs font-medium rounded-md hover:bg-gray-700 transition">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -403,7 +403,7 @@
                                     </svg>
                                     Edit
                                 </a>
-                                {% endif %}
+                                {% endif %} {% endcomment %}
                             </td>
                         </tr>
                     {% empty %}

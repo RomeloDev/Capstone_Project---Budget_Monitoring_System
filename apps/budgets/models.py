@@ -370,6 +370,35 @@ class DepartmentPRE(models.Model):
             for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
                 total_remaining += line_item.get_quarter_available(quarter)
         return total_remaining
+    
+    @property
+    def total_consumed(self):
+        """Calculate total consumed from all line items across all quarters"""
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+        
+        # Get all PR allocations for this PRE
+        pr_consumed = PurchaseRequestAllocation.objects.filter(
+            pre_line_item__pre=self,
+            purchase_request__status__in=['Pending', 'Partially Approved', 'Approved']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+        
+        # Get all AD allocations for this PRE
+        ad_consumed = ActivityDesignAllocation.objects.filter(
+            pre_line_item__pre=self,
+            activity_design__status__in=['Pending', 'Partially Approved', 'Approved']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+        
+        return pr_consumed + ad_consumed
+
+    @property
+    def total_remaining(self):
+        """Calculate total remaining budget"""
+        return self.total_amount - self.total_consumed
 
 
 class PurchaseRequest(models.Model):

@@ -621,22 +621,39 @@
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600">Total Budget Allocated:</span>
-                            <span class="font-bold text-gray-900">₱{{ pr.budget_allocation.allocated_amount|floatformat:2|intcomma }}</span>
+                            <span class="font-bold text-gray-900">₱{{ budget_breakdown.allocated|floatformat:2|intcomma }}</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">Total Used (All PRs/ADs):</span>
-                            <span class="font-semibold text-orange-600">₱{{ pr.budget_allocation.get_total_used|floatformat:2|intcomma }}</span>
+                        
+                        <!-- ✅ Detailed Breakdown -->
+                        <div class="pl-4 space-y-1 border-l-2 border-gray-200 my-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-500">PRE Amount:</span>
+                                <span class="text-gray-600">₱{{ budget_breakdown.pre_used|floatformat:2|intcomma }}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-500">PR Amount:</span>
+                                <span class="text-gray-600">₱{{ budget_breakdown.pr_used|floatformat:2|intcomma }}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-500">AD Amount:</span>
+                                <span class="text-gray-600">₱{{ budget_breakdown.ad_used|floatformat:2|intcomma }}</span>
+                            </div>
                         </div>
+                        
                         <div class="flex justify-between items-center pt-2 border-t border-gray-200">
-                            <span class="text-gray-900 font-medium">Budget Allocation Remaining:</span>
-                            <span class="font-bold text-green-600">₱{{ pr.budget_allocation.remaining_balance|floatformat:2|intcomma }}</span>
+                            <span class="text-gray-600">Total Used (PRE+PR+AD):</span>
+                            <span class="font-semibold text-orange-600">₱{{ budget_breakdown.total_used|floatformat:2|intcomma }}</span>
+                        </div>
+                        
+                        <div class="flex justify-between items-center pt-2 border-t-2 border-gray-300">
+                            <span class="text-gray-900 font-medium">Allocation Remaining:</span>
+                            <span class="font-bold text-green-600">₱{{ budget_breakdown.remaining|floatformat:2|intcomma }}</span>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Section 2: PRE Overview -->
-                {% with allocation=pr.pre_allocations.first %}
-                {% if allocation %}
+                {% if pre_details %}
                 <div class="bg-white rounded-lg p-4 mb-4 shadow-sm">
                     <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
                         <span class="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
@@ -645,14 +662,27 @@
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600">PRE Name:</span>
-                            <span class="font-medium text-gray-900">{{ allocation.pre_line_item.pre.department }} - FY {{ allocation.pre_line_item.pre.fiscal_year }}</span>
+                            <span class="font-medium text-gray-900">{{ pre_details.name }}</span>
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600">PRE Grand Total (All Quarters):</span>
-                            <span class="font-bold text-gray-900">₱{{ allocation.pre_line_item.pre.total_amount|floatformat:2|intcomma }}</span>
+                            <span class="font-bold text-gray-900">₱{{ pre_details.grand_total|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Used by This PR:</span>
+                            <span class="font-semibold text-blue-600">-₱{{ pre_details.this_pr|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Previous PR:</span>
+                            <span class="font-semibold text-blue-600">-₱{{ budget_breakdown.pr_used|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span class="text-gray-900 font-medium">PRE Total Remaining:</span>
+                            <span class="font-bold text-green-600">₱{{ pre_details.remaining|floatformat:2|intcomma }}</span>
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 
                 <!-- Section 3: Selected Line Item & Quarter Details -->
                 <div class="bg-white rounded-lg p-4 mb-4 shadow-sm border-2 border-indigo-200">
@@ -669,32 +699,26 @@
                             <span class="text-gray-600">Quarter:</span>
                             <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md font-semibold text-xs">{{ allocation.quarter }}</span>
                         </div>
+                        {% if quarter_details %}
                         <div class="flex justify-between items-center pt-2 border-t border-gray-200">
-                            <span class="text-gray-600">{{ allocation.quarter }} Original Amount:</span>
-                            <span class="font-bold text-gray-900">
-                                ₱{% if allocation.quarter == 'Q1' %}{{ allocation.pre_line_item.q1_amount|floatformat:2|intcomma }}
-                                {% elif allocation.quarter == 'Q2' %}{{ allocation.pre_line_item.q2_amount|floatformat:2|intcomma }}
-                                {% elif allocation.quarter == 'Q3' %}{{ allocation.pre_line_item.q3_amount|floatformat:2|intcomma }}
-                                {% else %}{{ allocation.pre_line_item.q4_amount|floatformat:2|intcomma }}{% endif %}
-                            </span>
+                            <span class="text-gray-600">{{ quarter_details.quarter }} Original Amount:</span>
+                            <span class="font-bold text-gray-900">₱{{ quarter_details.original|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Previously Consumed:</span>
+                            <span class="font-semibold text-orange-600">-₱{{ quarter_details.consumed_before|floatformat:2|intcomma }}</span>
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600">This PR Amount:</span>
-                            <span class="font-bold text-blue-600">-₱{{ pr.total_amount|floatformat:2|intcomma }}</span>
+                            <span class="font-bold text-blue-600">-₱{{ quarter_details.this_pr|floatformat:2|intcomma }}</span>
                         </div>
                         <div class="flex justify-between items-center pt-2 border-t-2 border-indigo-200">
-                            <span class="text-gray-900 font-semibold">
-                                {{ allocation.quarter }} 
-                                {% if pr.status == 'Pending' %}Projected Remaining:{% else %}Current Remaining:{% endif %}
-                            </span>
-                            <span class="font-bold text-green-600 text-lg">
-                                ₱{{ allocation.pre_line_item|get_quarter_remaining:allocation.quarter|floatformat:2|intcomma }}
-                            </span>
+                            <span class="text-gray-900 font-semibold">{{ quarter_details.quarter }} Remaining:</span>
+                            <span class="font-bold text-green-600 text-lg">₱{{ quarter_details.remaining|floatformat:2|intcomma }}</span>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
-                {% endif %}
-                {% endwith %}
                 
                 <!-- Legend -->
                 <div class="mt-4 pt-4 border-t border-blue-200">

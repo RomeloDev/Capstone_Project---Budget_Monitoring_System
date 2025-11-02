@@ -420,20 +420,21 @@ def handle_departments_request(request, request_id):
                 for pr_allocation in allocations:
                     line_item = pr_allocation.pre_line_item
                     allocated_amount = pr_allocation.allocated_amount
+                    quarter = pr_allocation.quarter
                     
-                    # Return budget to line item
-                    line_item.consumed_amount -= allocated_amount
-                    line_item.save()
-                    
+                    # ✅ NO NEED to update line_item - consumption is calculated dynamically!
+                    # Just track for logging
                     total_released += allocated_amount
                     released_details.append(
-                        f"{line_item.item_name} {pr_allocation.quarter}: ₱{allocated_amount:,.2f}"
+                        f"{line_item.item_name} {quarter}: ₱{allocated_amount:,.2f}"
                     )
                     
-                    print(f"✅ Released ₱{allocated_amount} back to {line_item.item_name} {pr_allocation.quarter}")
-                    
-                # Delete allocations
+                    print(f"✅ Will release ₱{allocated_amount} from {line_item.item_name} {quarter}")
+
+                # ✅ Delete allocations - this automatically "releases" the budget
                 allocations.delete()
+
+                print(f"✅ Deleted {len(released_details)} allocation(s), budget automatically released")
                 
                 # Update PR status
                 purchase_request.status = 'Rejected'

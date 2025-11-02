@@ -127,53 +127,59 @@
                                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     PRE Line Item
                                 </th>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Quarter
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Amount
+                                    Original
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Available After
+                                    This AD
+                                </th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Remaining
                                 </th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            {% for allocation in allocations %}
+                            {% for item in allocations %}
                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-3">
                                     <div class="text-sm font-medium text-gray-900">
-                                        {{ allocation.pre_line_item.item_name }}
+                                        {{ item.allocation.pre_line_item.item_name }}
                                     </div>
                                     <div class="text-xs text-gray-500">
-                                        {% if allocation.pre_line_item.category %}{{ allocation.pre_line_item.category.name }}{% endif %}
-                                        {% if allocation.pre_line_item.subcategory %} - {{ allocation.pre_line_item.subcategory.name }}{% endif %}
+                                        {% if item.allocation.pre_line_item.category %}{{ item.allocation.pre_line_item.category.name }}{% endif %}
+                                        {% if item.allocation.pre_line_item.subcategory %} - {{ item.allocation.pre_line_item.subcategory.name }}{% endif %}
                                     </div>
                                 </td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3 text-center">
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                        {{ allocation.quarter }}
+                                        {{ item.allocation.quarter }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <span class="text-sm font-semibold text-gray-900">
-                                        ₱{{ allocation.allocated_amount|floatformat:2|intcomma }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    {% with remaining=allocation.pre_line_item.get_quarter_available|add:allocation.allocated_amount %}
                                     <span class="text-sm text-gray-600">
-                                        ₱{{ allocation.pre_line_item.get_quarter_available|floatformat:2|intcomma }}
+                                        ₱{{ item.quarter_amount|floatformat:2|intcomma }}
                                     </span>
-                                    {% endwith %}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <span class="text-sm font-semibold text-blue-600">
+                                        -₱{{ item.allocation.allocated_amount|floatformat:2|intcomma }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <span class="text-sm font-semibold text-green-600">
+                                        ₱{{ item.quarter_remaining|floatformat:2|intcomma }}
+                                    </span>
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                         <tfoot class="bg-gray-50">
                             <tr>
-                                <td colspan="2" class="px-4 py-3 text-right text-sm font-bold text-gray-900">
-                                    Total Amount:
+                                <td colspan="3" class="px-4 py-3 text-right text-sm font-bold text-gray-900">
+                                    Total AD Amount:
                                 </td>
                                 <td class="px-4 py-3 text-right">
                                     <span class="text-lg font-bold text-blue-600">
@@ -184,6 +190,13 @@
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+                
+                <!-- Breakdown Legend -->
+                <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p class="text-xs text-blue-800">
+                        <strong>Note:</strong> Each line item shows the quarter's original amount, this AD's allocation, and the remaining budget after this AD.
+                    </p>
                 </div>
             </div>
 
@@ -242,30 +255,87 @@
                     Budget Summary
                 </h2>
 
-                <div class="space-y-3">
-                    <!-- Total Budget Allocated -->
-                    <div class="bg-white rounded-lg p-3 shadow-sm">
-                        <p class="text-xs text-gray-500 mb-1">Total Budget Allocated</p>
-                        <p class="text-lg font-bold text-gray-900">₱{{ budget_summary.allocation_total|floatformat:2|intcomma }}</p>
+                <!-- Section 1: Budget Allocation Overview -->
+                <div class="bg-white rounded-lg p-4 mb-4 shadow-sm">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                        <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                        Budget Allocation Overview
+                    </h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Budget Allocated:</span>
+                            <span class="font-bold text-gray-900">₱{{ budget_summary.allocation_total|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Used (All PRs/ADs):</span>
+                            <span class="font-semibold text-orange-600">₱{{ budget_summary.allocation_used|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span class="text-gray-900 font-medium">Allocation Remaining:</span>
+                            <span class="font-bold text-green-600">₱{{ budget_summary.allocation_remaining|floatformat:2|intcomma }}</span>
+                        </div>
                     </div>
+                </div>
 
-                    <!-- Total Used -->
-                    <div class="bg-white rounded-lg p-3 shadow-sm">
-                        <p class="text-xs text-gray-500 mb-1">Total Used (All Requests)</p>
-                        <p class="text-lg font-bold text-orange-600">₱{{ budget_summary.allocation_used|floatformat:2|intcomma }}</p>
+                <!-- Section 2: PRE Overview (Multiple PREs if applicable) -->
+                {% for pre_info in budget_summary.pre_totals %}
+                <div class="bg-white rounded-lg p-4 mb-4 shadow-sm">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                        <span class="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                        PRE: {{ pre_info.pre.department }} - FY {{ pre_info.pre.fiscal_year }}
+                    </h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">PRE Grand Total:</span>
+                            <span class="font-bold text-gray-900">₱{{ pre_info.total|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Used by This AD:</span>
+                            <span class="font-semibold text-blue-600">₱{{ pre_info.consumed|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span class="text-gray-900 font-medium">PRE Remaining:</span>
+                            <span class="font-bold text-green-600">₱{{ pre_info.remaining|floatformat:2|intcomma }}</span>
+                        </div>
                     </div>
+                </div>
+                {% endfor %}
 
-                    <!-- This AD Amount -->
-                    <div class="bg-white rounded-lg p-3 shadow-sm">
-                        <p class="text-xs text-gray-500 mb-1">This AD Amount</p>
-                        <p class="text-lg font-bold text-blue-600">₱{{ budget_summary.ad_total|floatformat:2|intcomma }}</p>
+                <!-- Section 3: This AD Summary -->
+                <div class="bg-white rounded-lg p-4 shadow-sm border-2 border-indigo-200">
+                    <h4 class="text-sm font-semibold text-indigo-700 mb-3 flex items-center">
+                        <span class="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span>
+                        This Activity Design
+                    </h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Amount:</span>
+                            <span class="font-bold text-blue-600 text-lg">₱{{ budget_summary.ad_total|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Funding Sources:</span>
+                            <span class="font-semibold text-gray-900">{{ budget_summary.line_items_count }} Line Item(s)</span>
+                        </div>
                     </div>
+                </div>
 
-                    <!-- Remaining Balance -->
-                    <div class="bg-white rounded-lg p-3 shadow-sm border-2 border-green-200">
-                        <p class="text-xs text-gray-500 mb-1">Budget Allocation Remaining</p>
-                        <p class="text-xl font-bold text-green-600">₱{{ budget_summary.allocation_remaining|floatformat:2|intcomma }}</p>
-                    </div>
+                <!-- Legend -->
+                <div class="mt-4 pt-4 border-t border-blue-200">
+                    <p class="text-xs text-gray-600 mb-2 font-medium">💡 Budget Flow:</p>
+                    <ul class="text-xs text-gray-600 space-y-1">
+                        <li class="flex items-start">
+                            <span class="text-blue-500 mr-2">•</span>
+                            <span>Budget Allocation = Total pool for all expenses</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-purple-500 mr-2">•</span>
+                            <span>PRE Grand Total = Planned budget in approved PRE</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-indigo-500 mr-2">•</span>
+                            <span>This AD uses {{ budget_summary.line_items_count }} line item(s) from PRE</span>
+                        </li>
+                    </ul>
                 </div>
             </div>
 

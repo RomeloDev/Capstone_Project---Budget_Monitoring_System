@@ -6,7 +6,7 @@ from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
 from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, PREBudgetRealignment, PREDraft, PREDraftSupportingDocument, ActivityDesign as LegacyActivityDesign, ActivityDesignAllocations as LegacyActivityDesignAllocations
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, InvalidOperation, DecimalException
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse, HttpResponse
@@ -777,7 +777,7 @@ def purchase_request_upload(request):
             
             # Validate amount
             try:
-                total_amount = Decimal(total_amount)
+                total_amount = Decimal(str(total_amount)).quantize(Decimal('0.01'))
                 if total_amount <= 0:
                     messages.error(request, "Amount must be greater than zero.")
                     return redirect('purchase_request_upload')
@@ -945,21 +945,61 @@ def preview_submitted_pr(request, pr_id):
             'pre_allocations__pre_line_item__category'
         ),
         id=pr_id,
-        submitted_by=request.user  # ✅ Security: Only show user's own PRs
+        submitted_by=request.user
     )
     
-    # Get allocation details (should only be one for upload-based PRs)
+    # Get allocation details
     allocation = pr.pre_allocations.first()
     
-    # Check if user can cancel (only pending PRs)
-    can_cancel = pr.status == 'Pending'
+    # ✅ Calculate detailed budget breakdown
+    budget_breakdown = None
+    quarter_details = None
+    pre_details = None
     
-    # Check if user can edit (only draft PRs - shouldn't happen for submitted PRs)
+    if allocation:
+        # Budget Allocation breakdown
+        budget_breakdown = {
+            'allocated': pr.budget_allocation.allocated_amount,
+            'pre_used': pr.budget_allocation.pre_amount_used,
+            'pr_used': pr.budget_allocation.pr_amount_used,
+            'ad_used': pr.budget_allocation.ad_amount_used,
+            'total_used': pr.budget_allocation.get_total_used(),
+            'remaining': pr.budget_allocation.remaining_balance,
+        }
+        
+        # PRE details
+        pre = allocation.pre_line_item.pre
+        pre_consumed = pre.total_consumed  # Uses the @property we'll add
+        pre_details = {
+            'name': f"{pre.department} - FY {pre.fiscal_year}",
+            'grand_total': pre.total_amount,
+            'consumed': pre_consumed,
+            'remaining': pre.total_amount - pre_consumed,
+            'this_pr': pr.total_amount,
+        }
+        
+        # Quarter details
+        quarter_amount = allocation.pre_line_item.get_quarter_amount(allocation.quarter)
+        quarter_consumed = allocation.pre_line_item.get_quarter_consumed(allocation.quarter)
+        
+        quarter_details = {
+            'quarter': allocation.quarter,
+            'original': quarter_amount,
+            'consumed_before': quarter_consumed - pr.total_amount if pr.status != 'Pending' else quarter_consumed,
+            'this_pr': pr.total_amount,
+            'remaining': quarter_amount - quarter_consumed,
+        }
+    
+    # Check permissions
+    can_cancel = pr.status == 'Pending'
     can_edit = pr.status == 'Draft'
     
     context = {
         'pr': pr,
         'allocation': allocation,
+        'budget_breakdown': budget_breakdown,  # ✅ Add breakdown
+        'pre_details': pre_details,  # ✅ Add PRE details
+        'quarter_details': quarter_details,  # ✅ Add quarter details
         'can_cancel': can_cancel,
         'can_edit': can_edit,
     }
@@ -3895,7 +3935,48 @@ def preview_submitted_ad(request, ad_id):
         )
 
         # Get all allocated line items with details
-        allocations = ad.pre_allocations.all()
+        allocations_with_details = []
+        pre_totals = {}  # Track PRE totals
+
+        for allocation in ad.pre_allocations.all():
+            # Get quarter details
+            quarter_amount = allocation.pre_line_item.get_quarter_amount(allocation.quarter)
+            quarter_consumed = allocation.pre_line_item.get_quarter_consumed(allocation.quarter)
+            
+            # If AD is pending, subtract this AD's amount from consumed
+            if ad.status == 'Pending':
+                quarter_consumed_before = quarter_consumed - allocation.allocated_amount
+            else:
+                quarter_consumed_before = quarter_consumed - allocation.allocated_amount
+            
+            quarter_remaining = quarter_amount - quarter_consumed
+            
+            allocations_with_details.append({
+                'allocation': allocation,
+                'quarter_amount': quarter_amount,
+                'consumed_before': quarter_consumed_before,
+                'quarter_remaining': quarter_remaining,
+            })
+            
+            # Track PRE totals
+            pre = allocation.pre_line_item.pre
+            if pre.id not in pre_totals:
+                pre_totals[pre.id] = {
+                    'pre': pre,
+                    'total': pre.total_amount,
+                    'consumed': Decimal('0'),
+                }
+
+        # Calculate PRE consumed amounts
+        for pre_id, pre_info in pre_totals.items():
+            # Sum all allocations for this PRE
+            pre_consumed = sum(
+                item['allocation'].allocated_amount 
+                for item in allocations_with_details 
+                if item['allocation'].pre_line_item.pre.id == pre_id
+            )
+            pre_info['consumed'] = pre_consumed
+            pre_info['remaining'] = pre_info['total'] - pre_consumed
 
         # Calculate budget summary
         budget_summary = {
@@ -3903,12 +3984,13 @@ def preview_submitted_ad(request, ad_id):
             'allocation_used': ad.budget_allocation.get_total_used(),
             'allocation_remaining': ad.budget_allocation.remaining_balance,
             'ad_total': ad.total_amount,
-            'line_items_count': allocations.count(),
+            'line_items_count': ad.pre_allocations.count(),
+            'pre_totals': list(pre_totals.values()),  # ✅ Add PRE totals
         }
 
         context = {
             'ad': ad,
-            'allocations': allocations,
+            'allocations': allocations_with_details,  # ✅ Enhanced with details
             'budget_summary': budget_summary,
         }
 

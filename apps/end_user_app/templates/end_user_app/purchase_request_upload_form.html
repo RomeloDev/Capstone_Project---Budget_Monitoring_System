@@ -181,11 +181,12 @@
                     </label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₱</span>
-                        <input type="number" name="total_amount" id="total_amount" 
-                               step="0.01" min="0" 
-                               class="w-full pl-8 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                               placeholder="0.00"
-                               required>
+                        <input type="text" name="total_amount" id="total_amount" 
+                            pattern="^\d+(\.\d{1,2})?$"
+                            inputmode="decimal"
+                            class="w-full pl-8 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            placeholder="0.00"
+                            required>
                     </div>
                     <p class="mt-1 text-sm text-gray-500">Enter the total amount for this purchase request</p>
                 </div>
@@ -482,6 +483,46 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Validate amount against selected line item
     const totalAmountInput = document.getElementById('total_amount');
+
+    // ✅ Format input on blur to ensure 2 decimal places
+    totalAmountInput.addEventListener('blur', function() {
+        let value = this.value.trim();
+        
+        // Remove any non-numeric characters except decimal point
+        value = value.replace(/[^\d.]/g, '');
+        
+        // Parse and format
+        if (value) {
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue) && numValue >= 0) {
+                this.value = numValue.toFixed(2);
+            }
+        }
+    });
+
+    // ✅ Validate on input
+    totalAmountInput.addEventListener('input', function() {
+        const value = this.value;
+        
+        // Check pattern
+        const pattern = /^\d+(\.\d{0,2})?$/;
+        if (value && !pattern.test(value)) {
+            this.setCustomValidity('Please enter a valid amount (e.g., 700 or 700.50)');
+        } else {
+            this.setCustomValidity('');
+        }
+        
+        // Validate against selected line item
+        const selectedOption = sourceOfFundSelect.options[sourceOfFundSelect.selectedIndex];
+        if (selectedOption && selectedOption.dataset.available) {
+            const available = parseFloat(selectedOption.dataset.available);
+            const amount = parseFloat(this.value);
+            
+            if (amount > available) {
+                this.setCustomValidity(`Amount exceeds available budget (₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
+            }
+        }
+    });
     
     sourceOfFundSelect.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
@@ -496,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedOption = sourceOfFundSelect.options[sourceOfFundSelect.selectedIndex];
         if (selectedOption && selectedOption.dataset.available) {
             const available = parseFloat(selectedOption.dataset.available);
-            const amount = parseFloat(this.value);
+            const amount = Math.round(parseFloat(totalAmountInput.value) * 100) / 100;
             
             if (amount > available) {
                 this.setCustomValidity(`Amount exceeds available budget (₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
