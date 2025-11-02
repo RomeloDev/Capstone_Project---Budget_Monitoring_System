@@ -3936,25 +3936,27 @@ def preview_submitted_ad(request, ad_id):
 
         # Get all allocated line items with details
         allocations_with_details = []
-        pre_totals = {}  # Track PRE totals
+        pre_totals = {}
 
         for allocation in ad.pre_allocations.all():
             # Get quarter details
             quarter_amount = allocation.pre_line_item.get_quarter_amount(allocation.quarter)
-            quarter_consumed = allocation.pre_line_item.get_quarter_consumed(allocation.quarter)
+            quarter_consumed_total = allocation.pre_line_item.get_quarter_consumed(allocation.quarter)
             
-            # If AD is pending, subtract this AD's amount from consumed
+            # Calculate "previously consumed" (before this AD)
             if ad.status == 'Pending':
-                quarter_consumed_before = quarter_consumed - allocation.allocated_amount
+                # AD not approved yet, so subtract this AD's amount
+                consumed_before = quarter_consumed_total - allocation.allocated_amount
             else:
-                quarter_consumed_before = quarter_consumed - allocation.allocated_amount
+                # AD is approved, so subtract to show what was there before
+                consumed_before = quarter_consumed_total - allocation.allocated_amount
             
-            quarter_remaining = quarter_amount - quarter_consumed
+            quarter_remaining = quarter_amount - quarter_consumed_total
             
             allocations_with_details.append({
                 'allocation': allocation,
                 'quarter_amount': quarter_amount,
-                'consumed_before': quarter_consumed_before,
+                'consumed_before': consumed_before,  # ✅ Add this
                 'quarter_remaining': quarter_remaining,
             })
             
@@ -3969,14 +3971,13 @@ def preview_submitted_ad(request, ad_id):
 
         # Calculate PRE consumed amounts
         for pre_id, pre_info in pre_totals.items():
-            # Sum all allocations for this PRE
             pre_consumed = sum(
                 item['allocation'].allocated_amount 
                 for item in allocations_with_details 
                 if item['allocation'].pre_line_item.pre.id == pre_id
             )
             pre_info['consumed'] = pre_consumed
-            pre_info['remaining'] = pre_info['total'] - pre_consumed
+            pre_info['remaining'] = pre_info['total'] - pre.total_consumed  # ✅ Use total_consumed property
 
         # Calculate budget summary
         budget_summary = {
@@ -3985,7 +3986,11 @@ def preview_submitted_ad(request, ad_id):
             'allocation_remaining': ad.budget_allocation.remaining_balance,
             'ad_total': ad.total_amount,
             'line_items_count': ad.pre_allocations.count(),
-            'pre_totals': list(pre_totals.values()),  # ✅ Add PRE totals
+            'pre_totals': list(pre_totals.values()),
+            # ✅ ADD: Detailed breakdown
+            'pre_used': ad.budget_allocation.pre_amount_used,
+            'pr_used': ad.budget_allocation.pr_amount_used,
+            'ad_used': ad.budget_allocation.ad_amount_used,
         }
 
         context = {

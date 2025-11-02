@@ -627,10 +627,18 @@
                             <!-- Date Submitted -->
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    {{ ad.submitted_at|date:"M d, Y"|default:ad.created_at|date:"M d, Y" }}
+                                    {% if ad.submitted_at %}
+                                        {{ ad.submitted_at|date:"M d, Y" }}
+                                    {% else %}
+                                        {{ ad.created_at|date:"M d, Y" }}
+                                    {% endif %}
                                 </div>
                                 <div class="text-xs text-gray-500">
-                                    {{ ad.submitted_at|time:"g:i A"|default:ad.created_at|time:"g:i A" }}
+                                    {% if ad.submitted_at %}
+                                        {{ ad.submitted_at|time:"g:i A" }}
+                                    {% else %}
+                                        {{ ad.created_at|time:"g:i A" }}
+                                    {% endif %}
                                 </div>
                             </td>
 

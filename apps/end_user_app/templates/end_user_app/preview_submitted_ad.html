@@ -134,6 +134,9 @@
                                     Original
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Previously
+                                </th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     This AD
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -164,6 +167,11 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
+                                    <span class="text-sm text-orange-600">
+                                        -₱{{ item.consumed_before|floatformat:2|intcomma }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
                                     <span class="text-sm font-semibold text-blue-600">
                                         -₱{{ item.allocation.allocated_amount|floatformat:2|intcomma }}
                                     </span>
@@ -178,7 +186,7 @@
                         </tbody>
                         <tfoot class="bg-gray-50">
                             <tr>
-                                <td colspan="3" class="px-4 py-3 text-right text-sm font-bold text-gray-900">
+                                <td colspan="4" class="px-4 py-3 text-right text-sm font-bold text-gray-900">
                                     Total AD Amount:
                                 </td>
                                 <td class="px-4 py-3 text-right">
@@ -266,11 +274,29 @@
                             <span class="text-gray-600">Total Budget Allocated:</span>
                             <span class="font-bold text-gray-900">₱{{ budget_summary.allocation_total|floatformat:2|intcomma }}</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">Total Used (All PRs/ADs):</span>
+                        
+                        <!-- ✅ ADD: Detailed Breakdown -->
+                        <div class="pl-4 space-y-1 border-l-2 border-gray-200 my-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-500">PRE Amount:</span>
+                                <span class="text-gray-600">₱{{ budget_summary.pre_used|floatformat:2|intcomma }}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-500">PR Amount:</span>
+                                <span class="text-gray-600">₱{{ budget_summary.pr_used|floatformat:2|intcomma }}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-500">AD Amount:</span>
+                                <span class="text-gray-600">₱{{ budget_summary.ad_used|floatformat:2|intcomma }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span class="text-gray-600">Total Used (PRE+PR+AD):</span>
                             <span class="font-semibold text-orange-600">₱{{ budget_summary.allocation_used|floatformat:2|intcomma }}</span>
                         </div>
-                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                        
+                        <div class="flex justify-between items-center pt-2 border-t-2 border-gray-300">
                             <span class="text-gray-900 font-medium">Allocation Remaining:</span>
                             <span class="font-bold text-green-600">₱{{ budget_summary.allocation_remaining|floatformat:2|intcomma }}</span>
                         </div>
