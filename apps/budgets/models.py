@@ -572,49 +572,109 @@ class PurchaseRequestItem(models.Model):
 class ActivityDesign(models.Model):
     """Activity Design for non-procurement requests"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
+
     submitted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activity_designs")
     budget_allocation = models.ForeignKey(BudgetAllocation, on_delete=models.CASCADE, related_name='activity_designs')
-    
+
     # AD Details
     ad_number = models.CharField(max_length=50, unique=True, blank=True)
     department = models.CharField(max_length=255)
-    activity_title = models.CharField(max_length=255)
-    activity_description = models.TextField()
+    activity_title = models.CharField(max_length=255, blank=True)
+    activity_description = models.TextField(blank=True)
+    purpose = models.TextField(blank=True, help_text="Purpose/justification for this activity")
     total_amount = models.DecimalField(max_digits=15, decimal_places=2)
-    
+
     # File uploads
     uploaded_document = models.FileField(
         upload_to='ad_uploads/%Y/%m/',
         validators=[FileExtensionValidator(allowed_extensions=['docx', 'doc'])],
         help_text="Upload Activity Design document (.docx format)"
     )
-    
+
     # Status and workflow (same as PRE)
     STATUS_CHOICES = DepartmentPRE.STATUS_CHOICES
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
-    
+
     # Workflow files
     partially_approved_pdf = models.FileField(upload_to='ad_pdfs/%Y/%m/', null=True, blank=True)
     final_approved_scan = models.FileField(upload_to='ad_scanned/%Y/%m/', null=True, blank=True)
-    
+
+    # Approval tracking
+    approved_documents = models.FileField(
+        upload_to='ad_approved_docs/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx']
+        )],
+        help_text="Scanned approved documents uploaded by admin"
+    )
+
+    admin_approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when admin uploaded approved documents"
+    )
+
+    admin_approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='admin_approved_ads',
+        help_text="Admin who uploaded the approved documents"
+    )
+
     # Validation
     is_valid = models.BooleanField(default=False)
     validation_errors = models.JSONField(default=dict, blank=True)
-    
+
+    # Admin notes
+    admin_notes = models.TextField(blank=True, help_text="Admin notes during review")
+    rejection_reason = models.TextField(blank=True)
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     partially_approved_at = models.DateTimeField(null=True, blank=True)
     final_approved_at = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Activity Design"
         verbose_name_plural = "Activity Designs"
-    
+
     def __str__(self):
-        return f"AD-{self.ad_number or self.id.hex[:8]} - {self.activity_title}"
+        return f"AD-{self.ad_number or self.id.hex[:8]} - {self.activity_title or 'Untitled'}"
+
+    def get_allocated_line_items(self):
+        """Get all PRE line items allocated to this AD"""
+        return self.pre_allocations.select_related(
+            'pre_line_item__category',
+            'pre_line_item__subcategory',
+            'pre_line_item__pre'
+        )
+
+    def get_total_allocated_from_pre(self):
+        """Calculate total allocated from PRE line items"""
+        from django.db.models import Sum
+        result = self.pre_allocations.aggregate(
+            total=Sum('allocated_amount')
+        )
+        return result['total'] or Decimal('0.00')
+
+    def validate_against_budget(self):
+        """Validate AD total against allocated budget"""
+        errors = []
+
+        if not self.budget_allocation:
+            errors.append("AD must be linked to a budget allocation")
+
+        if self.total_amount <= 0:
+            errors.append("AD total amount must be greater than zero")
+
+        return errors
 
 
 # PRE Category and Line Item models (from previous version)
@@ -1040,13 +1100,13 @@ class PurchaseRequestSupportingDocument(models.Model):
     file_name = models.CharField(max_length=255)
     file_size = models.BigIntegerField(help_text='File size in bytes')
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    
+
     # 🔥 NEW FIELD
     is_signed_copy = models.BooleanField(
         default=False,
         help_text="True if this is the signed version uploaded by admin"
     )
-    
+
     # 🔥 NEW FIELD - Track who uploaded signed copy
     uploaded_by = models.ForeignKey(
         User,
@@ -1055,10 +1115,122 @@ class PurchaseRequestSupportingDocument(models.Model):
         blank=True,
         help_text="User who uploaded this document (admin for signed copies)"
     )
-    
+
     class Meta:
         db_table = 'purchase_request_supporting_documents'
         ordering = ['-uploaded_at']
-    
+
     def __str__(self):
         return f"{self.file_name} for PR {self.purchase_request.pr_number}"
+
+
+class ADDraft(models.Model):
+    """Draft storage for Activity Design uploads before submission"""
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='ad_draft'
+    )
+
+    # AD Document (.docx only)
+    ad_file = models.FileField(
+        upload_to='ad_drafts/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['docx', 'doc'])],
+        help_text="Uploaded Activity Design document (.docx format only)"
+    )
+    ad_filename = models.CharField(max_length=255, blank=True)
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_submitted = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'ad_drafts'
+        verbose_name = 'AD Draft'
+        verbose_name_plural = 'AD Drafts'
+
+    def __str__(self):
+        return f"AD Draft - {self.user.username}"
+
+
+class ADDraftSupportingDocument(models.Model):
+    """Supporting documents for AD draft"""
+    draft = models.ForeignKey(
+        ADDraft,
+        on_delete=models.CASCADE,
+        related_name='supporting_documents'
+    )
+    document = models.FileField(
+        upload_to='ad_draft_supporting/%Y/%m/',
+        help_text="Supporting document"
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField(help_text="File size in bytes")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ad_draft_supporting_documents'
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.file_name} ({self.draft.user.username})"
+
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size = self.file_size
+        if size < 1024:
+            return f"{size} B"
+        elif size < 1024 * 1024:
+            return f"{size / 1024:.2f} KB"
+        else:
+            return f"{size / (1024 * 1024):.2f} MB"
+
+
+class ActivityDesignSupportingDocument(models.Model):
+    """Supporting documents for Activity Designs"""
+    activity_design = models.ForeignKey(
+        ActivityDesign,
+        on_delete=models.CASCADE,
+        related_name='supporting_documents'
+    )
+    document = models.FileField(
+        upload_to='ad_supporting_docs/%Y/%m/',
+        help_text='Supporting document file'
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField(help_text='File size in bytes')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    # Track if this is a signed copy uploaded by admin
+    is_signed_copy = models.BooleanField(
+        default=False,
+        help_text="True if this is the signed version uploaded by admin"
+    )
+
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who uploaded this document (admin for signed copies)"
+    )
+
+    class Meta:
+        db_table = 'activity_design_supporting_documents'
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.file_name} for AD {self.activity_design.ad_number}"
+
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size = self.file_size
+        if size < 1024:
+            return f"{size} B"
+        elif size < 1024 * 1024:
+            return f"{size / 1024:.2f} KB"
+        else:
+            return f"{size / (1024 * 1024):.2f} MB"

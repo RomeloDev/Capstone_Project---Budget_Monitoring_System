@@ -1,0 +1,1005 @@
+Please analyze and understand this project workflow summary below, don't do any changes or code implementation because I have a task for you later:
+================================================================================
+BUDGET MONITORING SYSTEM - COMPLETE WORKFLOW SUMMARY
+================================================================================
+Project: Budget Monitoring System (Capstone Project)
+Version: 1.0
+Last Updated: October 31, 2025
+Developer: John Romel Lucot
+================================================================================
+
+TABLE OF CONTENTS
+─────────────────
+1. System Overview
+2. User Roles
+3. Complete Workflow
+4. Budget Flow Example
+5. Key Features
+6. Technical Implementation
+7. Data Models Hierarchy
+8. Approval Workflow (2-Step)
+9. Current Implementation Status
+
+================================================================================
+1. SYSTEM OVERVIEW
+================================================================================
+
+A quarterly-based budget tracking system for government departments that 
+manages budget allocation, PRE (Project of Receipts and Expenditures), and 
+Purchase Requests with real-time budget monitoring.
+
+Key Characteristics:
+• Quarterly budget granularity (Q1, Q2, Q3, Q4)
+• 2-step approval workflow (Digital + Physical signature)
+• Real-time budget consumption tracking
+• Excel validation and auto-correction
+• AJAX-powered modern UX
+• Multi-level budget monitoring
+
+Note: Activity Design feature is currently being redesigned based on new 
+client requirements and is not included in this workflow.
+
+================================================================================
+2. USER ROLES
+================================================================================
+
+ADMIN (Budget Officer)
+──────────────────────
+• Creates and manages approved budgets
+• Allocates budgets to departments/end users
+• Reviews and approves PREs and PRs (2-step approval)
+• Uploads scanned signed copies
+• Monitors budget utilization
+• Handles budget realignment
+
+END USER (Department Staff)
+────────────────────────────
+• Submits PRE (budget plan) with Excel file
+• Creates Purchase Requests with quarterly selection
+• Downloads PDFs for physical signatures
+• Submits signed copies to admin
+• Tracks budget consumption in real-time
+
+APPROVING OFFICER (Physical Only - Not in System)
+──────────────────────────────────────────────────
+• Reviews printed PRE/PR documents
+• Provides physical signature
+• Returns signed copies to end user
+• No system access - purely physical workflow
+
+================================================================================
+3. COMPLETE WORKFLOW
+================================================================================
+
+PHASE 1: BUDGET SETUP (Admin)
+──────────────────────────────
+
+Step 1: Create Approved Budget
+   • Admin uploads Excel file with budget details
+   • Sets fiscal year (e.g., 2025)
+   • Sets total amount (e.g., ₱1,000,000)
+   • System stores:
+     - amount: ₱1,000,000
+     - remaining_budget: ₱1,000,000
+     - fiscal_year: 2025
+     - uploaded_document: Excel file path
+
+Step 2: Create Budget Allocations
+   • Admin selects approved budget
+   • Assigns to department/end user
+   • Sets allocated amount (e.g., ₱300,000)
+   • System tracks:
+     - allocated_amount: ₱300,000
+     - pre_amount_used: ₱0
+     - pr_amount_used: ₱0
+     - ad_amount_used: ₱0
+     - remaining_balance: ₱300,000
+     - end_user: Assigned user
+
+Result:
+   • Approved Budget remaining: ₱700,000
+   • Budget Allocation created: ₱300,000
+   • End user can now submit PRE
+
+
+PHASE 2: PRE SUBMISSION & APPROVAL (2-Step)
+────────────────────────────────────────────
+
+STEP 1: Digital Submission & Review
+────────────────────────────────────
+
+1. End User uploads PRE
+   • Navigates to PRE submission page
+   • Selects budget allocation
+   • Uploads Departmental-PRE.xlsx containing:
+     - Line items with quarterly breakdown
+     - Q1, Q2, Q3, Q4 amounts for each item
+     - Categories: Personnel Services, MOOE, Capital Outlays
+     - Example line items:
+       * Overtime Pay: Q1=₱1,000, Q2=₱1,000, Q3=₱1,000, Q4=₱1,000
+       * Training Expenses: Q1=₱6,000, Q2=₱6,000, Q3=₱6,000, Q4=₱6,000
+       * Travelling-foreign: Q1=₱5,000, Q2=₱5,000, Q3=₱5,000, Q4=₱5,000
+       * Travelling-local: Q1=₱1,200, Q2=₱1,500, Q3=₱2,000, Q4=₱1,400
+   • Uploads supporting documents (optional)
+   • Files stored in PREDraft
+
+2. System parses Excel file (pre_parser.py)
+   • Validates template structure
+   • Extracts line items with quarterly amounts
+   • Validates Excel formulas
+   • Detects mismatches (e.g., Total ≠ Q1+Q2+Q3+Q4)
+   • Auto-corrects errors by calculating from quarters
+   • Stores validation warnings
+   • Example warning:
+     "Travelling expenses-local: Excel shows ₱5,100 but Q1+Q2+Q3+Q4 = ₱6,100
+      System will use ₱6,100 (corrected)"
+
+3. End User previews PRE
+   • Reviews extracted data in table format
+   • Sees validation warnings (if any) in yellow alert box
+   • Checks grand total
+   • Verifies quarterly breakdown
+   • Submits for approval
+   • Status: Draft → Pending
+   • Timestamp: submitted_at
+
+4. Admin reviews PRE
+   • Views PRE details in admin panel
+   • Checks budget allocation
+   • Reviews line items and quarterly breakdown
+   • Verifies grand total
+   • Partially Approves
+   • Status: Pending → Partially Approved
+   • Timestamp: partially_approved_at
+   • partially_approved_by: Admin user
+
+STEP 2: Physical Signature & Final Approval
+────────────────────────────────────────────
+
+5. End User downloads PRE PDF
+   • System generates PDF from PRE data
+   • End user prints the PDF
+   • Takes to Approving Officer (physical office visit)
+
+6. Approving Officer signs (Physical - Outside System)
+   • Reviews printed PRE
+   • Verifies budget details and quarterly breakdown
+   • Signs the document
+   • Returns signed copy to End User
+
+7. End User submits signed copy
+   • Scans the signed document
+   • Physically submits to Admin office
+   • Admin receives signed copy
+
+8. Admin uploads signed copy
+   • Scans the signed document (if not already scanned)
+   • Uploads to system via admin panel
+   • Final Approval
+   • Status: Partially Approved → Approved
+   • Timestamp: final_approved_at
+   • admin_approved_by: Admin user
+   • System creates PRELineItem records:
+     - Each line item stores: q1_amount, q2_amount, q3_amount, q4_amount
+     - Linked to PRE and budget allocation
+     - Available for PR funding
+     - Example:
+       * PRELineItem: "Overtime Pay"
+         - q1_amount: ₱1,000
+         - q2_amount: ₱1,000
+         - q3_amount: ₱1,000
+         - q4_amount: ₱1,000
+         - category: "Personnel Services"
+         - pre: Link to DepartmentPRE
+
+Budget Impact:
+   • Budget Allocation:
+     - pre_amount_used: ₱0 → ₱54,100
+     - remaining_balance: ₱300,000 → ₱245,900
+
+
+PHASE 3: PURCHASE REQUEST SUBMISSION (Quarterly)
+─────────────────────────────────────────────────
+
+1. End User uploads PR document
+   • Navigates to PR upload form
+   • Uploads PR file (.pdf, .doc, .docx) via AJAX
+     - No page reload
+     - Real-time validation
+     - File size limit: 10MB
+   • Uploads supporting documents (optional) via AJAX
+     - Multiple files allowed
+     - Same validation as PR file
+   • Files stored in PRDraft
+   • Smooth UX with loading indicators
+
+2. Select Funding Details (Cascading Dropdowns with Choices.js)
+   
+   Step 1: Select Budget Allocation
+   • Dropdown shows allocations with remaining balance
+   • Searchable with Choices.js (type to filter)
+   • Example: "Approved Budget for 2025 - ₱245,900"
+   • Only shows allocations with remaining balance > 0
+   
+   Step 2: Select Source of Fund (AJAX loads quarterly options)
+   • When budget allocation selected, AJAX call to:
+     /end_user/get-pre-line-items/?allocation_id=X
+   • System queries approved PRE line items for that allocation
+   • Shows each quarter separately
+   • Example options:
+     - "Personnel Services - Overtime Pay - Q1 (Available: ₱1,000)"
+     - "Personnel Services - Overtime Pay - Q2 (Available: ₱1,000)"
+     - "Personnel Services - Overtime Pay - Q3 (Available: ₱1,000)"
+     - "Personnel Services - Overtime Pay - Q4 (Available: ₱1,000)"
+     - "MOOE - Training - Training Expenses - Q1 (Available: ₱6,000)"
+     - "MOOE - Training - Training Expenses - Q2 (Available: ₱6,000)"
+     - "MOOE - Travelling Expenses - Travelling expenses-local - Q1 (Available: ₱1,200)"
+     - "MOOE - Travelling Expenses - Travelling expenses-local - Q2 (Available: ₱1,500)"
+   • Searchable and filterable
+   • Only shows quarters with available budget (amount > 0)
+   • Grouped by PRE
+   
+   Step 3: Enter Details
+   • Total amount (validated against quarter available)
+   • Purpose/justification
+   • Real-time validation
+
+3. Submit Purchase Request
+   • System validates:
+     - Amount ≤ Quarter available budget
+     - All required fields filled
+     - PR document uploaded
+     - Quarter is valid (Q1-Q4)
+   
+   • Parses source_of_fund value:
+     - Format: "pre_id|line_item_id|quarter"
+     - Example: "5|12|Q2"
+     - Extracts: pre_id=5, line_item_id=12, quarter=Q2
+   
+   • Creates PurchaseRequest record:
+     - Generates PR number (PR-2025-0001, PR-2025-0002, etc.)
+     - submitted_by: End user
+     - department: From budget allocation
+     - budget_allocation: Link to allocation
+     - source_pre: Link to PRE
+     - source_line_item: Link to PRELineItem
+     - source_of_fund_display: "Overtime Pay - Q2"
+     - purpose: User-entered justification
+     - total_amount: ₱600
+     - status: Pending
+     - uploaded_document: PR file
+     - supporting_documents: Additional files (copied from draft)
+   
+   • Creates PurchaseRequestAllocation:
+     - purchase_request: Link to PR
+     - pre_line_item: "Overtime Pay"
+     - quarter: "Q2"
+     - allocated_amount: ₱600
+     - notes: "Allocated from Overtime Pay - Q2"
+     - allocated_at: Timestamp
+
+4. Budget Impact (Immediate upon submission)
+   • Budget Allocation:
+     - pr_amount_used: ₱0 → ₱600
+     - remaining_balance: ₱245,900 → ₱245,300
+   
+   • PRE (Extension Services - FY 2025):
+     - Total remaining: ₱54,100 → ₱53,500
+   
+   • Overtime Pay Line Item:
+     - Q1: ₱1,000 (consumed: ₱0, available: ₱1,000) ← Unchanged
+     - Q2: ₱1,000 (consumed: ₱600, available: ₱400) ← Consumed ₱600
+     - Q3: ₱1,000 (consumed: ₱0, available: ₱1,000) ← Unchanged
+     - Q4: ₱1,000 (consumed: ₱0, available: ₱1,000) ← Unchanged
+   
+   • Other Line Items:
+     - All quarters remain unchanged (no consumption)
+
+5. End User views submitted PR
+   • Redirected to preview page
+   • Shows detailed budget summary:
+     
+     Budget Allocation Overview:
+     - Total Budget Allocated: ₱300,000
+     - Total Used (All PRs): ₱600
+     - Budget Allocation Remaining: ₱245,300
+     
+     PRE Overview:
+     - PRE Name: Extension Services - FY 2025
+     - PRE Grand Total: ₱54,100
+     - PRE Total Remaining: ₱53,500
+     
+     Selected Line Item & Quarter:
+     - Line Item: Overtime Pay
+     - Category: Personnel Services
+     - Quarter: Q2
+     - Q2 Original Amount: ₱1,000.00
+     - Previously Consumed: ₱0.00
+     - This PR Amount: -₱600.00
+     - Q2 Remaining: ₱400.00
+   
+   • Shows status timeline
+   • Can download PR for signature
+
+
+PHASE 4: PR APPROVAL (2-Step - Same as PRE)
+────────────────────────────────────────────
+
+STEP 1: Digital Review
+──────────────────────
+
+1. Admin reviews PR in admin panel
+   • Views PR details:
+     - PR number, amount, purpose
+     - Budget allocation info
+     - PRE line item and quarter
+     - Uploaded documents
+   • Checks budget availability
+   • Reviews uploaded documents
+   • Verifies quarterly allocation is correct
+   • Partially Approves
+   • Status: Pending → Partially Approved
+   • Timestamp: partially_approved_at
+   • partially_approved_by: Admin user
+
+STEP 2: Physical Signature
+───────────────────────────
+
+2. End User downloads PR PDF
+   • System generates PDF from PR data
+   • Prints the PR
+   • Takes to Approving Officer (physical office)
+   • Gets physical signature
+
+3. End User submits signed copy
+   • Scans signed document
+   • Physically submits to Admin office
+   • Admin receives signed copy
+
+4. Admin uploads signed copy
+   • Uploads scanned signed document via admin panel
+   • Final Approval
+   • Status: Partially Approved → Approved
+   • Timestamp: final_approved_at
+   • admin_approved_by: Admin user
+   • approved_document: Scanned signed file
+   • Budget officially consumed (no change - already deducted on submission)
+
+
+PHASE 5: BUDGET MONITORING & TRACKING
+──────────────────────────────────────
+
+Real-time Budget Tracking (3 Levels)
+────────────────────────────────────
+
+LEVEL 1: Budget Allocation
+   • Total allocated: ₱300,000
+   • PRE amount used: ₱54,100
+   • PR amount used: ₱600
+   • AD amount used: ₱0 (not implemented yet)
+   • Remaining balance: ₱245,300
+   
+   Calculation:
+   remaining_balance = allocated_amount - (pre_amount_used + pr_amount_used + ad_amount_used)
+   ₱245,300 = ₱300,000 - (₱54,100 + ₱600 + ₱0)
+
+LEVEL 2: PRE (Approved Budget Plan)
+   • Grand total: ₱54,100 (all quarters, all line items)
+   • Total consumed: ₱600 (from approved PRs)
+   • Total remaining: ₱53,500
+   
+   Calculation:
+   PRE Remaining = Sum of all (Quarter Amount - Quarter Consumed) for all line items
+   
+   Example:
+   - Overtime Pay: (₱1,000-₱0) + (₱1,000-₱600) + (₱1,000-₱0) + (₱1,000-₱0) = ₱3,400
+   - Training: (₱6,000-₱0) × 4 quarters = ₱24,000
+   - Travelling-foreign: (₱5,000-₱0) × 4 quarters = ₱20,000
+   - Travelling-local: ₱1,200 + ₱1,500 + ₱2,000 + ₱1,400 = ₱6,100
+   Total: ₱3,400 + ₱24,000 + ₱20,000 + ₱6,100 = ₱53,500
+
+LEVEL 3: Line Item Quarter (Most Granular)
+   Overtime Pay:
+   • Q1: ₱1,000 (consumed: ₱0, available: ₱1,000)
+   • Q2: ₱1,000 (consumed: ₱600, available: ₱400) ← PR deducted here
+   • Q3: ₱1,000 (consumed: ₱0, available: ₱1,000)
+   • Q4: ₱1,000 (consumed: ₱0, available: ₱1,000)
+   
+   Training Expenses:
+   • Q1: ₱6,000 (consumed: ₱0, available: ₱6,000)
+   • Q2: ₱6,000 (consumed: ₱0, available: ₱6,000)
+   • Q3: ₱6,000 (consumed: ₱0, available: ₱6,000)
+   • Q4: ₱6,000 (consumed: ₱0, available: ₱6,000)
+   
+   Travelling Expenses-foreign:
+   • Q1: ₱5,000 (consumed: ₱0, available: ₱5,000)
+   • Q2: ₱5,000 (consumed: ₱0, available: ₱5,000)
+   • Q3: ₱5,000 (consumed: ₱0, available: ₱5,000)
+   • Q4: ₱5,000 (consumed: ₱0, available: ₱5,000)
+   
+   Travelling expenses-local:
+   • Q1: ₱1,200 (consumed: ₱0, available: ₱1,200)
+   • Q2: ₱1,500 (consumed: ₱0, available: ₱1,500)
+   • Q3: ₱2,000 (consumed: ₱0, available: ₱2,000)
+   • Q4: ₱1,400 (consumed: ₱0, available: ₱1,400)
+
+Budget Calculations
+───────────────────
+• Quarter Available = Quarter Amount - Quarter Consumed
+• Quarter Consumed = Sum of approved PR allocations for that quarter
+  Formula: PurchaseRequestAllocation.objects.filter(
+             pre_line_item=line_item, 
+             quarter=quarter, 
+             purchase_request__status='Approved'
+           ).aggregate(Sum('allocated_amount'))
+• PRE Remaining = Sum of all quarter availables across all line items
+• Allocation Remaining = Allocated - (PRE used + PR used + AD used)
+
+
+PHASE 6: BUDGET DELETION & RETURNS (Django Signals)
+────────────────────────────────────────────────────
+
+When Budget Allocation is Deleted:
+───────────────────────────────────
+1. Signal triggers (pre_delete)
+2. Calculate unused budget:
+   • Allocated: ₱300,000
+   • Used: ₱54,700 (PRE: ₱54,100 + PR: ₱600)
+   • Unused: ₱245,300
+3. Return unused to ApprovedBudget:
+   • remaining_budget += ₱245,300
+4. CASCADE delete:
+   • Related PREs deleted
+   • Related PRs deleted
+   • Related allocations deleted
+
+When PRE is Deleted:
+────────────────────
+1. Signal triggers (pre_delete)
+2. If status = 'Approved':
+   • Calculate total from line items
+   • Return to allocation: pre_amount_used -= total
+3. Update allocation remaining_balance
+4. CASCADE delete:
+   • Related PRELineItems deleted
+   • Related PR/AD allocations orphaned (PROTECT)
+
+When PR is Deleted:
+───────────────────
+1. Signal triggers (pre_delete)
+2. If status = 'Approved':
+   • Return amount to allocation
+   • pr_amount_used -= amount
+3. Update allocation remaining_balance
+4. CASCADE delete:
+   • Related PurchaseRequestAllocation deleted
+   • Related supporting documents deleted
+
+================================================================================
+4. BUDGET FLOW EXAMPLE
+================================================================================
+
+Scenario: Extension Services Department Budget Tracking
+────────────────────────────────────────────────────────
+
+Initial State:
+──────────────
+Approved Budget (FY 2025): ₱1,000,000
+└─ remaining_budget: ₱1,000,000
+
+After Allocation Created:
+──────────────────────────
+Admin allocates ₱300,000 to Extension Services
+
+Budget Allocation (Extension Services):
+├─ allocated_amount: ₱300,000
+├─ pre_amount_used: ₱0
+├─ pr_amount_used: ₱0
+├─ ad_amount_used: ₱0
+└─ remaining_balance: ₱300,000
+
+Approved Budget:
+└─ remaining_budget: ₱700,000
+
+After PRE Approved:
+───────────────────
+End user submits PRE with ₱54,100 total
+
+PRE Line Items Created:
+├─ Overtime Pay: Q1=₱1,000, Q2=₱1,000, Q3=₱1,000, Q4=₱1,000 (Total: ₱4,000)
+├─ Training Expenses: Q1=₱6,000, Q2=₱6,000, Q3=₱6,000, Q4=₱6,000 (Total: ₱24,000)
+├─ Travelling-foreign: Q1=₱5,000, Q2=₱5,000, Q3=₱5,000, Q4=₱5,000 (Total: ₱20,000)
+└─ Travelling-local: Q1=₱1,200, Q2=₱1,500, Q3=₱2,000, Q4=₱1,400 (Total: ₱6,100)
+
+Budget Allocation:
+├─ allocated_amount: ₱300,000
+├─ pre_amount_used: ₱54,100
+├─ pr_amount_used: ₱0
+├─ ad_amount_used: ₱0
+└─ remaining_balance: ₱245,900
+
+After PR #1 Submitted (₱600 from Overtime Pay - Q2):
+─────────────────────────────────────────────────────
+PR-2025-0001:
+├─ Amount: ₱600
+├─ Source: Overtime Pay - Q2
+└─ Status: Pending
+
+Budget Allocation:
+├─ allocated_amount: ₱300,000
+├─ pre_amount_used: ₱54,100
+├─ pr_amount_used: ₱600
+├─ ad_amount_used: ₱0
+└─ remaining_balance: ₱245,300
+
+PRE (Extension Services - FY 2025):
+├─ Grand total: ₱54,100
+└─ Total remaining: ₱53,500
+
+Overtime Pay Line Item:
+├─ Q1: ₱1,000 (consumed: ₱0, available: ₱1,000)
+├─ Q2: ₱1,000 (consumed: ₱600, available: ₱400) ← PR deducted here
+├─ Q3: ₱1,000 (consumed: ₱0, available: ₱1,000)
+└─ Q4: ₱1,000 (consumed: ₱0, available: ₱1,000)
+
+Other Line Items:
+└─ All quarters unchanged
+
+After PR #2 Submitted (₱5,000 from Training - Q1):
+───────────────────────────────────────────────────
+PR-2025-0002:
+├─ Amount: ₱5,000
+├─ Source: Training Expenses - Q1
+└─ Status: Pending
+
+Budget Allocation:
+├─ allocated_amount: ₱300,000
+├─ pre_amount_used: ₱54,100
+├─ pr_amount_used: ₱5,600 (₱600 + ₱5,000)
+├─ ad_amount_used: ₱0
+└─ remaining_balance: ₱240,300
+
+PRE:
+└─ Total remaining: ₱48,500
+
+Overtime Pay:
+├─ Q2: ₱400 available (unchanged from PR #1)
+
+Training Expenses:
+├─ Q1: ₱6,000 (consumed: ₱5,000, available: ₱1,000) ← PR #2 deducted here
+├─ Q2: ₱6,000 (consumed: ₱0, available: ₱6,000)
+├─ Q3: ₱6,000 (consumed: ₱0, available: ₱6,000)
+└─ Q4: ₱6,000 (consumed: ₱0, available: ₱6,000)
+
+================================================================================
+5. KEY FEATURES
+================================================================================
+
+1. QUARTERLY BUDGET TRACKING
+   ✓ Budget planned by quarter (Q1, Q2, Q3, Q4)
+   ✓ Consumption tracked by quarter
+   ✓ Prevents overspending in specific quarters
+   ✓ Accurate quarterly reporting
+   ✓ Example: Can't spend Q2 budget in Q1
+   ✓ Each quarter tracked independently
+
+2. 2-STEP APPROVAL WORKFLOW
+   ✓ Step 1: Digital review (Partially Approved)
+   ✓ Step 2: Physical signature upload (Approved)
+   ✓ Maintains audit trail with timestamps
+   ✓ Hybrid digital-physical process
+   ✓ Matches government procedures
+   ✓ Prevents unauthorized approvals
+
+3. EXCEL VALIDATION & AUTO-CORRECTION
+   ✓ Detects formula errors in uploaded Excel
+   ✓ Calculates totals from Q1+Q2+Q3+Q4
+   ✓ Shows validation warnings to users
+   ✓ Uses corrected values automatically
+   ✓ Example: Excel shows ₱5,100 but system calculates ₱6,100
+   ✓ Maintains data integrity
+
+4. AJAX-POWERED UX
+   ✓ File uploads without page reload
+   ✓ Cascading dropdowns (Budget → PRE Line Items)
+   ✓ Real-time validation
+   ✓ Searchable dropdowns (Choices.js)
+   ✓ Loading indicators
+   ✓ Success/error toast messages
+   ✓ Smooth user experience
+
+5. BUDGET INTEGRITY
+   ✓ Django signals for automatic budget returns
+   ✓ Prevents double-counting
+   ✓ Tracks consumption accurately
+   ✓ Maintains data consistency
+   ✓ Returns unused budget on deletion
+   ✓ Atomic transactions
+
+6. COMPREHENSIVE TRACKING
+   ✓ 3-level budget monitoring (Allocation → PRE → Quarter)
+   ✓ Real-time available budget calculation
+   ✓ Detailed budget summaries
+   ✓ Status timelines with timestamps
+   ✓ Complete audit trail
+   ✓ Historical tracking
+
+================================================================================
+6. TECHNICAL IMPLEMENTATION
+================================================================================
+
+Backend (Django)
+────────────────
+• Framework: Django 5.1.6
+• Language: Python 3.12.3
+• Database: PostgreSQL
+• ORM: Django ORM for complex queries
+• Signals: Automated workflows (pre_delete, post_save)
+• Template System: Django templates with custom filters
+• AJAX: JsonResponse endpoints
+• File Handling: FileField, uploads, drafts
+• Excel Parsing: openpyxl library
+• PDF Generation: Document conversion
+
+Frontend
+────────
+• CSS Framework: Tailwind CSS
+• JavaScript Library: Choices.js (searchable dropdowns)
+• AJAX: Vanilla JavaScript Fetch API
+• Design: Responsive, mobile-friendly
+• Components: Modern UI with loading states
+• Validation: Real-time client-side validation
+
+Key Libraries
+─────────────
+• openpyxl - Excel file parsing and validation
+• python-docx - Word document handling
+• Pillow - Image processing
+• django-jazzmin - Enhanced admin interface
+• django-browser-reload - Development hot reload
+• django-tailwind - CSS framework integration
+
+File Structure
+──────────────
+apps/
+├── admin_panel/        # Admin dashboard and management
+├── budgets/            # Core budget models and logic
+├── end_user_app/       # End user interface and workflows
+└── users/              # Authentication and user management
+
+Key Files:
+• apps/budgets/models.py - Core data models
+• apps/budgets/signals.py - Automated budget workflows
+• apps/end_user_app/views.py - Business logic
+• apps/end_user_app/utils/pre_parser.py - Excel parsing
+• apps/end_user_app/templatetags/pr_filters.py - Custom filters
+
+================================================================================
+7. DATA MODELS HIERARCHY
+================================================================================
+
+ApprovedBudget (₱1,000,000)
+│
+├─ Fields:
+│  ├─ amount: ₱1,000,000
+│  ├─ remaining_budget: ₱700,000
+│  ├─ fiscal_year: "2025"
+│  ├─ title: "Approved Budget for 2025"
+│  ├─ uploaded_document: Excel file
+│  └─ created_at: Timestamp
+│
+└─ Relationships:
+   └─ allocations (One-to-Many) ↓
+
+BudgetAllocation (₱300,000)
+│
+├─ Fields:
+│  ├─ allocated_amount: ₱300,000
+│  ├─ pre_amount_used: ₱54,100
+│  ├─ pr_amount_used: ₱600
+│  ├─ ad_amount_used: ₱0
+│  ├─ remaining_balance: ₱245,300
+│  ├─ department: "Extension Services"
+│  ├─ is_active: True
+│  └─ allocated_at: Timestamp
+│
+├─ Relationships:
+│  ├─ approved_budget (ForeignKey) ↑
+│  ├─ end_user (ForeignKey) → User
+│  ├─ pres (One-to-Many) ↓
+│  └─ purchase_requests (One-to-Many) ↓
+│
+└─ Methods:
+   ├─ get_total_used(): Returns total consumed
+   └─ update_remaining_balance(): Recalculates remaining
+
+DepartmentPRE (₱54,100)
+│
+├─ Fields:
+│  ├─ total_amount: ₱54,100
+│  ├─ department: "Extension Services"
+│  ├─ fiscal_year: "2025"
+│  ├─ status: "Approved"
+│  ├─ submitted_at: Timestamp
+│  ├─ partially_approved_at: Timestamp
+│  ├─ final_approved_at: Timestamp
+│  ├─ uploaded_document: Original Excel
+│  ├─ approved_document: Signed copy
+│  └─ is_valid: True
+│
+├─ Relationships:
+│  ├─ budget_allocation (ForeignKey) ↑
+│  ├─ submitted_by (ForeignKey) → User
+│  ├─ partially_approved_by (ForeignKey) → User
+│  ├─ admin_approved_by (ForeignKey) → User
+│  └─ line_items (One-to-Many) ↓
+│
+└─ Methods:
+   ├─ get_total_remaining(): Sum of all quarter availables
+   └─ approve_with_documents(): Final approval logic
+
+PRELineItem (e.g., "Overtime Pay")
+│
+├─ Fields:
+│  ├─ item_name: "Overtime Pay"
+│  ├─ q1_amount: ₱1,000
+│  ├─ q2_amount: ₱1,000
+│  ├─ q3_amount: ₱1,000
+│  ├─ q4_amount: ₱1,000
+│  └─ created_at: Timestamp
+│
+├─ Relationships:
+│  ├─ pre (ForeignKey) ↑
+│  ├─ category (ForeignKey) → PRECategory
+│  ├─ subcategory (ForeignKey) → PRESubcategory
+│  └─ pr_allocations (One-to-Many) ↓
+│
+└─ Methods:
+   ├─ get_total(): Returns ₱4,000 (sum of all quarters)
+   ├─ get_quarter_amount(quarter): Returns specific quarter amount
+   ├─ get_quarter_consumed(quarter): Calculates consumed for quarter
+   └─ get_quarter_available(quarter): Returns available for quarter
+
+PurchaseRequest (PR-2025-0001, ₱600)
+│
+├─ Fields:
+│  ├─ pr_number: "PR-2025-0001"
+│  ├─ department: "Extension Services"
+│  ├─ purpose: "Purchase office supplies"
+│  ├─ total_amount: ₱600
+│  ├─ status: "Pending"
+│  ├─ source_of_fund_display: "Overtime Pay - Q2"
+│  ├─ submitted_at: Timestamp
+│  ├─ partially_approved_at: Timestamp (when approved)
+│  ├─ final_approved_at: Timestamp (when signed copy uploaded)
+│  ├─ uploaded_document: PR file
+│  └─ approved_document: Signed copy (when uploaded)
+│
+├─ Relationships:
+│  ├─ submitted_by (ForeignKey) → User
+│  ├─ budget_allocation (ForeignKey) ↑
+│  ├─ source_pre (ForeignKey) → DepartmentPRE
+│  ├─ source_line_item (ForeignKey) → PRELineItem
+│  ├─ partially_approved_by (ForeignKey) → User
+│  ├─ admin_approved_by (ForeignKey) → User
+│  ├─ supporting_documents (One-to-Many) ↓
+│  └─ pre_allocations (One-to-Many) ↓
+│
+└─ Methods:
+   └─ (None currently)
+
+PurchaseRequestAllocation
+│
+├─ Fields:
+│  ├─ allocated_amount: ₱600
+│  ├─ quarter: "Q2"
+│  ├─ notes: "Allocated from Overtime Pay - Q2"
+│  └─ allocated_at: Timestamp
+│
+└─ Relationships:
+   ├─ purchase_request (ForeignKey) ↑
+   └─ pre_line_item (ForeignKey) → PRELineItem
+
+PurchaseRequestSupportingDocument
+│
+├─ Fields:
+│  ├─ document: File
+│  ├─ file_name: "supporting_doc.pdf"
+│  ├─ file_size: 1024000 (bytes)
+│  ├─ is_signed_copy: False
+│  └─ uploaded_at: Timestamp
+│
+└─ Relationships:
+   └─ purchase_request (ForeignKey) ↑
+
+================================================================================
+8. APPROVAL WORKFLOW (2-Step)
+================================================================================
+
+2-STEP APPROVAL PROCESS
+────────────────────────
+
+Why 2 Steps?
+• Government requires physical signatures for compliance
+• Digital system + Physical compliance = Hybrid workflow
+• Audit trail for both digital and physical approval
+• Prevents unauthorized approvals
+• Maintains legal validity
+
+Step 1: Digital Approval (Partially Approved)
+──────────────────────────────────────────────
+• Admin reviews in system
+• Checks budget availability
+• Reviews documents
+• Verifies quarterly allocation
+• Clicks "Partially Approve" button
+• System records:
+  - Status: Partially Approved
+  - partially_approved_at: Current timestamp
+  - partially_approved_by: Admin user ID
+
+Step 2: Physical Signature (Approved)
+──────────────────────────────────────
+• End user downloads PDF from system
+• Prints the document
+• Takes to Approving Officer (physical office visit)
+• Approving Officer reviews and signs
+• End user scans signed document
+• Submits to Admin (physical submission)
+• Admin uploads scanned signed copy to system
+• System records:
+  - Status: Approved
+  - final_approved_at: Current timestamp
+  - admin_approved_by: Admin user ID
+  - approved_document: Scanned file path
+• Budget officially consumed (already deducted on submission)
+
+Status Flow:
+────────────
+Draft → Pending → Partially Approved → Approved
+                              ↓
+                          Rejected (if denied)
+
+Timestamps Tracked:
+───────────────────
+• submitted_at: When end user submits
+• partially_approved_at: When admin digitally approves
+• final_approved_at: When signed copy uploaded
+• rejected_at: If rejected (with rejection_reason)
+
+================================================================================
+9. CURRENT IMPLEMENTATION STATUS
+================================================================================
+
+FULLY IMPLEMENTED & WORKING:
+────────────────────────────
+✓ Budget allocation system
+✓ PRE submission with Excel parsing
+✓ PRE 2-step approval workflow
+✓ Excel validation and auto-correction
+✓ PR submission with quarterly selection
+✓ PR 2-step approval workflow
+✓ AJAX file uploads (no page reload)
+✓ Cascading dropdowns with Choices.js
+✓ Django signals for budget returns
+✓ Quarterly budget tracking
+✓ Real-time budget calculations
+✓ Detailed budget summaries
+✓ Status timelines
+✓ Supporting documents management
+
+PENDING IMPLEMENTATION:
+───────────────────────
+⏳ PRE parser validation warnings display (Ticket 1)
+⏳ Enhanced budget summary calculations (Ticket 3)
+⏳ Activity Design - Being redesigned per client requirements
+
+NOT IMPLEMENTED:
+────────────────
+✗ Approving Officer app (physical workflow only, no system access)
+✗ Activity Design (awaiting new client requirements)
+
+================================================================================
+10. TECHNICAL HIGHLIGHTS FOR CAPSTONE
+================================================================================
+
+Demonstrates:
+─────────────
+✓ Complex database design (10+ related models)
+✓ Real-world government budget workflow
+✓ Modern web development (AJAX, responsive design)
+✓ Data validation and integrity
+✓ File handling and conversion
+✓ Excel parsing and validation
+✓ Multi-role system with access control
+✓ Audit trail and compliance
+✓ Automated workflows (Django signals)
+✓ User experience optimization
+✓ Quarterly financial tracking
+✓ Hybrid digital-physical workflow
+
+Technologies Mastered:
+──────────────────────
+✓ Django framework (models, views, templates, signals)
+✓ JavaScript (AJAX, DOM manipulation, event handling)
+✓ Tailwind CSS (responsive design, modern UI)
+✓ SQL (via Django ORM with complex queries)
+✓ Excel processing (openpyxl)
+✓ PDF generation and document conversion
+✓ Git version control
+✓ Choices.js (enhanced dropdowns)
+
+Business Understanding:
+───────────────────────
+✓ Government budget processes
+✓ Quarterly budget planning
+✓ Approval workflows and compliance
+✓ Audit trail importance
+✓ Budget monitoring and control
+✓ Stakeholder requirements gathering
+✓ Iterative development based on client feedback
+
+================================================================================
+11. SYSTEM CAPABILITIES
+================================================================================
+
+Budget Planning:
+────────────────
+✓ Create annual budgets with Excel upload
+✓ Allocate to departments/end users
+✓ Submit quarterly PRE plans
+✓ Track budget utilization in real-time
+✓ Handle budget realignment (future)
+
+Request Management:
+───────────────────
+✓ Purchase Requests with quarterly funding
+✓ 2-step approval workflow (digital + physical)
+✓ Document management (upload, download, signed copies)
+✓ Supporting documents handling
+✓ Draft system (save progress)
+✓ AJAX file operations
+
+Monitoring & Reporting:
+───────────────────────
+✓ Real-time budget tracking (3 levels)
+✓ Quarterly consumption reports
+✓ Budget allocation summaries
+✓ Audit trail with timestamps
+✓ Status timelines
+✓ Budget utilization percentages
+✓ Detailed budget breakdowns
+
+Data Integrity:
+───────────────
+✓ Excel validation and auto-correction
+✓ Budget return on deletion (Django signals)
+✓ Prevents double-counting
+✓ Maintains consistency
+✓ Automatic calculations
+✓ Transaction management (atomic operations)
+
+================================================================================
+12. FUTURE ENHANCEMENTS
+================================================================================
+
+Based on Client Feedback:
+─────────────────────────
+• Activity Design redesign (new requirements pending)
+• Budget savings/reallocation feature
+• Enhanced reporting and analytics
+• Email notifications for approvals
+• Mobile app version
+• Advanced budget forecasting
+
+Technical Improvements:
+───────────────────────
+• Caching for performance optimization
+• Background tasks for heavy operations
+• API for third-party integrations
+• Advanced search and filtering
+• Export to various formats (Excel, PDF, CSV)
+
+================================================================================
+END OF WORKFLOW SUMMARY
+================================================================================

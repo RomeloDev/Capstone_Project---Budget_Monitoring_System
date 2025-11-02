@@ -1,0 +1,716 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Upload Activity Design{% endblock %}
+
+{% block main-content %}
+<main class="mx-auto max-w-4xl p-4 md:p-8">
+    <!-- Header -->
+    <header class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Upload Activity Design</h1>
+                <p class="text-gray-600">Upload your completed AD document and select multiple funding sources</p>
+            </div>
+            <a href="{% url 'user_purchase_request' %}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back
+            </a>
+        </div>
+    </header>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="mt-4 space-y-2">
+            {% for message in messages %}
+                <div class="rounded-lg p-4 {% if message.tags == 'success' %}bg-green-50 border border-green-200 text-green-800{% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-800{% else %}bg-blue-50 border border-blue-200 text-blue-800{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="space-y-6" id="ad-upload-form">
+        {% csrf_token %}
+
+        <!-- Step 1: Upload AD Document -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-bold mr-3">1</div>
+                <h2 class="text-xl font-semibold text-gray-900">Upload AD Document</h2>
+            </div>
+
+            <p class="text-sm text-gray-600 mb-4">Upload your completed Activity Design document (.docx format only)</p>
+
+            {% if draft and draft.ad_file %}
+                <!-- Show uploaded file -->
+                <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <svg class="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-gray-900">{{ draft.ad_filename }}</p>
+                                <p class="text-sm text-gray-600">{{ draft.ad_file.size|filesizeformat }}</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="removeADDocument()"
+                                class="text-red-600 hover:text-red-800 font-medium text-sm">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            {% else %}
+                <!-- Upload input -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+                    <input type="file" name="ad_document" id="ad_document"
+                           accept=".docx,.doc"
+                           class="hidden">
+                    <label for="ad_document" class="cursor-pointer">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p class="mt-2 text-sm text-gray-600">
+                            <span class="font-medium text-blue-600 hover:text-blue-500">Click to upload</span> or drag and drop
+                        </p>
+                        <p class="mt-1 text-xs text-gray-500">DOCX files only, up to 10MB</p>
+                    </label>
+                </div>
+            {% endif %}
+        </section>
+
+        <!-- Step 2: Upload Supporting Documents -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-bold mr-3">2</div>
+                <h2 class="text-xl font-semibold text-gray-900">Upload Supporting Documents</h2>
+            </div>
+
+            <p class="text-sm text-gray-600 mb-4">Upload additional supporting documents (multiple files allowed)</p>
+
+            <!-- Uploaded documents list -->
+            {% if draft.supporting_documents.exists %}
+                <div class="mb-4 space-y-2">
+                    {% for doc in draft.supporting_documents.all %}
+                        <div class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <div class="flex items-center">
+                                <svg class="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <div>
+                                    <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+                                    <p class="text-sm text-gray-600">{{ doc.file_size|filesizeformat }}</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="removeSupportingDocument({{ doc.id }})"
+                                    class="text-red-600 hover:text-red-800 font-medium text-sm">
+                                Remove
+                            </button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Upload input -->
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                <input type="file" name="supporting_documents" id="supporting_documents"
+                       multiple
+                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                       class="hidden">
+                <label for="supporting_documents" class="cursor-pointer">
+                    <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-600">
+                        <span class="font-medium text-blue-600 hover:text-blue-500">Click to upload</span> multiple files
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500">PDF, DOC, DOCX, JPG, PNG up to 10MB each</p>
+                </label>
+            </div>
+        </section>
+
+        <!-- Step 3: Funding Details (Multi-Select) -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full font-bold mr-3">3</div>
+                <h2 class="text-xl font-semibold text-gray-900">Funding Details</h2>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Budget Allocation -->
+                <div>
+                    <label for="budget_allocation" class="block text-sm font-medium text-gray-700 mb-2">
+                        Budget Allocation <span class="text-red-500">*</span>
+                    </label>
+                    <select name="budget_allocation" id="budget_allocation"
+                            class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            required>
+                        <option value="">Select Budget Allocation</option>
+                        {% for alloc in budget_allocations %}
+                            <option value="{{ alloc.id }}">
+                                {{ alloc.approved_budget.title }} - Remaining: ₱{{ alloc.remaining_balance|floatformat:2|intcomma }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- PRE Line Items (Multi-Select) -->
+                <div>
+                    <label for="source_of_fund" class="block text-sm font-medium text-gray-700 mb-2">
+                        Source of Fund (PRE Line Items - Multi-Select) <span class="text-red-500">*</span>
+                    </label>
+                    <select name="source_of_fund" id="source_of_fund"
+                            class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            multiple
+                            required
+                            disabled>
+                        <option value="">First select a budget allocation</option>
+                    </select>
+                    <p class="mt-1 text-sm text-gray-500" id="source_of_fund_help">
+                        Select a budget allocation first to see available PRE line items. You can select multiple items.
+                    </p>
+                </div>
+
+                <!-- Selected Line Items with Amount Inputs -->
+                <div id="selected-line-items-container" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Selected Line Items - Enter Amount for Each <span class="text-red-500">*</span>
+                    </label>
+                    <div id="selected-line-items" class="space-y-3">
+                        <!-- Dynamically generated amount inputs will appear here -->
+                    </div>
+                </div>
+
+                <!-- Total Amount (Auto-Calculated) -->
+                <div>
+                    <label for="total_amount_display" class="block text-sm font-medium text-gray-700 mb-2">
+                        Total Amount (Auto-Calculated)
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₱</span>
+                        <input type="text" id="total_amount_display"
+                               class="w-full pl-8 rounded-md border-gray-300 bg-gray-50 focus:border-blue-500 focus:ring-blue-500"
+                               value="0.00"
+                               readonly>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">Total is automatically calculated from individual amounts</p>
+                </div>
+
+                <!-- Purpose -->
+                <div>
+                    <label for="purpose" class="block text-sm font-medium text-gray-700 mb-2">
+                        Purpose <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="purpose" id="purpose" rows="3"
+                              class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                              placeholder="State the purpose of this activity design"
+                              required></textarea>
+                </div>
+
+                <!-- Hidden input for line items JSON data -->
+                <input type="hidden" name="line_items_data" id="line_items_data">
+            </div>
+        </section>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center justify-between mt-3 mb-3">
+            <button type="submit" name="action" value="clear_draft"
+                    class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                Clear All
+            </button>
+            <div class="space-x-3">
+                <button type="button" onclick="window.location.href='{% url 'user_purchase_request' %}'"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit" name="action" value="submit" id="submit-btn"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                        {% if not draft or not draft.ad_file %}disabled{% endif %}>
+                    Submit Activity Design
+                </button>
+            </div>
+        </div>
+
+        <!-- Validation Info -->
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div class="text-sm text-blue-800">
+                    <p class="font-medium mb-1">Before submitting:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>Upload your AD document (Step 1) - .DOCX format only</li>
+                        <li>Upload supporting documents if needed (Step 2)</li>
+                        <li>Select MULTIPLE PRE line items and enter amount for each (Step 3)</li>
+                        <li>Ensure each amount doesn't exceed the available funds</li>
+                        <li>Total amount is automatically calculated</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </form>
+</main>
+
+<script>
+// Global state
+let selectedLineItems = new Map(); // key: value (pre_id|line_item_id|quarter), value: {data, amount}
+let lineItemsData = []; // All available line items from AJAX
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Choices.js for Budget Allocation
+    const budgetAllocationChoice = new Choices('#budget_allocation', {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Search budget allocations...',
+        itemSelectText: 'Click to select',
+        shouldSort: false,
+    });
+
+    // Initialize Choices.js for Source of Fund (Multi-Select)
+    const sourceOfFundChoice = new Choices('#source_of_fund', {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Search PRE line items...',
+        itemSelectText: 'Click to select',
+        removeItemButton: true, // Allow removing selected items
+        shouldSort: false,
+    });
+
+    // Disable source of fund initially
+    sourceOfFundChoice.disable();
+
+    const budgetAllocationSelect = document.getElementById('budget_allocation');
+    const sourceOfFundSelect = document.getElementById('source_of_fund');
+    const sourceOfFundHelp = document.getElementById('source_of_fund_help');
+
+    // Listen to Budget Allocation change
+    budgetAllocationSelect.addEventListener('change', function(event) {
+        const allocationId = event.target.value;
+
+        console.log('Budget allocation changed:', allocationId);
+
+        if (!allocationId) {
+            // Reset source of fund
+            sourceOfFundChoice.clearStore();
+            sourceOfFundChoice.setChoices([
+                { value: '', label: 'First select a budget allocation', selected: true, disabled: false }
+            ], 'value', 'label', true);
+            sourceOfFundChoice.disable();
+            sourceOfFundHelp.textContent = 'Select a budget allocation first to see available PRE line items.';
+            sourceOfFundHelp.className = 'mt-1 text-sm text-gray-500 font-medium';
+            selectedLineItems.clear();
+            updateSelectedLineItemsUI();
+            return;
+        }
+
+        // Show loading state
+        sourceOfFundChoice.clearStore();
+        sourceOfFundChoice.setChoices([
+            { value: '', label: 'Loading line items...', selected: true, disabled: false }
+        ], 'value', 'label', true);
+        sourceOfFundChoice.disable();
+        sourceOfFundHelp.textContent = 'Loading available PRE line items...';
+        sourceOfFundHelp.className = 'mt-1 text-sm text-blue-600';
+
+        const url = `/end_user/get-pre-line-items-for-ad/?allocation_id=${allocationId}`;
+
+        console.log('Fetching from URL:', url);
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            if (data.success) {
+                lineItemsData = data.line_items;
+                populateSourceOfFundChoices(data.line_items);
+
+                if (data.line_items.length === 0) {
+                    sourceOfFundHelp.textContent = 'No approved PRE line items available for this budget allocation.';
+                    sourceOfFundHelp.className = 'mt-1 text-sm text-amber-600';
+                } else {
+                    sourceOfFundHelp.textContent = `${data.line_items.length} line item(s) available. Select multiple and enter amounts.`;
+                    sourceOfFundHelp.className = 'mt-1 text-sm text-green-600';
+                }
+            } else {
+                sourceOfFundChoice.clearStore();
+                sourceOfFundChoice.setChoices([
+                    { value: '', label: 'Error loading line items', selected: true, disabled: false }
+                ], 'value', 'label', true);
+                sourceOfFundHelp.textContent = data.error || 'Failed to load line items.';
+                sourceOfFundHelp.className = 'mt-1 text-sm text-red-600';
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            sourceOfFundChoice.clearStore();
+            sourceOfFundChoice.setChoices([
+                { value: '', label: 'Error loading line items', selected: true, disabled: false }
+            ], 'value', 'label', true);
+            sourceOfFundHelp.textContent = 'Failed to load line items. Please try again.';
+            sourceOfFundHelp.className = 'mt-1 text-sm text-red-600';
+        });
+    });
+
+    function populateSourceOfFundChoices(lineItems) {
+        if (lineItems.length === 0) {
+            sourceOfFundChoice.clearStore();
+            sourceOfFundChoice.setChoices([
+                { value: '', label: 'No approved PRE line items available', selected: true, disabled: false }
+            ], 'value', 'label', true);
+            sourceOfFundChoice.disable();
+            return;
+        }
+
+        const choices = [];
+
+        lineItems.forEach(item => {
+            choices.push({
+                value: item.value,
+                label: `${item.display} - ${item.quarter} (Available: ₱${item.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`,
+                customProperties: {
+                    available: item.available,
+                    quarter: item.quarter,
+                    preDisplay: item.pre_display,
+                    itemName: item.item_name,
+                    display: item.display,
+                    preId: item.pre_id,
+                    lineItemId: item.line_item_id
+                }
+            });
+        });
+
+        // Clear and set new choices
+        sourceOfFundChoice.clearStore();
+        sourceOfFundChoice.setChoices(choices, 'value', 'label', false);
+        sourceOfFundChoice.enable();
+    }
+
+    // Listen to multi-select changes
+    sourceOfFundSelect.addEventListener('change', function(event) {
+        const selectedValues = Array.from(event.target.selectedOptions).map(opt => opt.value);
+
+        console.log('Selected values:', selectedValues);
+
+        // Clear and rebuild selection map
+        selectedLineItems.clear();
+
+        selectedValues.forEach(value => {
+            if (!value) return;
+
+            const itemData = lineItemsData.find(item => item.value === value);
+            if (itemData) {
+                selectedLineItems.set(value, {
+                    data: itemData,
+                    amount: 0
+                });
+            }
+        });
+
+        updateSelectedLineItemsUI();
+    });
+
+    function updateSelectedLineItemsUI() {
+        const container = document.getElementById('selected-line-items-container');
+        const itemsDiv = document.getElementById('selected-line-items');
+
+        if (selectedLineItems.size === 0) {
+            container.classList.add('hidden');
+            itemsDiv.innerHTML = '';
+            updateTotalAmount();
+            return;
+        }
+
+        container.classList.remove('hidden');
+        itemsDiv.innerHTML = '';
+
+        selectedLineItems.forEach((itemInfo, value) => {
+            const item = itemInfo.data;
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg';
+            div.innerHTML = `
+                <div class="flex-1">
+                    <p class="font-medium text-gray-900">${item.display} - ${item.quarter}</p>
+                    <p class="text-sm text-gray-600">Available: ₱${item.available.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-gray-500">₱</span>
+                    <input type="number"
+                           step="0.01"
+                           min="0"
+                           max="${item.available}"
+                           placeholder="0.00"
+                           data-value="${value}"
+                           class="line-item-amount w-32 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                           required>
+                </div>
+            `;
+            itemsDiv.appendChild(div);
+        });
+
+        // Attach event listeners to amount inputs
+        document.querySelectorAll('.line-item-amount').forEach(input => {
+            input.addEventListener('input', function() {
+                const value = this.dataset.value;
+                const amount = parseFloat(this.value) || 0;
+                const item = selectedLineItems.get(value);
+
+                if (item) {
+                    item.amount = amount;
+
+                    // Validate against available
+                    if (amount > item.data.available) {
+                        this.setCustomValidity(`Amount exceeds available (₱${item.data.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
+                    } else if (amount <= 0) {
+                        this.setCustomValidity('Amount must be greater than zero');
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                }
+
+                updateTotalAmount();
+            });
+        });
+    }
+
+    function updateTotalAmount() {
+        let total = 0;
+        selectedLineItems.forEach(itemInfo => {
+            total += itemInfo.amount || 0;
+        });
+
+        document.getElementById('total_amount_display').value = total.toLocaleString('en-US', {minimumFractionDigits: 2});
+    }
+
+    // File upload handlers
+    const adFileInput = document.getElementById('ad_document');
+    const supportingDocsInput = document.getElementById('supporting_documents');
+
+    if (adFileInput) {
+        adFileInput.addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                uploadADDocument(this.files[0]);
+            }
+        });
+    }
+
+    if (supportingDocsInput) {
+        supportingDocsInput.addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                uploadSupportingDocuments(this.files);
+            }
+        });
+    }
+
+    function uploadADDocument(file) {
+        const formData = new FormData();
+        formData.append('ad_document', file);
+        formData.append('action', 'upload_ad');
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        showLoading('Uploading AD document...');
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showMessage(data.message, 'success');
+                location.reload();
+            } else {
+                showMessage(data.error || 'Upload failed', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showMessage('Upload failed: ' + error.message, 'error');
+        });
+    }
+
+    function uploadSupportingDocuments(files) {
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('supporting_documents', files[i]);
+        }
+        formData.append('action', 'upload_supporting');
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        showLoading('Uploading supporting documents...');
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                showMessage(data.message, 'success');
+                location.reload();
+            } else {
+                showMessage(data.error || 'Upload failed', 'error');
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            showMessage('Upload failed: ' + error.message, 'error');
+        });
+    }
+
+    // Form submission
+    document.getElementById('ad-upload-form').addEventListener('submit', function(e) {
+        const action = e.submitter.value;
+
+        if (action === 'submit') {
+            // Prepare line items data as JSON
+            const lineItemsArray = [];
+            selectedLineItems.forEach((itemInfo, value) => {
+                const [preId, lineItemId, quarter] = value.split('|');
+                lineItemsArray.push({
+                    pre_id: preId,
+                    line_item_id: parseInt(lineItemId),
+                    quarter: quarter,
+                    amount: itemInfo.amount
+                });
+            });
+
+            if (lineItemsArray.length === 0) {
+                e.preventDefault();
+                showMessage('Please select at least one PRE line item.', 'error');
+                return;
+            }
+
+            // Validate all amounts are > 0
+            const invalidAmounts = lineItemsArray.filter(item => !item.amount || item.amount <= 0);
+            if (invalidAmounts.length > 0) {
+                e.preventDefault();
+                showMessage('Please enter a valid amount for all selected line items.', 'error');
+                return;
+            }
+
+            document.getElementById('line_items_data').value = JSON.stringify(lineItemsArray);
+        }
+    });
+});
+
+// Global functions (accessible from onclick)
+function removeADDocument() {
+    if (!confirm('Are you sure you want to remove this AD document?')) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('action', 'remove_ad');
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    showLoading('Removing AD document...');
+
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            showMessage(data.message, 'success');
+            location.reload();
+        } else {
+            showMessage(data.error || 'Remove failed', 'error');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showMessage('Remove failed: ' + error.message, 'error');
+    });
+}
+
+function removeSupportingDocument(docId) {
+    if (!confirm('Are you sure you want to remove this document?')) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('action', 'remove_supporting');
+    formData.append('doc_id', docId);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    showLoading('Removing document...');
+
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            showMessage(data.message, 'success');
+            location.reload();
+        } else {
+            showMessage(data.error || 'Remove failed', 'error');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showMessage('Remove failed: ' + error.message, 'error');
+    });
+}
+
+// Helper functions
+function showLoading(message) {
+    const loader = document.createElement('div');
+    loader.id = 'ajax-loader';
+    loader.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    loader.innerHTML = `
+        <div class="bg-white rounded-lg p-6 shadow-xl">
+            <div class="flex items-center space-x-3">
+                <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-gray-700 font-medium">${message}</span>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(loader);
+}
+
+function hideLoading() {
+    const loader = document.getElementById('ajax-loader');
+    if (loader) loader.remove();
+}
+
+function showMessage(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `fixed top-4 right-4 z-50 rounded-lg p-4 shadow-lg ${
+        type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' :
+        'bg-red-50 border border-red-200 text-red-800'
+    }`;
+    alertDiv.innerHTML = message;
+    document.body.appendChild(alertDiv);
+
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
+{% endblock %}

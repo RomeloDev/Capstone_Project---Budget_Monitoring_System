@@ -1,0 +1,472 @@
+/* General Styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f9;
+    color: #333;
+}
+
+/* Dashboard Layout */
+.dashboard {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Main Content */
+/* .content {
+    flex: 1;
+    margin-left: 290px;
+    padding: 20px;
+} */
+
+/* Header */
+.content header {
+    margin-bottom: 20px;
+}
+
+.content header h1 {
+    margin: 0;
+}
+
+.content header p {
+    font-size: 16px;
+    color: #666;
+}
+
+/* Budget Summary */
+.budget-summary {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.budget-summary .card {
+    flex: 1;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.budget-summary .card h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.budget-summary .card p {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 0;
+}
+
+/* Requests Table */
+.requests {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.requests h2 {
+    margin-bottom: 15px;
+    font-size: 20px;
+}
+
+.requests table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.requests table th, .requests table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.requests table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.requests table tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* Budget History */
+.budget-history {
+    margin-top: 30px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.budget-history h2 {
+    font-size: 20px;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.budget-history table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.budget-history table th,
+.budget-history table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.budget-history table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.budget-history table tr:hover {
+    background-color: #f1f1f1;
+}
+
+.budget-history table td {
+    color: #333;
+    font-size: 14px;
+}
+
+/* Purchase Requests */
+.purchase-requests {
+    margin-top: 30px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.purchase-requests h2 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.purchase-requests table {
+    width: 100%;
+    border-collapse: collapse;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+}
+
+.purchase-requests table th,
+.purchase-requests table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.purchase-requests table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.purchase-requests table tr:hover {
+    background-color: #f1f1f1;
+}
+
+.purchase-requests table td {
+    color: #333;
+    font-size: 14px;
+}
+
+/* Purchase Request Form */
+.purchase-form {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    width: 80%;
+    margin: auto;
+    margin-top: 30px;
+}
+
+.purchase-form form{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.purchase-form label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.purchase-form input, 
+.purchase-form textarea {
+    width: 80%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    margin-bottom: 15px;
+}
+
+.purchase-form .purpose{
+    grid-area: 3 / 1 / 3 / 2;
+}
+
+
+.form-button{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 0.7rem;
+    grid-area: 4 / 1 / 4 / 3;
+}
+
+.purchase-form button {
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    padding: 0.9rem 1.5rem;
+    border-radius: 5px;
+    font-size: 17px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    width: 40%;
+}
+
+.purchase-form button:hover {
+    background-color: #218c53;
+}
+
+form .submit_pr_button{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 2rem;
+}
+
+form .submit_pr_button button{
+    background-color: #1118aa;
+    color: white;
+    border: none;
+    padding: 0.9rem 1.5rem;
+    border-radius: 15px;
+    font-size: 17px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    width: 30%;
+    height: 4rem;
+    box-shadow: 0 1.5px 5px rgb(21, 21, 21);
+}
+
+form .submit_pr_button button:hover{
+    background-color: #3e46e3;
+}
+
+/* Headings */
+.headings{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.headings div label, .purpose-div label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.headings div input, .purpose-div textarea, .table-inputs input{
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid hsl(240, 0%, 60%);
+    border-radius: 0.5rem;
+    box-sizing: border-box;
+}
+
+.add-item-btn{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.add-item-btn button{
+    padding: 1rem 2.5rem;
+    background: rgb(8, 218, 53);
+    border-radius: 10px;
+    border: none;
+    font-family: Arial, Helvetica, sans-serif;
+    color: azure;
+    font-size: 0.9rem;
+    box-shadow: 0px 1px 3px rgb(70, 68, 68);
+}
+
+.add-item-btn button:hover{
+    background: rgba(26, 255, 76, 0.901);
+    color: gray;
+}
+
+
+/* Add Items */
+.add_item_btn{
+    display: flex;
+    justify-content: start;
+    align-items: center;
+}
+
+.add_item_btn button{
+    width: 86%;
+}
+
+/* Status Badges */
+.status {
+    padding: 5px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+    text-align: center;
+}
+
+.status.approved {
+    background-color: #27ae60;
+}
+
+.status.pending {
+    background-color: #f39c12;
+}
+
+.status.denied {
+    background-color: #e74c3c;
+}
+
+/* View Details Button */
+.view-btn {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.view-btn:hover {
+    background-color: #2980b9;
+}
+
+/* New Purchase Request Button */
+.new-request {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.new-request-container{
+    margin-bottom: 20px;
+    width: 600px;
+    padding: 2rem;
+    background-color: #FFFF;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+    border-radius: 10px; /* 5px rounded corners */
+}
+
+.new-request-container h2, .new-request-container p{
+    margin: 0 0 10px;
+}
+
+.new-request-container .buttons{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3rem;
+}
+
+.new-request-btn {
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-weight: bold;
+}
+
+.new-request-btn:hover {
+    background-color: #218c53;
+}
+
+
+/* Settings Section */
+.settings {
+    margin-top: 30px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.settings h2 {
+    font-size: 20px;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+/* Form Styling */
+.settings form {
+    margin-bottom: 30px;
+}
+
+.settings .form-group {
+    margin-bottom: 20px;
+}
+
+.settings .account{
+    padding-right: 20px;
+}
+
+.settings .form-group label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.settings .form-group input,
+.settings .form-group select {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    transition: border-color 0.3s;
+}
+
+.settings .form-group input:focus,
+.settings .form-group select:focus {
+    border-color: #3498db;
+    outline: none;
+}
+
+/* Save Button */
+.save-btn {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.save-btn:hover {
+    background-color: #2980b9;
+}

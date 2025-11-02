@@ -31,4 +31,9 @@ urlpatterns = [
     path('pre/upload_pre/<int:allocation_id>/', views.upload_pre, name='upload_pre'),
     path('pre/view/<uuid:pre_id>/', views.view_pre_detail, name='view_pre_detail'),
     path('pr/preview/<uuid:pr_id>/', views.preview_submitted_pr, name='preview_submitted_pr'),
+
+    # Activity Design (New Multi-Line Item Support)
+    path('pr-ad-request/activity_design_upload/', views.activity_design_upload, name='activity_design_upload'),
+    path('get-pre-line-items-for-ad/', views.get_pre_line_items_for_ad, name='get_pre_line_items_for_ad'),
+    path('ad/preview/<uuid:ad_id>/', views.preview_submitted_ad, name='preview_submitted_ad'),
 ]

@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, ActivityDesign, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations, PREBudgetRealignment, PREDraft, PREDraftSupportingDocument
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, PREBudgetRealignment, PREDraft, PREDraftSupportingDocument, ActivityDesign as LegacyActivityDesign, ActivityDesignAllocations as LegacyActivityDesignAllocations
 from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -28,7 +28,7 @@ from io import BytesIO
 import shutil
 import xlwings as xw
 import tempfile
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation
 from .utils.pre_parser import parse_pre_excel
 from django.core.files.storage import default_storage
 from django.utils import timezone
@@ -130,12 +130,17 @@ def purchase_request(request):
         pr_approved_count = purchase_requests.filter(status='Approved').count()
         pr_rejected_count = purchase_requests.filter(status='Rejected').count()
         
-        # ✅ Activity Designs (still using old model - no new version yet)
+        # ✅ Activity Designs (NEW: Multi-line item support)
         activity_designs = ActivityDesign.objects.filter(
-            requested_by=request.user
+            submitted_by=request.user
         ).select_related(
-            'source_pre', 
-            'budget_allocation'
+            'budget_allocation',
+            'budget_allocation__approved_budget'
+        ).prefetch_related(
+            'pre_allocations',
+            'pre_allocations__pre_line_item',
+            'pre_allocations__pre_line_item__category',
+            'pre_allocations__pre_line_item__subcategory'
         ).order_by('-created_at')
         
         # ✅ Calculate status counts for ADs
@@ -2399,7 +2404,8 @@ def activity_design_form(request):
                 return redirect('activity_design_form')
                 
         
-        activity = ActivityDesign.objects.create(
+        # Create Legacy Activity Design (form-based, deprecated)
+        activity = LegacyActivityDesign.objects.create(
             title_of_activity=request.POST.get('title_of_activity'),
             schedule_date=request.POST.get('schedule_date'),
             venue=request.POST.get('venue'),
@@ -2501,7 +2507,9 @@ def activity_design_form(request):
 
 @role_required('end_user', login_url='/')
 def preview_activity_design(request, pk):
-    activity = get_object_or_404(ActivityDesign.objects.prefetch_related('sessions', 'signatories').select_related('campus_approval', 'university_approval'), pk=pk)
+    # NOTE: This function is for OLD form-based Activity Designs only
+    # NEW upload-based ADs use preview_submitted_ad view instead
+    activity = get_object_or_404(LegacyActivityDesign.objects.prefetch_related('sessions', 'signatories').select_related('campus_approval', 'university_approval'), pk=pk)
     context = {
         "activity": activity,
     }
@@ -2837,10 +2845,12 @@ def realignment_history(request):
 @role_required('end_user', login_url='/')
 def download_activity_design_word(request, pk):
     """Generate and download Activity Design as Word document"""
-    
-    # Get the activity design
+
+    # Get the legacy activity design (form-based, deprecated)
+    # NOTE: This function is for OLD form-based Activity Designs only
+    # NEW upload-based ADs with multiple line items use a different structure
     activity = get_object_or_404(
-        ActivityDesign.objects.prefetch_related('sessions').select_related('requested_by', 'source_pre'),
+        LegacyActivityDesign.objects.prefetch_related('sessions').select_related('requested_by', 'source_pre'),
         pk=pk,
         requested_by=request.user  # Ensure user can only download their own
     )
@@ -3400,3 +3410,510 @@ def download_pre_excel(request, pk):
 #         import traceback
 #         traceback.print_exc()
 #         return redirect('preview_pre', pk=pk)
+
+
+# ================================================================================
+# ACTIVITY DESIGN VIEWS (Multi-line item support)
+# ================================================================================
+
+def generate_ad_number():
+    """Generate unique AD number in format AD-YYYY-NNNN"""
+    from datetime import datetime
+    from apps.budgets.models import ActivityDesign
+
+    year = datetime.now().year
+
+    # Get the last AD number for this year
+    last_ad = ActivityDesign.objects.filter(
+        ad_number__startswith=f'AD-{year}-'
+    ).order_by('-ad_number').first()
+
+    if last_ad:
+        # Extract the sequence number and increment
+        last_sequence = int(last_ad.ad_number.split('-')[-1])
+        new_sequence = last_sequence + 1
+    else:
+        # First AD of the year
+        new_sequence = 1
+
+    return f'AD-{year}-{new_sequence:04d}'
+
+
+@role_required('end_user', login_url='/')
+def activity_design_upload(request):
+    """
+    Handle Activity Design document upload with supporting files
+    Supports MULTIPLE PRE line items with individual amounts
+    """
+    from apps.budgets.models import ADDraft, ADDraftSupportingDocument, ActivityDesign, ActivityDesignAllocation, ActivityDesignSupportingDocument
+
+    # Get or create draft
+    draft, created = ADDraft.objects.get_or_create(
+        user=request.user
+    )
+
+    # Get budget allocations for dropdown
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True,
+        remaining_balance__gt=0
+    ).select_related('approved_budget')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+        if action == 'upload_ad':
+            # Handle AD document upload (.docx only)
+            ad_file = request.FILES.get('ad_document')
+
+            if not ad_file:
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': 'Please select an AD document to upload.'})
+                messages.error(request, "Please select an AD document to upload.")
+                return redirect('activity_design_upload')
+
+            # Validate file type (.docx only)
+            allowed_extensions = ['docx', 'doc']
+            file_ext = ad_file.name.split('.')[-1].lower()
+
+            if file_ext not in allowed_extensions:
+                error_msg = f"Invalid file type. Only .DOCX files are allowed."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
+                return redirect('activity_design_upload')
+
+            # Validate file size (10MB)
+            if ad_file.size > 10 * 1024 * 1024:
+                error_msg = "File size must be less than 10MB."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
+                return redirect('activity_design_upload')
+
+            # Delete old file if exists
+            if draft.ad_file:
+                draft.ad_file.delete(save=False)
+
+            # Save new file
+            draft.ad_file = ad_file
+            draft.ad_filename = ad_file.name
+            draft.save()
+
+            success_msg = f"AD document '{ad_file.name}' uploaded successfully."
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': success_msg})
+            messages.success(request, success_msg)
+            return redirect('activity_design_upload')
+
+        elif action == 'remove_ad':
+            # Remove AD document
+            if draft.ad_file:
+                draft.ad_file.delete(save=False)
+                draft.ad_file = None
+                draft.ad_filename = ''
+                draft.save()
+
+                success_msg = "AD document removed."
+                if is_ajax:
+                    return JsonResponse({'success': True, 'message': success_msg})
+                messages.info(request, success_msg)
+            else:
+                error_msg = "No AD document to remove."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.warning(request, error_msg)
+
+            return redirect('activity_design_upload')
+
+        elif action == 'upload_supporting':
+            # Handle supporting documents upload
+            supporting_docs = request.FILES.getlist('supporting_documents')
+
+            if not supporting_docs:
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': 'Please select at least one supporting document.'})
+                messages.error(request, "Please select at least one supporting document.")
+                return redirect('activity_design_upload')
+
+            # Validate and save each document
+            allowed_extensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']
+            count = 0
+            errors = []
+
+            for doc in supporting_docs:
+                # Check file type
+                file_ext = doc.name.split('.')[-1].lower()
+                if file_ext not in allowed_extensions:
+                    errors.append(f"Skipped '{doc.name}': Invalid file type.")
+                    continue
+
+                # Check file size
+                if doc.size > 10 * 1024 * 1024:
+                    errors.append(f"Skipped '{doc.name}': File too large (max 10MB).")
+                    continue
+
+                # Check for duplicates
+                if draft.supporting_documents.filter(file_name=doc.name).exists():
+                    errors.append(f"Skipped '{doc.name}': Already uploaded.")
+                    continue
+
+                # Save document
+                ADDraftSupportingDocument.objects.create(
+                    draft=draft,
+                    document=doc,
+                    file_name=doc.name,
+                    file_size=doc.size
+                )
+                count += 1
+
+            if is_ajax:
+                if count > 0:
+                    return JsonResponse({
+                        'success': True,
+                        'message': f"Uploaded {count} supporting document(s).",
+                        'errors': errors
+                    })
+                else:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'No documents were uploaded.',
+                        'errors': errors
+                    })
+
+            if count > 0:
+                messages.success(request, f"Uploaded {count} supporting document(s).")
+
+            for error in errors:
+                messages.warning(request, error)
+            return redirect('activity_design_upload')
+
+        elif action == 'remove_supporting':
+            # Remove supporting document
+            doc_id = request.POST.get('doc_id')
+            try:
+                doc = draft.supporting_documents.get(id=doc_id)
+                doc_name = doc.file_name
+                doc.document.delete(save=False)
+                doc.delete()
+
+                success_msg = f"Removed '{doc_name}'"
+                if is_ajax:
+                    return JsonResponse({'success': True, 'message': success_msg})
+                messages.success(request, success_msg)
+            except ADDraftSupportingDocument.DoesNotExist:
+                error_msg = "Document not found."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
+
+            return redirect('activity_design_upload')
+
+        elif action == 'clear_draft':
+            # Clear all draft files
+            if draft.ad_file:
+                draft.ad_file.delete(save=False)
+            for doc in draft.supporting_documents.all():
+                doc.document.delete(save=False)
+                doc.delete()
+            draft.delete()
+
+            success_msg = "All draft files cleared."
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': success_msg})
+            messages.info(request, success_msg)
+            return redirect('activity_design_upload')
+
+        elif action == 'submit':
+            # Get form data
+            budget_allocation_id = request.POST.get('budget_allocation')
+            purpose = request.POST.get('purpose')
+
+            # Get MULTIPLE line items with amounts (JSON format)
+            line_items_json = request.POST.get('line_items_data')
+
+            # Validate required fields
+            if not all([budget_allocation_id, purpose, line_items_json]):
+                messages.error(request, "All fields are required.")
+                return redirect('activity_design_upload')
+
+            # Validate draft has AD file
+            if not draft.ad_file:
+                messages.error(request, "Please upload an AD document first.")
+                return redirect('activity_design_upload')
+
+            try:
+                # Parse line items data
+                line_items_data = json.loads(line_items_json)
+
+                if not line_items_data or len(line_items_data) == 0:
+                    messages.error(request, "Please select at least one PRE line item.")
+                    return redirect('activity_design_upload')
+
+                # Validate budget allocation
+                budget_allocation = NewBudgetAllocation.objects.get(
+                    id=budget_allocation_id,
+                    end_user=request.user,
+                    is_active=True
+                )
+
+                # Calculate total amount from all line items
+                total_amount = Decimal('0.00')
+                allocations_to_create = []
+
+                for item_data in line_items_data:
+                    pre_id = item_data['pre_id']
+                    line_item_id = item_data['line_item_id']
+                    quarter = item_data['quarter']
+                    amount = Decimal(str(item_data['amount']))
+
+                    if amount <= 0:
+                        messages.error(request, f"Amount must be greater than zero for all line items.")
+                        return redirect('activity_design_upload')
+
+                    # Validate line item exists and has sufficient budget
+                    line_item = PRELineItem.objects.get(
+                        id=line_item_id,
+                        pre_id=pre_id,
+                        pre__status='Approved',
+                        pre__budget_allocation=budget_allocation
+                    )
+
+                    # Check quarter availability
+                    quarter_available = line_item.get_quarter_available(quarter)
+
+                    if amount > quarter_available:
+                        messages.error(
+                            request,
+                            f"Insufficient funds for {line_item.item_name} - {quarter}. "
+                            f"Available: ₱{quarter_available:,.2f}, Required: ₱{amount:,.2f}"
+                        )
+                        return redirect('activity_design_upload')
+
+                    total_amount += amount
+                    allocations_to_create.append({
+                        'line_item': line_item,
+                        'quarter': quarter,
+                        'amount': amount
+                    })
+
+                # Check if total amount exceeds allocation remaining
+                if total_amount > budget_allocation.remaining_balance:
+                    messages.error(
+                        request,
+                        f"Total amount (₱{total_amount:,.2f}) exceeds remaining budget (₱{budget_allocation.remaining_balance:,.2f})"
+                    )
+                    return redirect('activity_design_upload')
+
+                # Create Activity Design with atomic transaction
+                with transaction.atomic():
+                    # Generate AD number
+                    ad_number = generate_ad_number()
+
+                    # Create Activity Design
+                    activity_design = ActivityDesign.objects.create(
+                        submitted_by=request.user,
+                        budget_allocation=budget_allocation,
+                        ad_number=ad_number,
+                        department=budget_allocation.department,
+                        purpose=purpose,
+                        total_amount=total_amount,
+                        uploaded_document=draft.ad_file,
+                        status='Pending',
+                        submitted_at=timezone.now()
+                    )
+
+                    # Create allocations for each line item
+                    for alloc_data in allocations_to_create:
+                        ActivityDesignAllocation.objects.create(
+                            activity_design=activity_design,
+                            pre_line_item=alloc_data['line_item'],
+                            quarter=alloc_data['quarter'],
+                            allocated_amount=alloc_data['amount'],
+                            notes=f"Allocated from {alloc_data['line_item'].item_name} - {alloc_data['quarter']}"
+                        )
+
+                    # Copy supporting documents to AD
+                    for draft_doc in draft.supporting_documents.all():
+                        ActivityDesignSupportingDocument.objects.create(
+                            activity_design=activity_design,
+                            document=draft_doc.document,
+                            file_name=draft_doc.file_name,
+                            file_size=draft_doc.file_size,
+                            uploaded_by=request.user
+                        )
+
+                    # Update budget allocation
+                    budget_allocation.ad_amount_used += total_amount
+                    budget_allocation.update_remaining_balance()
+
+                    # Clear draft
+                    draft.is_submitted = True
+                    draft.save()
+
+                    # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='CREATE',
+                        model_name='ActivityDesign',
+                        record_id=activity_design.id,
+                        detail=f'Created Activity Design {ad_number} for ₱{total_amount:,.2f} with {len(allocations_to_create)} line item(s)'
+                    )
+
+                    messages.success(
+                        request,
+                        f"Activity Design {ad_number} submitted successfully! Total: ₱{total_amount:,.2f}"
+                    )
+                    return redirect('preview_submitted_ad', ad_id=activity_design.id)
+
+            except json.JSONDecodeError:
+                messages.error(request, "Invalid line items data format.")
+                return redirect('activity_design_upload')
+            except NewBudgetAllocation.DoesNotExist:
+                messages.error(request, "Selected budget allocation not found.")
+                return redirect('activity_design_upload')
+            except PRELineItem.DoesNotExist:
+                messages.error(request, "One or more selected line items not found or not approved.")
+                return redirect('activity_design_upload')
+            except Exception as e:
+                messages.error(request, f"Error submitting Activity Design: {str(e)}")
+                return redirect('activity_design_upload')
+
+    context = {
+        'draft': draft,
+        'budget_allocations': budget_allocations,
+    }
+
+    return render(request, 'end_user_app/activity_design_upload_form.html', context)
+
+
+@role_required('end_user', login_url='/')
+def get_pre_line_items_for_ad(request):
+    """
+    AJAX endpoint to get PRE line items with quarterly breakdown for Activity Design.
+    Returns ALL quarters for each line item (not filtered by availability) for multi-select.
+    """
+    if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+    allocation_id = request.GET.get('allocation_id')
+
+    if not allocation_id:
+        return JsonResponse({'success': False, 'error': 'Budget allocation ID is required'}, status=400)
+
+    try:
+        allocation = NewBudgetAllocation.objects.get(
+            id=allocation_id,
+            end_user=request.user,
+            is_active=True
+        )
+
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation=allocation,
+            status='Approved'
+        ).prefetch_related(
+            'line_items__category',
+            'line_items__subcategory'
+        )
+
+        line_items_data = []
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                category_name = line_item.category.name if line_item.category else 'Other'
+                if line_item.subcategory:
+                    display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
+                else:
+                    display = f"{category_name} - {line_item.item_name}"
+
+                # Add quarterly breakdown
+                quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+                for quarter in quarters:
+                    # Get quarter amount
+                    quarter_amount = line_item.get_quarter_amount(quarter)
+
+                    if quarter_amount <= 0:
+                        continue
+
+                    # Calculate available amount for this quarter
+                    quarter_available = line_item.get_quarter_available(quarter)
+
+                    # Include ALL quarters (even if fully consumed) for selection
+                    # User will see available amount and can't exceed it
+                    line_items_data.append({
+                        'pre_id': str(line_item.pre.id),
+                        'pre_display': f"{line_item.pre.department} - FY {line_item.pre.fiscal_year}",
+                        'line_item_id': line_item.id,
+                        'item_name': line_item.item_name,
+                        'display': display,
+                        'quarter': quarter,
+                        'quarter_amount': float(quarter_amount),
+                        'available': float(quarter_available),
+                        'value': f"{line_item.pre.id}|{line_item.id}|{quarter}",
+                    })
+
+        return JsonResponse({
+            'success': True,
+            'line_items': line_items_data
+        })
+
+    except NewBudgetAllocation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Budget allocation not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error loading line items: {str(e)}'
+        }, status=500)
+
+
+@role_required('end_user', login_url='/')
+def preview_submitted_ad(request, ad_id):
+    """
+    Preview page for submitted Activity Design
+    Shows all details, allocated line items, and current status
+    """
+    from apps.budgets.models import ActivityDesign
+
+    try:
+        # Get the activity design (user can only view their own)
+        ad = ActivityDesign.objects.select_related(
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'submitted_by'
+        ).prefetch_related(
+            'pre_allocations__pre_line_item__category',
+            'pre_allocations__pre_line_item__subcategory',
+            'pre_allocations__pre_line_item__pre',
+            'supporting_documents'
+        ).get(
+            id=ad_id,
+            submitted_by=request.user
+        )
+
+        # Get all allocated line items with details
+        allocations = ad.pre_allocations.all()
+
+        # Calculate budget summary
+        budget_summary = {
+            'allocation_total': ad.budget_allocation.allocated_amount,
+            'allocation_used': ad.budget_allocation.get_total_used(),
+            'allocation_remaining': ad.budget_allocation.remaining_balance,
+            'ad_total': ad.total_amount,
+            'line_items_count': allocations.count(),
+        }
+
+        context = {
+            'ad': ad,
+            'allocations': allocations,
+            'budget_summary': budget_summary,
+        }
+
+        return render(request, 'end_user_app/preview_submitted_ad.html', context)
+
+    except ActivityDesign.DoesNotExist:
+        messages.error(request, "Activity Design not found.")
+        return redirect('user_purchase_request')
