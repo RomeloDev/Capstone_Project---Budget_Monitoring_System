@@ -58,37 +58,173 @@ def generate_pr_number():
 # Create your views here.
 @role_required('end_user', login_url='/')
 def user_dashboard(request):
-    try:
-        # Get the budget allocation of the logged-in user
-        budget = BudgetAllocation.objects.filter(department=request.user.department)
-        total_budget = sum(a.total_allocated for a in budget)
-        total_spent = sum(a.spent for a in budget)
-        remaining_balance = total_budget - total_spent
-        purchase_requests = PurchaseRequest.objects.filter(requested_by=request.user, pr_status='submitted')
-        approved_requests_count = PurchaseRequest.objects.filter(requested_by=request.user, submitted_status='approved').count()
-        realignment_requests = PREBudgetRealignment.objects.filter(requested_by=request.user).order_by('-created_at')[:5]
-    except BudgetAllocation.DoesNotExist or PurchaseRequest.DoesNotExist or PREBudgetRealignment.DoesNotExist:
-        budget = None
-        total_budget = None
-        remaining_balance = None
-        purchase_requests = None
-        realignment_requests = None
-        approved_requests_count = 0
-        
-    spent = total_budget - remaining_balance
-    if total_budget > 0:
-        usage_percentage = (spent / total_budget) * 100
-    else:
-        usage_percentage = 0
-        
+    """
+    End User Dashboard - Overview & Summary Page
+    Shows key metrics, recent activity, and quick links to detailed pages
+    """
+    # Get user's budget allocations
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    ).select_related('approved_budget')
+
+    # Calculate totals
+    total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+    total_pre_used = sum(ba.pre_amount_used for ba in budget_allocations)
+    total_pr_used = sum(ba.pr_amount_used for ba in budget_allocations)
+    total_ad_used = sum(ba.ad_amount_used for ba in budget_allocations)
+    total_used = total_pre_used + total_pr_used + total_ad_used
+    total_remaining = total_allocated - total_used
+    utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+
+    # Get document counts
+    pre_count = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status__in=['Approved', 'Partially Approved']
+    ).count()
+
+    pr_count = NewPurchaseRequest.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
+
+    ad_count = ActivityDesign.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
+
+    total_active_documents = pre_count + pr_count + ad_count
+
+    # Pending counts
+    pending_pre_count = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status='Pending'
+    ).count()
+
+    pending_pr_count = NewPurchaseRequest.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status='Pending'
+    ).count()
+
+    pending_ad_count = ActivityDesign.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status='Pending'
+    ).count()
+
+    # Recent activity - Get recent PREs, PRs, and ADs
+    recent_pres = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status='Draft').order_by('-submitted_at')[:5]
+
+    recent_prs = NewPurchaseRequest.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status='Draft').order_by('-submitted_at')[:5]
+
+    recent_ads = ActivityDesign.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status='Draft').order_by('-submitted_at')[:5]
+
+    # Combine and sort recent activity
+    recent_activity = []
+
+    for pre in recent_pres:
+        recent_activity.append({
+            'date': pre.submitted_at or pre.created_at,
+            'type': 'PRE',
+            'icon': '📋',
+            'title': f"{pre.department} - FY {pre.fiscal_year}",
+            'description': f"{pre.line_items.count()} line items",
+            'amount': pre.total_amount,
+            'status': pre.status,
+            'url': None  # Add URL if you have a PRE detail view
+        })
+
+    for pr in recent_prs:
+        recent_activity.append({
+            'date': pr.submitted_at or pr.created_at,
+            'type': 'PR',
+            'icon': '🛒',
+            'title': pr.pr_number,
+            'description': pr.purpose[:50] + '...' if len(pr.purpose) > 50 else pr.purpose,
+            'amount': pr.total_amount,
+            'status': pr.status,
+            'url': None  # Add URL if you have a PR detail view
+        })
+
+    for ad in recent_ads:
+        recent_activity.append({
+            'date': ad.submitted_at or ad.created_at,
+            'type': 'AD',
+            'icon': '🎯',
+            'title': ad.ad_number or 'Activity Design',
+            'description': ad.activity_title[:50] + '...' if ad.activity_title and len(ad.activity_title) > 50 else ad.activity_title or ad.purpose[:50],
+            'amount': ad.total_amount,
+            'status': ad.status,
+            'url': None  # Add URL if you have an AD detail view
+        })
+
+    # Sort by date descending and take top 10
+    recent_activity.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+    recent_activity = recent_activity[:10]
+
+    # Quick stats for quarterly breakdown (simplified)
+    quarterly_data = []
+    for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+        quarter_allocated = Decimal('0')
+        quarter_consumed = Decimal('0')
+
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items')
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                quarter_attr = f'q{quarter[1]}_amount'
+                quarter_allocated += getattr(line_item, quarter_attr, 0)
+                quarter_consumed += line_item.get_quarter_consumed(quarter)
+
+        quarter_utilization = (quarter_consumed / quarter_allocated * 100) if quarter_allocated > 0 else 0
+
+        quarterly_data.append({
+            'quarter': quarter,
+            'allocated': quarter_allocated,
+            'consumed': quarter_consumed,
+            'remaining': quarter_allocated - quarter_consumed,
+            'utilization': quarter_utilization
+        })
+
     context = {
-        "total_budget": total_budget,
-        "remaining_balance": remaining_balance,
-        'purchase_requests': purchase_requests,
-        'approved_requests_count': approved_requests_count,
-        "spent": spent,
-        "usage_percentage": usage_percentage,
-        'realignment_requests': realignment_requests
+        # Totals
+        'total_allocated': total_allocated,
+        'total_used': total_used,
+        'total_remaining': total_remaining,
+        'utilization_percentage': utilization_percentage,
+
+        # Breakdown
+        'total_pre_used': total_pre_used,
+        'total_pr_used': total_pr_used,
+        'total_ad_used': total_ad_used,
+
+        # Counts
+        'pre_count': pre_count,
+        'pr_count': pr_count,
+        'ad_count': ad_count,
+        'total_active_documents': total_active_documents,
+
+        # Pending
+        'pending_pre_count': pending_pre_count,
+        'pending_pr_count': pending_pr_count,
+        'pending_ad_count': pending_ad_count,
+        'total_pending': pending_pre_count + pending_pr_count + pending_ad_count,
+
+        # Activity
+        'recent_activity': recent_activity,
+
+        # Quarterly
+        'quarterly_data': quarterly_data,
+
+        # User info
+        'department_name': budget_allocations.first().department if budget_allocations.exists() else request.user.get_full_name(),
+        'first_allocation_id': budget_allocations.first().id if budget_allocations.exists() else None,
     }
 
     return render(request, 'end_user_app/dashboard.html', context)
@@ -4574,7 +4710,121 @@ def export_budget_excel(request):
         is_active=True
     )
 
-    if report_type == 'summary':
+    if report_type == 'pre_details':
+        # Create PRE Details report
+        ws = wb.create_sheet('PRE Budget Details')
+
+        # Header styling
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+
+        # Title
+        ws['A1'] = 'PRE BUDGET DETAILS REPORT'
+        ws['A1'].font = Font(bold=True, size=14)
+        ws.merge_cells('A1:L1')
+
+        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells('A2:L2')
+
+        # Get all approved PREs
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category', 'line_items__subcategory').order_by('-created_at')
+
+        row = 4
+
+        for pre in approved_pres:
+            # PRE Header
+            ws[f'A{row}'] = f'PRE: {pre.department} - FY {pre.fiscal_year}'
+            ws[f'A{row}'].font = Font(bold=True, size=12, color='FFFFFF')
+            ws[f'A{row}'].fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+            ws.merge_cells(f'A{row}:L{row}')
+
+            row += 1
+
+            # Line item headers
+            headers = ['Line Item', 'Category', 'Q1 Budget', 'Q1 Used', 'Q1 Available',
+                      'Q2 Budget', 'Q2 Used', 'Q2 Available', 'Q3 Budget', 'Q3 Used', 'Q3 Available',
+                      'Q4 Budget', 'Q4 Used', 'Q4 Available', 'Total Budget', 'Total Used', 'Total Available']
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row, col, header)
+                cell.font = Font(bold=True, size=9)
+                cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+                cell.alignment = Alignment(horizontal='center', wrap_text=True)
+
+            row += 1
+
+            # Line items
+            for line_item in pre.line_items.all():
+                category_name = line_item.category.name if line_item.category else 'Other'
+
+                col = 1
+                ws.cell(row, col, line_item.item_name)
+                col += 1
+                ws.cell(row, col, category_name)
+                col += 1
+
+                total_budgeted = Decimal('0')
+                total_consumed = Decimal('0')
+                total_available = Decimal('0')
+
+                for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+                    q_amount = line_item.get_quarter_amount(quarter)
+                    q_consumed = line_item.get_quarter_consumed(quarter)
+                    q_available = line_item.get_quarter_available(quarter)
+
+                    ws.cell(row, col, float(q_amount))
+                    ws.cell(row, col).number_format = '₱#,##0.00'
+                    col += 1
+
+                    ws.cell(row, col, float(q_consumed))
+                    ws.cell(row, col).number_format = '₱#,##0.00'
+                    col += 1
+
+                    ws.cell(row, col, float(q_available))
+                    ws.cell(row, col).number_format = '₱#,##0.00'
+                    col += 1
+
+                    total_budgeted += q_amount
+                    total_consumed += q_consumed
+                    total_available += q_available
+
+                # Totals
+                ws.cell(row, col, float(total_budgeted))
+                ws.cell(row, col).number_format = '₱#,##0.00'
+                ws.cell(row, col).font = Font(bold=True)
+                col += 1
+
+                ws.cell(row, col, float(total_consumed))
+                ws.cell(row, col).number_format = '₱#,##0.00'
+                ws.cell(row, col).font = Font(bold=True)
+                col += 1
+
+                ws.cell(row, col, float(total_available))
+                ws.cell(row, col).number_format = '₱#,##0.00'
+                ws.cell(row, col).font = Font(bold=True)
+
+                row += 1
+
+            # PRE Total row
+            ws[f'A{row}'] = 'PRE TOTAL'
+            ws[f'A{row}'].font = Font(bold=True)
+            ws[f'A{row}'].fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+            ws.cell(row, 15, float(pre.total_amount))
+            ws.cell(row, 15).number_format = '₱#,##0.00'
+            ws.cell(row, 15).font = Font(bold=True)
+            ws.cell(row, 15).fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+
+            row += 2  # Space between PREs
+
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 30
+        ws.column_dimensions['B'].width = 20
+        for col_letter in ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']:
+            ws.column_dimensions[col_letter].width = 12
+
+    elif report_type == 'summary':
         # Create Summary sheet
         ws = wb.create_sheet('Budget Summary')
 
@@ -4590,38 +4840,165 @@ def export_budget_excel(request):
         ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
         ws.merge_cells('A2:F2')
 
+        # Get approved PREs
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category')
+
+        # Calculate totals
+        total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+        total_used = sum(ba.get_total_used() for ba in budget_allocations)
+        total_remaining = total_allocated - total_used
+        utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+
         # Budget Allocation Summary
         row = 4
-        ws[f'A{row}'] = 'BUDGET ALLOCATION'
+        ws[f'A{row}'] = 'BUDGET ALLOCATION SUMMARY'
         ws[f'A{row}'].font = header_font
         ws[f'A{row}'].fill = header_fill
+        ws.merge_cells(f'A{row}:C{row}')
 
         row += 1
-        headers = ['Description', 'Amount']
+        headers = ['Description', 'Amount', 'Percentage']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row, col, header)
             cell.font = Font(bold=True)
             cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
 
-        total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
-        total_used = sum(ba.get_total_used() for ba in budget_allocations)
-        total_remaining = total_allocated - total_used
-
         row += 1
         ws[f'A{row}'] = 'Total Allocated'
         ws[f'B{row}'] = float(total_allocated)
         ws[f'B{row}'].number_format = '₱#,##0.00'
+        ws[f'C{row}'] = '100.00%'
 
         row += 1
         ws[f'A{row}'] = 'Total Used'
         ws[f'B{row}'] = float(total_used)
         ws[f'B{row}'].number_format = '₱#,##0.00'
+        ws[f'C{row}'] = f'{utilization_percentage:.2f}%'
 
         row += 1
         ws[f'A{row}'] = 'Total Remaining'
         ws[f'B{row}'] = float(total_remaining)
         ws[f'B{row}'].number_format = '₱#,##0.00'
         ws[f'B{row}'].font = Font(bold=True)
+        ws[f'C{row}'] = f'{100 - utilization_percentage:.2f}%'
+        ws[f'C{row}'].font = Font(bold=True)
+
+        # PRE Summary
+        row += 3
+        ws[f'A{row}'] = 'PRE SUMMARY'
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+        ws.merge_cells(f'A{row}:E{row}')
+
+        row += 1
+        headers = ['PRE', 'Status', 'Total Amount', 'Consumed', 'Remaining']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+
+        for pre in approved_pres:
+            row += 1
+            pre_consumed = sum(
+                sum(line_item.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4'])
+                for line_item in pre.line_items.all()
+            )
+            pre_remaining = pre.total_amount - pre_consumed
+
+            ws.cell(row, 1, f"{pre.department} - FY {pre.fiscal_year}")
+            ws.cell(row, 2, pre.status)
+            ws.cell(row, 3, float(pre.total_amount))
+            ws.cell(row, 3).number_format = '₱#,##0.00'
+            ws.cell(row, 4, float(pre_consumed))
+            ws.cell(row, 4).number_format = '₱#,##0.00'
+            ws.cell(row, 5, float(pre_remaining))
+            ws.cell(row, 5).number_format = '₱#,##0.00'
+
+        # Category-wise Summary
+        row += 3
+        ws[f'A{row}'] = 'CATEGORY-WISE BREAKDOWN'
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+        ws.merge_cells(f'A{row}:E{row}')
+
+        row += 1
+        headers = ['Category', 'Allocated', 'Consumed', 'Remaining', 'Utilization %']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+
+        # Aggregate by category
+        category_data = {}
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                category_name = line_item.category.name if line_item.category else 'Uncategorized'
+
+                if category_name not in category_data:
+                    category_data[category_name] = {
+                        'allocated': Decimal('0'),
+                        'consumed': Decimal('0')
+                    }
+
+                total_allocated = line_item.get_total()
+                total_consumed = sum(line_item.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4'])
+
+                category_data[category_name]['allocated'] += total_allocated
+                category_data[category_name]['consumed'] += total_consumed
+
+        for category, data in sorted(category_data.items()):
+            row += 1
+            remaining = data['allocated'] - data['consumed']
+            utilization = (data['consumed'] / data['allocated'] * 100) if data['allocated'] > 0 else 0
+
+            ws.cell(row, 1, category)
+            ws.cell(row, 2, float(data['allocated']))
+            ws.cell(row, 2).number_format = '₱#,##0.00'
+            ws.cell(row, 3, float(data['consumed']))
+            ws.cell(row, 3).number_format = '₱#,##0.00'
+            ws.cell(row, 4, float(remaining))
+            ws.cell(row, 4).number_format = '₱#,##0.00'
+            ws.cell(row, 5, f'{utilization:.2f}%')
+
+        # Quarterly Breakdown
+        row += 3
+        ws[f'A{row}'] = 'QUARTERLY BREAKDOWN'
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+        ws.merge_cells(f'A{row}:E{row}')
+
+        row += 1
+        headers = ['Quarter', 'Allocated', 'Consumed', 'Remaining', 'Utilization %']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+
+        for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+            row += 1
+            quarter_allocated = Decimal('0')
+            quarter_consumed = Decimal('0')
+
+            for pre in approved_pres:
+                for line_item in pre.line_items.all():
+                    quarter_attr = f'q{quarter[1]}_amount'
+                    quarter_allocated += getattr(line_item, quarter_attr, 0)
+                    quarter_consumed += line_item.get_quarter_consumed(quarter)
+
+            quarter_remaining = quarter_allocated - quarter_consumed
+            quarter_utilization = (quarter_consumed / quarter_allocated * 100) if quarter_allocated > 0 else 0
+
+            ws.cell(row, 1, quarter)
+            ws.cell(row, 2, float(quarter_allocated))
+            ws.cell(row, 2).number_format = '₱#,##0.00'
+            ws.cell(row, 3, float(quarter_consumed))
+            ws.cell(row, 3).number_format = '₱#,##0.00'
+            ws.cell(row, 4, float(quarter_remaining))
+            ws.cell(row, 4).number_format = '₱#,##0.00'
+            ws.cell(row, 5, f'{quarter_utilization:.2f}%')
 
         # PRE Line Items sheet
         ws_pre = wb.create_sheet('PRE Line Items')
@@ -4666,24 +5043,396 @@ def export_budget_excel(request):
             for column in ws_iter.columns:
                 max_length = 0
                 column = list(column)
+                column_letter = get_column_letter(column[0].column)
+
                 for cell in column:
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
                     except:
                         pass
+
                 adjusted_width = min(max_length + 2, 50)
-                ws_iter.column_dimensions[get_column_letter(column[0].column)].width = adjusted_width
+
+                # Ensure amount columns have minimum width for currency display
+                if ws_iter == ws and column_letter in ['B', 'C', 'D', 'E']:
+                    adjusted_width = max(adjusted_width, 18)
+                elif ws_iter == ws_pre and column_letter in ['C', 'D', 'E', 'F', 'G', 'H']:
+                    adjusted_width = max(adjusted_width, 18)
+
+                ws_iter.column_dimensions[column_letter].width = adjusted_width
+
+    elif report_type == 'category':
+        # Create Category-wise report
+        ws = wb.create_sheet('Category Report')
+
+        # Header styling
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+
+        # Title
+        ws['A1'] = 'CATEGORY-WISE BUDGET REPORT'
+        ws['A1'].font = Font(bold=True, size=14)
+        ws.merge_cells('A1:G1')
+
+        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells('A2:G2')
+
+        # Get all PREs with line items
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category')
+
+        # Aggregate by category
+        from django.db.models import Sum
+        category_data = {}
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                category_name = line_item.category.name if line_item.category else 'Uncategorized'
+
+                if category_name not in category_data:
+                    category_data[category_name] = {
+                        'allocated': 0,
+                        'consumed': 0,
+                        'items': []
+                    }
+
+                total_allocated = line_item.get_total()
+                total_consumed = sum(line_item.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4'])
+
+                category_data[category_name]['allocated'] += total_allocated
+                category_data[category_name]['consumed'] += total_consumed
+                category_data[category_name]['items'].append({
+                    'name': line_item.item_name,
+                    'allocated': total_allocated,
+                    'consumed': total_consumed
+                })
+
+        # Headers
+        row = 4
+        headers = ['Category', 'Total Allocated', 'Total Consumed', 'Remaining', 'Utilization %', 'Item Count']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+
+        # Category summary
+        row += 1
+        for category, data in sorted(category_data.items()):
+            remaining = data['allocated'] - data['consumed']
+            utilization = (data['consumed'] / data['allocated'] * 100) if data['allocated'] > 0 else 0
+
+            ws.cell(row, 1, category)
+            ws.cell(row, 2, float(data['allocated']))
+            ws.cell(row, 3, float(data['consumed']))
+            ws.cell(row, 4, float(remaining))
+            ws.cell(row, 5, f"{utilization:.2f}%")
+            ws.cell(row, 6, len(data['items']))
+
+            # Format currency columns
+            for col in [2, 3, 4]:
+                ws.cell(row, col).number_format = '₱#,##0.00'
+
+            row += 1
+
+        # Add detailed breakdown for each category
+        row += 2
+        ws[f'A{row}'] = 'DETAILED BREAKDOWN BY CATEGORY'
+        ws[f'A{row}'].font = Font(bold=True, size=12)
+        ws.merge_cells(f'A{row}:F{row}')
+
+        for category, data in sorted(category_data.items()):
+            row += 2
+            ws[f'A{row}'] = f'Category: {category}'
+            ws[f'A{row}'].font = Font(bold=True, size=11)
+            ws[f'A{row}'].fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+            ws.merge_cells(f'A{row}:F{row}')
+
+            row += 1
+            item_headers = ['Item Name', 'Allocated', 'Consumed', 'Remaining', 'Utilization %']
+            for col, header in enumerate(item_headers, 1):
+                cell = ws.cell(row, col, header)
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
+
+            for item in data['items']:
+                row += 1
+                remaining = item['allocated'] - item['consumed']
+                utilization = (item['consumed'] / item['allocated'] * 100) if item['allocated'] > 0 else 0
+
+                ws.cell(row, 1, item['name'])
+                ws.cell(row, 2, float(item['allocated']))
+                ws.cell(row, 3, float(item['consumed']))
+                ws.cell(row, 4, float(remaining))
+                ws.cell(row, 5, f"{utilization:.2f}%")
+
+                for col in [2, 3, 4]:
+                    ws.cell(row, col).number_format = '₱#,##0.00'
+
+        # Adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column = list(column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[get_column_letter(column[0].column)].width = adjusted_width
 
     elif report_type == 'quarterly':
         ws = wb.create_sheet(f'{quarter} Report')
 
-        # Similar implementation for quarterly report
-        ws['A1'] = f'QUARTERLY REPORT - {quarter}'
-        ws['A1'].font = Font(bold=True, size=14)
+        # Header styling
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
 
-        # Add quarterly data...
-        # (Implementation continues...)
+        # Title
+        ws['A1'] = f'QUARTERLY BUDGET REPORT - {quarter}'
+        ws['A1'].font = Font(bold=True, size=14)
+        ws.merge_cells('A1:F1')
+
+        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells('A2:F2')
+
+        # Quarter summary
+        row = 4
+        ws[f'A{row}'] = f'{quarter} SUMMARY'
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+
+        row += 1
+        headers = ['Description', 'Amount']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+
+        # Get PREs for this quarter
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category')
+
+        # Calculate quarter totals
+        quarter_allocated = 0
+        quarter_consumed = 0
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                quarter_attr = f'q{quarter[1]}_amount'
+                quarter_allocated += getattr(line_item, quarter_attr, 0)
+                quarter_consumed += line_item.get_quarter_consumed(quarter)
+
+        quarter_remaining = quarter_allocated - quarter_consumed
+
+        row += 1
+        ws[f'A{row}'] = f'{quarter} Allocated'
+        ws[f'B{row}'] = float(quarter_allocated)
+        ws[f'B{row}'].number_format = '₱#,##0.00'
+
+        row += 1
+        ws[f'A{row}'] = f'{quarter} Consumed'
+        ws[f'B{row}'] = float(quarter_consumed)
+        ws[f'B{row}'].number_format = '₱#,##0.00'
+
+        row += 1
+        ws[f'A{row}'] = f'{quarter} Remaining'
+        ws[f'B{row}'] = float(quarter_remaining)
+        ws[f'B{row}'].number_format = '₱#,##0.00'
+        ws[f'B{row}'].font = Font(bold=True)
+
+        # Detailed line items for the quarter
+        row += 3
+        ws[f'A{row}'] = f'{quarter} LINE ITEMS BREAKDOWN'
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+        ws.merge_cells(f'A{row}:F{row}')
+
+        row += 1
+        headers = ['Line Item', 'Category', 'PRE Number', 'Allocated', 'Consumed', 'Remaining']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                quarter_attr = f'q{quarter[1]}_amount'
+                allocated = getattr(line_item, quarter_attr, 0)
+                consumed = line_item.get_quarter_consumed(quarter)
+
+                if allocated > 0 or consumed > 0:  # Only show items with activity in this quarter
+                    row += 1
+                    ws.cell(row, 1, line_item.item_name)
+                    ws.cell(row, 2, line_item.category.name if line_item.category else 'Other')
+                    ws.cell(row, 3, f"PRE-{pre.id.hex[:8]}")
+                    ws.cell(row, 4, float(allocated))
+                    ws.cell(row, 5, float(consumed))
+                    ws.cell(row, 6, float(allocated - consumed))
+
+                    for col in [4, 5, 6]:
+                        ws.cell(row, col).number_format = '₱#,##0.00'
+
+        # Adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column = list(column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[get_column_letter(column[0].column)].width = adjusted_width
+
+    elif report_type == 'transaction':
+        # Create Transaction report
+        ws = wb.create_sheet('Transaction Report')
+
+        # Header styling
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+
+        # Title
+        ws['A1'] = 'TRANSACTION REPORT'
+        ws['A1'].font = Font(bold=True, size=14)
+        ws.merge_cells('A1:G1')
+
+        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells('A2:G2')
+
+        # Collect all transactions (PREs, PRs, ADs) - matching transaction_history logic
+        transactions = []
+
+        # Get PRE transactions
+        pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft')
+
+        for pre in pres:
+            quarters_used = []
+            for q in ['Q1', 'Q2', 'Q3', 'Q4']:
+                if pre.line_items.filter(**{f'{q.lower()}_amount__gt': 0}).exists():
+                    quarters_used.append(q)
+
+            transactions.append({
+                'date': pre.submitted_at or pre.created_at,
+                'type': 'PRE',
+                'number': f"{pre.department} - FY {pre.fiscal_year}",
+                'line_item': f"{pre.line_items.count()} Line Items",
+                'quarter': ', '.join(quarters_used) if quarters_used else 'All',
+                'amount': pre.total_amount,
+                'status': pre.status
+            })
+
+        # Get PR transactions
+        prs = NewPurchaseRequest.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft').prefetch_related('pre_allocations')
+
+        for pr in prs:
+            allocations = pr.pre_allocations.all()
+            if allocations:
+                quarters = set(alloc.quarter for alloc in allocations)
+                line_items = set(alloc.pre_line_item.item_name for alloc in allocations)
+
+                transactions.append({
+                    'date': pr.submitted_at or pr.created_at,
+                    'type': 'PR',
+                    'number': pr.pr_number,
+                    'line_item': ', '.join(list(line_items)[:2]) + ('...' if len(line_items) > 2 else ''),
+                    'quarter': ', '.join(sorted(quarters)),
+                    'amount': pr.total_amount,
+                    'status': pr.status
+                })
+
+        # Get AD transactions
+        ads = ActivityDesign.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft').prefetch_related('pre_allocations')
+
+        for ad in ads:
+            allocations = ad.pre_allocations.all()
+            if allocations:
+                quarters = set(alloc.quarter for alloc in allocations)
+                line_items = set(alloc.pre_line_item.item_name for alloc in allocations)
+
+                transactions.append({
+                    'date': ad.submitted_at or ad.created_at,
+                    'type': 'AD',
+                    'number': ad.ad_number,
+                    'line_item': ', '.join(list(line_items)[:2]) + ('...' if len(line_items) > 2 else ''),
+                    'quarter': ', '.join(sorted(quarters)),
+                    'amount': ad.total_amount,
+                    'status': ad.status
+                })
+
+        # Sort by date descending
+        transactions.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+
+        # Headers
+        row = 4
+        headers = ['Date', 'Type', 'Number', 'Line Item', 'Quarter', 'Amount', 'Status']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+
+        # Transaction data
+        row += 1
+        total_transactions = 0
+
+        for transaction in transactions:
+            ws.cell(row, 1, transaction['date'].strftime('%Y-%m-%d') if transaction['date'] else 'N/A')
+            ws.cell(row, 2, transaction['type'])
+            ws.cell(row, 3, transaction['number'] or 'N/A')
+            ws.cell(row, 4, transaction['line_item'])
+            ws.cell(row, 5, transaction['quarter'])
+            ws.cell(row, 6, float(transaction['amount']))
+            ws.cell(row, 7, transaction['status'])
+
+            ws.cell(row, 6).number_format = '₱#,##0.00'
+
+            total_transactions += transaction['amount']
+            row += 1
+
+        # Add total row
+        row += 1
+        ws.cell(row, 5, 'TOTAL:')
+        ws.cell(row, 5).font = Font(bold=True)
+        ws.cell(row, 6, float(total_transactions))
+        ws.cell(row, 6).number_format = '₱#,##0.00'
+        ws.cell(row, 6).font = Font(bold=True)
+        ws.cell(row, 6).fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+
+        # Adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column = list(column)
+            column_letter = get_column_letter(column[0].column)
+
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+
+            adjusted_width = min(max_length + 2, 50)
+
+            # Ensure Amount column (F) has minimum width for currency display
+            if column_letter == 'F':
+                adjusted_width = max(adjusted_width, 15)
+
+            ws.column_dimensions[column_letter].width = adjusted_width
 
     # Prepare response
     response = HttpResponse(
@@ -4699,17 +5448,21 @@ def export_budget_excel(request):
 @role_required('end_user', login_url='/')
 def export_budget_pdf(request):
     """
-    Export budget data to PDF (Optional)
+    Export budget data to PDF
+    Supports different report types
     """
     from reportlab.lib.pagesizes import letter, A4
     from reportlab.lib import colors
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
+    report_type = request.GET.get('type', 'summary')
+    quarter = request.GET.get('quarter', 'Q1')
+
     response = HttpResponse(content_type='application/pdf')
-    filename = f'Budget_Report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    filename = f'Budget_Report_{report_type}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     # Create PDF
@@ -4727,8 +5480,14 @@ def export_budget_pdf(request):
         alignment=TA_CENTER
     )
 
-    story.append(Paragraph('BUDGET SUMMARY REPORT', title_style))
-    story.append(Spacer(1, 12))
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#374151'),
+        spaceAfter=20,
+        alignment=TA_LEFT
+    )
 
     # Get data
     budget_allocations = NewBudgetAllocation.objects.filter(
@@ -4736,31 +5495,369 @@ def export_budget_pdf(request):
         is_active=True
     )
 
-    total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
-    total_used = sum(ba.get_total_used() for ba in budget_allocations)
-    total_remaining = total_allocated - total_used
+    if report_type == 'summary':
+        story.append(Paragraph('BUDGET SUMMARY REPORT', title_style))
+        story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
+        story.append(Spacer(1, 20))
 
-    # Summary table
-    data = [
-        ['Description', 'Amount'],
-        ['Total Allocated', f'₱{total_allocated:,.2f}'],
-        ['Total Used', f'₱{total_used:,.2f}'],
-        ['Total Remaining', f'₱{total_remaining:,.2f}'],
-    ]
+        total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+        total_used = sum(ba.get_total_used() for ba in budget_allocations)
+        total_remaining = total_allocated - total_used
 
-    t = Table(data, colWidths=[3*inch, 2*inch])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+        # Summary table
+        data = [
+            ['Description', 'Amount'],
+            ['Total Allocated', f'₱{total_allocated:,.2f}'],
+            ['Total Used', f'₱{total_used:,.2f}'],
+            ['Total Remaining', f'₱{total_remaining:,.2f}'],
+        ]
 
-    story.append(t)
+        t = Table(data, colWidths=[3*inch, 2*inch])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+
+        story.append(t)
+        story.append(Spacer(1, 30))
+
+        # Add PRE Line Items breakdown
+        story.append(Paragraph('PRE LINE ITEMS BREAKDOWN', subtitle_style))
+
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category')
+
+        pre_data = [['Line Item', 'Category', 'Q1', 'Q2', 'Q3', 'Q4', 'Total', 'Consumed']]
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                total_consumed = sum(line_item.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4'])
+                pre_data.append([
+                    line_item.item_name[:30],
+                    (line_item.category.name if line_item.category else 'Other')[:15],
+                    f'₱{line_item.q1_amount:,.0f}',
+                    f'₱{line_item.q2_amount:,.0f}',
+                    f'₱{line_item.q3_amount:,.0f}',
+                    f'₱{line_item.q4_amount:,.0f}',
+                    f'₱{line_item.get_total():,.0f}',
+                    f'₱{total_consumed:,.0f}'
+                ])
+
+        col_widths = [1.8*inch, 1*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.9*inch, 0.9*inch]
+        t2 = Table(pre_data, colWidths=col_widths)
+        t2.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t2)
+
+    elif report_type == 'category':
+        story.append(Paragraph('CATEGORY-WISE BUDGET REPORT', title_style))
+        story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
+        story.append(Spacer(1, 20))
+
+        # Aggregate by category
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category')
+
+        category_data = {}
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                category_name = line_item.category.name if line_item.category else 'Uncategorized'
+
+                if category_name not in category_data:
+                    category_data[category_name] = {
+                        'allocated': 0,
+                        'consumed': 0,
+                        'items': []
+                    }
+
+                total_allocated = line_item.get_total()
+                total_consumed = sum(line_item.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4'])
+
+                category_data[category_name]['allocated'] += total_allocated
+                category_data[category_name]['consumed'] += total_consumed
+                category_data[category_name]['items'].append({
+                    'name': line_item.item_name,
+                    'allocated': total_allocated,
+                    'consumed': total_consumed
+                })
+
+        # Category summary table
+        story.append(Paragraph('CATEGORY SUMMARY', subtitle_style))
+
+        cat_summary = [['Category', 'Allocated', 'Consumed', 'Remaining', 'Utilization %', 'Items']]
+
+        for category, data in sorted(category_data.items()):
+            remaining = data['allocated'] - data['consumed']
+            utilization = (data['consumed'] / data['allocated'] * 100) if data['allocated'] > 0 else 0
+
+            cat_summary.append([
+                category[:25],
+                f'₱{data["allocated"]:,.2f}',
+                f'₱{data["consumed"]:,.2f}',
+                f'₱{remaining:,.2f}',
+                f'{utilization:.1f}%',
+                str(len(data['items']))
+            ])
+
+        t = Table(cat_summary, colWidths=[1.5*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1*inch, 0.6*inch])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+
+        # Detailed breakdown for each category
+        for category, data in sorted(category_data.items()):
+            story.append(Spacer(1, 20))
+            story.append(Paragraph(f'Category: {category}', subtitle_style))
+
+            item_data = [['Item Name', 'Allocated', 'Consumed', 'Remaining', 'Utilization %']]
+
+            for item in data['items']:
+                remaining = item['allocated'] - item['consumed']
+                utilization = (item['consumed'] / item['allocated'] * 100) if item['allocated'] > 0 else 0
+
+                item_data.append([
+                    item['name'][:30],
+                    f'₱{item["allocated"]:,.2f}',
+                    f'₱{item["consumed"]:,.2f}',
+                    f'₱{remaining:,.2f}',
+                    f'{utilization:.1f}%'
+                ])
+
+            t = Table(item_data, colWidths=[2.5*inch, 1.3*inch, 1.3*inch, 1.3*inch, 1*inch])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D9E1F2')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(t)
+
+    elif report_type == 'quarterly':
+        story.append(Paragraph(f'QUARTERLY BUDGET REPORT - {quarter}', title_style))
+        story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
+        story.append(Spacer(1, 20))
+
+        # Get PREs for this quarter
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category')
+
+        # Calculate quarter totals
+        quarter_allocated = 0
+        quarter_consumed = 0
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                quarter_attr = f'q{quarter[1]}_amount'
+                quarter_allocated += getattr(line_item, quarter_attr, 0)
+                quarter_consumed += line_item.get_quarter_consumed(quarter)
+
+        quarter_remaining = quarter_allocated - quarter_consumed
+
+        # Quarter summary
+        story.append(Paragraph(f'{quarter} SUMMARY', subtitle_style))
+
+        summary_data = [
+            ['Description', 'Amount'],
+            [f'{quarter} Allocated', f'₱{quarter_allocated:,.2f}'],
+            [f'{quarter} Consumed', f'₱{quarter_consumed:,.2f}'],
+            [f'{quarter} Remaining', f'₱{quarter_remaining:,.2f}'],
+        ]
+
+        t = Table(summary_data, colWidths=[3*inch, 2*inch])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+
+        # Detailed line items
+        story.append(Spacer(1, 20))
+        story.append(Paragraph(f'{quarter} LINE ITEMS BREAKDOWN', subtitle_style))
+
+        line_items_data = [['Line Item', 'Category', 'PRE Number', 'Allocated', 'Consumed', 'Remaining']]
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                quarter_attr = f'q{quarter[1]}_amount'
+                allocated = getattr(line_item, quarter_attr, 0)
+                consumed = line_item.get_quarter_consumed(quarter)
+
+                if allocated > 0 or consumed > 0:
+                    line_items_data.append([
+                        line_item.item_name[:25],
+                        (line_item.category.name if line_item.category else 'Other')[:15],
+                        f"PRE-{pre.id.hex[:8]}",
+                        f'₱{allocated:,.2f}',
+                        f'₱{consumed:,.2f}',
+                        f'₱{allocated - consumed:,.2f}'
+                    ])
+
+        t = Table(line_items_data, colWidths=[1.8*inch, 1.2*inch, 1*inch, 1.1*inch, 1.1*inch, 1.2*inch])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
+
+    elif report_type == 'transaction':
+        story.append(Paragraph('TRANSACTION REPORT', title_style))
+        story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
+        story.append(Spacer(1, 20))
+
+        # Collect all transactions (PREs, PRs, ADs) - matching transaction_history logic
+        transactions = []
+
+        # Get PRE transactions
+        pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft')
+
+        for pre in pres:
+            quarters_used = []
+            for q in ['Q1', 'Q2', 'Q3', 'Q4']:
+                if pre.line_items.filter(**{f'{q.lower()}_amount__gt': 0}).exists():
+                    quarters_used.append(q)
+
+            transactions.append({
+                'date': pre.submitted_at or pre.created_at,
+                'type': 'PRE',
+                'number': f"{pre.department} - FY {pre.fiscal_year}",
+                'line_item': f"{pre.line_items.count()} Line Items",
+                'quarter': ', '.join(quarters_used) if quarters_used else 'All',
+                'amount': pre.total_amount,
+                'status': pre.status
+            })
+
+        # Get PR transactions
+        prs = NewPurchaseRequest.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft').prefetch_related('pre_allocations')
+
+        for pr in prs:
+            allocations = pr.pre_allocations.all()
+            if allocations:
+                quarters = set(alloc.quarter for alloc in allocations)
+                line_items = set(alloc.pre_line_item.item_name for alloc in allocations)
+
+                transactions.append({
+                    'date': pr.submitted_at or pr.created_at,
+                    'type': 'PR',
+                    'number': pr.pr_number,
+                    'line_item': ', '.join(list(line_items)[:2]) + ('...' if len(line_items) > 2 else ''),
+                    'quarter': ', '.join(sorted(quarters)),
+                    'amount': pr.total_amount,
+                    'status': pr.status
+                })
+
+        # Get AD transactions
+        ads = ActivityDesign.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft').prefetch_related('pre_allocations')
+
+        for ad in ads:
+            allocations = ad.pre_allocations.all()
+            if allocations:
+                quarters = set(alloc.quarter for alloc in allocations)
+                line_items = set(alloc.pre_line_item.item_name for alloc in allocations)
+
+                transactions.append({
+                    'date': ad.submitted_at or ad.created_at,
+                    'type': 'AD',
+                    'number': ad.ad_number,
+                    'line_item': ', '.join(list(line_items)[:2]) + ('...' if len(line_items) > 2 else ''),
+                    'quarter': ', '.join(sorted(quarters)),
+                    'amount': ad.total_amount,
+                    'status': ad.status
+                })
+
+        # Sort by date descending
+        transactions.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+
+        trans_data = [['Date', 'Type', 'Number', 'Line Item', 'Quarter', 'Amount', 'Status']]
+
+        total_transactions = 0
+
+        for transaction in transactions:
+            trans_data.append([
+                transaction['date'].strftime('%Y-%m-%d') if transaction['date'] else 'N/A',
+                transaction['type'],
+                (transaction['number'] or 'N/A')[:25],
+                transaction['line_item'][:20],
+                transaction['quarter'],
+                f'₱{transaction["amount"]:,.2f}',
+                transaction['status']
+            ])
+            total_transactions += transaction['amount']
+
+        # Add total row
+        trans_data.append(['', '', '', '', 'TOTAL:', f'₱{total_transactions:,.2f}', ''])
+
+        t = Table(trans_data, colWidths=[0.8*inch, 0.6*inch, 1.5*inch, 1.3*inch, 0.9*inch, 1*inch, 0.8*inch])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (5, 0), (5, -1), 'RIGHT'),  # Amount column right-aligned
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.yellow),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(t)
 
     doc.build(story)
     return response
