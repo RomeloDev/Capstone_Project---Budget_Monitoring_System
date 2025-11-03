@@ -1,0 +1,207 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Quarterly Analysis{% endblock title %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block main-content %}
+<main class="content space-y-8">
+    <!-- Header -->
+    <header class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">Quarterly Budget Analysis</h1>
+            <p class="text-gray-600 mt-1">Analyze budget allocation and consumption by quarter</p>
+        </div>
+        <a href="{% url 'budget_overview' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
+            ← Back to Overview
+        </a>
+    </header>
+
+    <!-- Quarter Selector Tabs -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8">
+                {% for q in quarters %}
+                <a href="?quarter={{ q }}" class="{% if selected_quarter == q %}border-blue-500 text-blue-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                    {{ q }}
+                </a>
+                {% endfor %}
+            </nav>
+        </div>
+
+        <!-- Quarter Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+            <div class="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
+                <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Total Budget</p>
+                <p class="text-2xl font-bold text-blue-700 mt-2">₱{{ quarter_total|floatformat:2|intcomma }}</p>
+            </div>
+            <div class="bg-red-50 p-6 rounded-lg border-l-4 border-red-500">
+                <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Consumed</p>
+                <p class="text-2xl font-bold text-red-700 mt-2">₱{{ quarter_consumed|floatformat:2|intcomma }}</p>
+            </div>
+            <div class="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
+                <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Remaining</p>
+                <p class="text-2xl font-bold text-green-700 mt-2">₱{{ quarter_remaining|floatformat:2|intcomma }}</p>
+            </div>
+            <div class="bg-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
+                <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Utilization</p>
+                <p class="text-2xl font-bold text-orange-700 mt-2">{{ quarter_utilization|floatformat:1 }}%</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Line Items for This Quarter -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ selected_quarter }} Line Items</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Line Item</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Budgeted</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Consumed</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Available</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Utilization %</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for item in quarter_line_items %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ item.line_item.item_name }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ item.category }}</td>
+                        <td class="px-6 py-4 text-sm text-right text-gray-900">₱{{ item.budgeted|floatformat:2|intcomma }}</td>
+                        <td class="px-6 py-4 text-sm text-right text-red-600">₱{{ item.consumed|floatformat:2|intcomma }}</td>
+                        <td class="px-6 py-4 text-sm text-right text-green-600 font-medium">₱{{ item.available|floatformat:2|intcomma }}</td>
+                        <td class="px-6 py-4 text-sm text-right">
+                            {% widthratio item.consumed item.budgeted 100 %}%
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500 italic">No line items for this quarter</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Chart -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ selected_quarter }} Budget vs Actual</h3>
+        <div class="relative h-80">
+            <canvas id="quarterChart"></canvas>
+        </div>
+    </section>
+
+    <!-- Transactions for This Quarter -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ selected_quarter }} Transactions</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Line Item</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for trans in transactions %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ trans.date|date:"M d, Y" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if trans.type == 'PR' %}bg-blue-100 text-blue-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ trans.type }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ trans.number }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ trans.line_item }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">₱{{ trans.amount|floatformat:2|intcomma }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if trans.status == 'Approved' %}bg-green-100 text-green-800
+                                {% elif trans.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ trans.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500 italic">No transactions for this quarter</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+// Quarter Budget vs Actual Bar Chart
+const ctxQuarter = document.getElementById('quarterChart');
+
+const lineItemNames = [{% for item in quarter_line_items %}'{{ item.line_item.item_name|truncatechars:20 }}'{% if not forloop.last %},{% endif %}{% endfor %}];
+const budgetedAmounts = [{% for item in quarter_line_items %}{{ item.budgeted }}{% if not forloop.last %},{% endif %}{% endfor %}];
+const consumedAmounts = [{% for item in quarter_line_items %}{{ item.consumed }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+new Chart(ctxQuarter, {
+    type: 'bar',
+    data: {
+        labels: lineItemNames,
+        datasets: [
+            {
+                label: 'Budgeted',
+                data: budgetedAmounts,
+                backgroundColor: '#93c5fd',
+                borderColor: '#3b82f6',
+                borderWidth: 1
+            },
+            {
+                label: 'Consumed',
+                data: consumedAmounts,
+                backgroundColor: '#fca5a5',
+                borderColor: '#ef4444',
+                borderWidth: 1
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return '₱' + value.toLocaleString('en-US');
+                    }
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                position: 'top'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.dataset.label + ': ₱' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2});
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock main-content %}

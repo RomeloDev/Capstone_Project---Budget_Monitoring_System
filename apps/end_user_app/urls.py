@@ -36,4 +36,13 @@ urlpatterns = [
     path('pr-ad-request/activity_design_upload/', views.activity_design_upload, name='activity_design_upload'),
     path('get-pre-line-items-for-ad/', views.get_pre_line_items_for_ad, name='get_pre_line_items_for_ad'),
     path('ad/preview/<uuid:ad_id>/', views.preview_submitted_ad, name='preview_submitted_ad'),
+
+    # Budget Monitoring Dashboard
+    path('budget/overview/', views.budget_overview, name='budget_overview'),
+    path('budget/pre-details/', views.pre_budget_details, name='pre_budget_details'),
+    path('budget/quarterly/', views.quarterly_analysis, name='quarterly_analysis'),
+    path('budget/transactions/', views.transaction_history, name='transaction_history'),
+    path('budget/reports/', views.budget_reports, name='budget_reports'),
+    path('budget/export/excel/', views.export_budget_excel, name='export_budget_excel'),
+    path('budget/export/pdf/', views.export_budget_pdf, name='export_budget_pdf'),
 ]

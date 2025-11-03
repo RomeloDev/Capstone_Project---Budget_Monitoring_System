@@ -1,0 +1,229 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Budget Reports{% endblock title %}
+
+{% block main-content %}
+<main class="content space-y-8">
+    <!-- Header -->
+    <header class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">Budget Reports</h1>
+            <p class="text-gray-600 mt-1">Generate and export comprehensive budget reports</p>
+        </div>
+        <a href="{% url 'budget_overview' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
+            ← Back to Overview
+        </a>
+    </header>
+
+    <!-- Report Types Grid -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Budget Summary Report -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+            <div class="flex items-start space-x-4">
+                <div class="p-3 bg-purple-100 rounded-lg">
+                    <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-800">Budget Summary Report</h3>
+                    <p class="text-sm text-gray-600 mt-1">Complete overview of budget allocations, PRE details, and transaction summaries</p>
+                    <div class="mt-4 flex space-x-3">
+                        <a href="{% url 'export_budget_excel' %}?type=summary" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                            </svg>
+                            Export Excel
+                        </a>
+                        <a href="{% url 'export_budget_pdf' %}?type=summary" class="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                            </svg>
+                            Export PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quarterly Report -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+            <div class="flex items-start space-x-4">
+                <div class="p-3 bg-blue-100 rounded-lg">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-800">Quarterly Report</h3>
+                    <p class="text-sm text-gray-600 mt-1">Quarter-specific breakdown with line items and transactions</p>
+                    <div class="mt-4">
+                        <form method="GET" action="{% url 'export_budget_excel' %}" class="flex items-end space-x-3">
+                            <div class="flex-1">
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Select Quarter</label>
+                                <select name="quarter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                                    {% for q in quarters %}
+                                    <option value="{{ q }}">{{ q }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <input type="hidden" name="type" value="quarterly">
+                            <button type="submit" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                Export
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category-wise Report -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+            <div class="flex items-start space-x-4">
+                <div class="p-3 bg-green-100 rounded-lg">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-800">Category-wise Report</h3>
+                    <p class="text-sm text-gray-600 mt-1">Budget breakdown by category (Personnel, MOOE, Capital)</p>
+                    <div class="mt-4 flex space-x-3">
+                        <a href="{% url 'export_budget_excel' %}?type=category" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                            </svg>
+                            Export Excel
+                        </a>
+                        <a href="{% url 'export_budget_pdf' %}?type=category" class="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                            </svg>
+                            Export PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction Report -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+            <div class="flex items-start space-x-4">
+                <div class="p-3 bg-orange-100 rounded-lg">
+                    <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-semibold text-gray-800">Transaction Report</h3>
+                    <p class="text-sm text-gray-600 mt-1">Complete list of all transactions within a date range</p>
+                    <div class="mt-4">
+                        <form method="GET" action="{% url 'export_budget_excel' %}" class="space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">From</label>
+                                    <input type="date" name="date_from" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">To</label>
+                                    <input type="date" name="date_to" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                                </div>
+                            </div>
+                            <input type="hidden" name="type" value="transaction">
+                            <button type="submit" class="w-full inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                Export Excel
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Actions -->
+    <section class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-8 text-white">
+        <h3 class="text-2xl font-bold mb-2">Need Help?</h3>
+        <p class="mb-6 text-blue-100">Access detailed budget information and analysis tools</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <a href="{% url 'pre_budget_details' %}" class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-4 transition flex items-center space-x-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <span class="font-medium">View PRE Details</span>
+            </a>
+            <a href="{% url 'quarterly_analysis' %}" class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-4 transition flex items-center space-x-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                <span class="font-medium">Quarterly Analysis</span>
+            </a>
+            <a href="{% url 'transaction_history' %}" class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-4 transition flex items-center space-x-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="font-medium">View Transactions</span>
+            </a>
+        </div>
+    </section>
+
+    <!-- Report Information -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Report Information</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 class="font-medium text-gray-800 mb-2">Export Formats</h4>
+                <ul class="text-sm text-gray-600 space-y-2">
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span><strong>Excel (.xlsx):</strong> Formatted spreadsheet with multiple sheets, perfect for further analysis</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span><strong>PDF:</strong> Professional formatted report for printing and sharing</span>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-medium text-gray-800 mb-2">Report Contents</h4>
+                <ul class="text-sm text-gray-600 space-y-2">
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-blue-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Budget allocations and usage statistics</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-blue-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>PRE line items with quarterly breakdown</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-blue-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Transaction history with status tracking</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-5 h-5 text-blue-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Category and quarterly analysis</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+</main>
+{% endblock main-content %}

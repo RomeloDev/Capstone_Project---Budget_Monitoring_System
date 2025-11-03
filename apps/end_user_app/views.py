@@ -225,31 +225,60 @@ def build_pre_source_options_v2(user):
     for line_item in line_items:
         # Calculate total budget for this line item
         total = line_item.get_total()
-        
+
         # Skip if no budget allocated
         if total <= 0:
             continue
-        
-        # Calculate consumed amount
-        consumed = calculate_line_item_consumed(line_item)
-        available = total - consumed
-        
+
+        # Calculate PR and AD consumption separately
+        pr_consumed = NewPurchaseRequestAllocation.objects.filter(
+            pre_line_item=line_item
+        ).exclude(
+            purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        ad_consumed = ActivityDesignAllocation.objects.filter(
+            pre_line_item=line_item
+        ).exclude(
+            activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        total_consumed = pr_consumed + ad_consumed
+        available = total - total_consumed
+
         # Only include line items with available budget
         if available > 0:
             pre_key = str(line_item.pre.id)
-            
+
             # Set PRE info (only once per PRE)
             if not pre_groups[pre_key]['pre_display']:
                 pre_groups[pre_key]['pre_display'] = f"{line_item.pre.department} - FY {line_item.pre.fiscal_year}"
                 pre_groups[pre_key]['pre_id'] = pre_key
-            
+
             # Build display name
             category_name = line_item.category.name if line_item.category else 'Other'
             if line_item.subcategory:
                 display = f"{category_name} - {line_item.subcategory.name} - {line_item.item_name}"
             else:
                 display = f"{category_name} - {line_item.item_name}"
-            
+
+            # Build detailed label with PR/AD breakdown
+            breakdown_parts = []
+            if pr_consumed > 0:
+                breakdown_parts.append(f"PR: ₱{pr_consumed:,.2f}")
+            if ad_consumed > 0:
+                breakdown_parts.append(f"AD: ₱{ad_consumed:,.2f}")
+
+            if breakdown_parts:
+                breakdown_str = " | ".join(breakdown_parts)
+                label = f"{display} (Total: ₱{total:,.2f} | Used: {breakdown_str} | Available: ₱{available:,.2f})"
+            else:
+                label = f"{display} (Total: ₱{total:,.2f} | Available: ₱{available:,.2f})"
+
             # Add line item to group
             pre_groups[pre_key]['line_items'].append({
                 'id': line_item.id,
@@ -257,10 +286,12 @@ def build_pre_source_options_v2(user):
                 'item_name': line_item.item_name,
                 'category': category_name,
                 'total': total,
-                'consumed': consumed,
+                'pr_consumed': pr_consumed,
+                'ad_consumed': ad_consumed,
+                'consumed': total_consumed,
                 'available': available,
                 'value': f"{line_item.pre.id}|{line_item.id}",
-                'label': f"{display} (Available: ₱{available:,.2f})"
+                'label': label
             })
     
     # Convert defaultdict to list
@@ -270,24 +301,26 @@ def build_pre_source_options_v2(user):
 def calculate_line_item_consumed(line_item):
     """
     Calculate the total consumed/allocated amount for a specific PRE line item.
-    Sums up all allocations from approved/pending Purchase Requests.
-    
+    Sums up all allocations from both Purchase Requests and Activity Designs.
+    Includes Pending, Partially Approved, and Approved statuses.
+    Excludes Draft, Rejected, and Cancelled.
+
     Args:
         line_item: PRELineItem instance or line_item_id
-        
+
     Returns:
-        Decimal: Total consumed amount from all allocations
+        Decimal: Total consumed amount from all allocations (PR + AD)
     """
     if isinstance(line_item, PRELineItem):
         line_item_id = line_item.id
     else:
         line_item_id = line_item
-    
-    consumed = NewPurchaseRequestAllocation.objects.filter(
-        pre_line_item_id=line_item_id,
-        purchase_request__status__in=[
-            'Pending', 'Partially Approved', 'Approved'
-        ]
+
+    # Sum PR consumption
+    pr_consumed = NewPurchaseRequestAllocation.objects.filter(
+        pre_line_item_id=line_item_id
+    ).exclude(
+        purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
     ).aggregate(
         total=Coalesce(
             Sum('allocated_amount'),
@@ -295,8 +328,21 @@ def calculate_line_item_consumed(line_item):
             output_field=DecimalField(max_digits=15, decimal_places=2)
         )
     )['total']
-    
-    return consumed
+
+    # Sum AD consumption
+    ad_consumed = ActivityDesignAllocation.objects.filter(
+        pre_line_item_id=line_item_id
+    ).exclude(
+        activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+    ).aggregate(
+        total=Coalesce(
+            Sum('allocated_amount'),
+            Decimal('0.00'),
+            output_field=DecimalField(max_digits=15, decimal_places=2)
+        )
+    )['total']
+
+    return pr_consumed + ad_consumed
 
 
 def allocate_funds_to_purchase_request(purchase_request, pre_id, line_item_id, amount):
@@ -495,25 +541,14 @@ def get_pre_line_items(request):
                 quarters = ['Q1', 'Q2', 'Q3', 'Q4']
                 for quarter in quarters:
                     # Get quarter amount
-                    quarter_amount = getattr(line_item, f'{quarter.lower()}_amount', Decimal('0'))
-                    
+                    quarter_amount = line_item.get_quarter_amount(quarter)
+
                     if quarter_amount <= 0:
                         continue
-                    
-                    # ✅ FIXED: Calculate consumed amount for this quarter
-                    consumed = NewPurchaseRequestAllocation.objects.filter(
-                        pre_line_item=line_item,
-                        quarter=quarter,
-                        purchase_request__status__in=['Pending', 'Partially Approved', 'Approved']
-                    ).aggregate(
-                        total=Coalesce(
-                            Sum('allocated_amount'),
-                            Decimal('0.00'),
-                            output_field=DecimalField(max_digits=15, decimal_places=2)
-                        )
-                    )['total']
-                    
-                    available = quarter_amount - consumed
+
+                    # ✅ FIXED: Use model method that considers BOTH PR and AD allocations
+                    available = line_item.get_quarter_available(quarter)
+                    consumed = quarter_amount - available
                     
                     if available > 0:
                         line_items_data.append({
@@ -789,15 +824,16 @@ def purchase_request_upload(request):
             try:
                 line_item = PRELineItem.objects.get(id=line_item_id)
                 pre = line_item.pre
-                
+
                 # Get quarter amount
                 quarter_amount = getattr(line_item, f'{quarter.lower()}_amount', Decimal('0'))
-                
-                # Calculate consumed for this quarter
-                consumed = NewPurchaseRequestAllocation.objects.filter(
+
+                # Calculate PR consumption for this quarter
+                pr_consumed = NewPurchaseRequestAllocation.objects.filter(
                     pre_line_item=line_item,
-                    quarter=quarter,  # ✅ Filter by quarter
-                    purchase_request__status__in=['Pending', 'Partially Approved', 'Approved']
+                    quarter=quarter
+                ).exclude(
+                    purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
                 ).aggregate(
                     total=Coalesce(
                         Sum('allocated_amount'),
@@ -805,15 +841,39 @@ def purchase_request_upload(request):
                         output_field=DecimalField(max_digits=15, decimal_places=2)
                     )
                 )['total']
-                
-                available = quarter_amount - consumed
-                
+
+                # Calculate AD consumption for this quarter
+                ad_consumed = ActivityDesignAllocation.objects.filter(
+                    pre_line_item=line_item,
+                    quarter=quarter
+                ).exclude(
+                    activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+                ).aggregate(
+                    total=Coalesce(
+                        Sum('allocated_amount'),
+                        Decimal('0.00'),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )['total']
+
+                total_consumed = pr_consumed + ad_consumed
+                available = quarter_amount - total_consumed
+
                 if total_amount > available:
-                    messages.error(request, 
-                        f"Amount (₱{total_amount:,.2f}) exceeds available budget for {quarter} "
-                        f"(₱{available:,.2f}).")
+                    # Build detailed error message showing breakdown
+                    error_parts = [
+                        f"Amount (₱{total_amount:,.2f}) exceeds available budget for {quarter}.",
+                        f"Quarter Budget: ₱{quarter_amount:,.2f}"
+                    ]
+                    if pr_consumed > 0:
+                        error_parts.append(f"Used by PRs: ₱{pr_consumed:,.2f}")
+                    if ad_consumed > 0:
+                        error_parts.append(f"Used by ADs: ₱{ad_consumed:,.2f}")
+                    error_parts.append(f"Available: ₱{available:,.2f}")
+
+                    messages.error(request, " | ".join(error_parts))
                     return redirect('purchase_request_upload')
-                
+
             except PRELineItem.DoesNotExist:
                 messages.error(request, "Selected PRE line item not found.")
                 return redirect('purchase_request_upload')
@@ -3720,15 +3780,27 @@ def activity_design_upload(request):
                         pre__budget_allocation=budget_allocation
                     )
 
-                    # Check quarter availability
-                    quarter_available = line_item.get_quarter_available(quarter)
+                    # Check quarter availability with PR/AD breakdown
+                    quarter_amount = line_item.get_quarter_amount(quarter)
+                    pr_consumed = line_item.get_quarter_pr_consumed(quarter)
+                    ad_consumed = line_item.get_quarter_ad_consumed(quarter)
+                    total_consumed = pr_consumed + ad_consumed
+                    quarter_available = quarter_amount - total_consumed
 
                     if amount > quarter_available:
-                        messages.error(
-                            request,
-                            f"Insufficient funds for {line_item.item_name} - {quarter}. "
-                            f"Available: ₱{quarter_available:,.2f}, Required: ₱{amount:,.2f}"
-                        )
+                        # Build detailed error message
+                        error_parts = [
+                            f"Insufficient funds for {line_item.item_name} - {quarter}.",
+                            f"Quarter Budget: ₱{quarter_amount:,.2f}"
+                        ]
+                        if pr_consumed > 0:
+                            error_parts.append(f"Used by PRs: ₱{pr_consumed:,.2f}")
+                        if ad_consumed > 0:
+                            error_parts.append(f"Used by ADs: ₱{ad_consumed:,.2f}")
+                        error_parts.append(f"Available: ₱{quarter_available:,.2f}")
+                        error_parts.append(f"Required: ₱{amount:,.2f}")
+
+                        messages.error(request, " | ".join(error_parts))
                         return redirect('activity_design_upload')
 
                     total_amount += amount
@@ -4004,3 +4076,691 @@ def preview_submitted_ad(request, ad_id):
     except ActivityDesign.DoesNotExist:
         messages.error(request, "Activity Design not found.")
         return redirect('user_purchase_request')
+
+
+# ============================================================================
+# BUDGET MONITORING DASHBOARD VIEWS
+# ============================================================================
+
+@role_required('end_user', login_url='/')
+def budget_overview(request):
+    """
+    Main Budget Monitoring Dashboard - Overview Page
+    Shows key metrics, charts, and recent activity
+    """
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    from django.db.models import Q
+
+    # Get user's budget allocations
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    ).select_related('approved_budget')
+
+    # Calculate totals across all allocations
+    total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+    total_pre_used = sum(ba.pre_amount_used for ba in budget_allocations)
+    total_pr_used = sum(ba.pr_amount_used for ba in budget_allocations)
+    total_ad_used = sum(ba.ad_amount_used for ba in budget_allocations)
+    total_used = total_pre_used + total_pr_used + total_ad_used
+    total_remaining = total_allocated - total_used
+    utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+
+    # Get counts
+    pre_count = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status__in=['Approved', 'Partially Approved']
+    ).count()
+
+    pr_count = NewPurchaseRequest.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
+
+    ad_count = ActivityDesign.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
+
+    # Quarterly spending trend
+    quarterly_spending = {'Q1': Decimal('0'), 'Q2': Decimal('0'), 'Q3': Decimal('0'), 'Q4': Decimal('0')}
+
+    # Get all approved PREs for the user
+    approved_pres = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status__in=['Approved', 'Partially Approved']
+    )
+
+    # Calculate quarterly spending from PR and AD allocations
+    for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+        pr_spending = NewPurchaseRequestAllocation.objects.filter(
+            purchase_request__budget_allocation__in=budget_allocations,
+            quarter=quarter
+        ).exclude(
+            purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        ad_spending = ActivityDesignAllocation.objects.filter(
+            activity_design__budget_allocation__in=budget_allocations,
+            quarter=quarter
+        ).exclude(
+            activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        quarterly_spending[quarter] = pr_spending + ad_spending
+
+    # Recent activity (last 10 transactions)
+    recent_prs = NewPurchaseRequest.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status='Draft').order_by('-submitted_at')[:5]
+
+    recent_ads = ActivityDesign.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status='Draft').order_by('-submitted_at')[:5]
+
+    # Combine and sort recent activity
+    recent_activity = []
+    for pr in recent_prs:
+        recent_activity.append({
+            'date': pr.submitted_at,
+            'type': 'PR',
+            'number': pr.pr_number,
+            'purpose': pr.purpose[:50] + '...' if len(pr.purpose) > 50 else pr.purpose,
+            'amount': pr.total_amount,
+            'status': pr.status
+        })
+
+    for ad in recent_ads:
+        recent_activity.append({
+            'date': ad.submitted_at,
+            'type': 'AD',
+            'number': ad.ad_number,
+            'purpose': ad.purpose[:50] + '...' if len(ad.purpose) > 50 else ad.purpose,
+            'amount': ad.total_amount,
+            'status': ad.status
+        })
+
+    # Sort by date descending
+    recent_activity.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+    recent_activity = recent_activity[:10]  # Keep only top 10
+
+    context = {
+        'total_allocated': total_allocated,
+        'total_used': total_used,
+        'total_remaining': total_remaining,
+        'utilization_percentage': utilization_percentage,
+        'total_pre_used': total_pre_used,
+        'total_pr_used': total_pr_used,
+        'total_ad_used': total_ad_used,
+        'pre_count': pre_count,
+        'pr_count': pr_count,
+        'ad_count': ad_count,
+        'quarterly_spending': quarterly_spending,
+        'recent_activity': recent_activity,
+    }
+
+    return render(request, 'end_user_app/budget_overview.html', context)
+
+
+@role_required('end_user', login_url='/')
+def pre_budget_details(request):
+    """
+    PRE Budget Details Page
+    Shows all PRE line items with quarterly breakdown
+    """
+    # Get user's budget allocations
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    ).select_related('approved_budget')
+
+    # Get all approved PREs
+    approved_pres = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status__in=['Approved', 'Partially Approved']
+    ).prefetch_related(
+        'line_items__category',
+        'line_items__subcategory'
+    ).order_by('-created_at')
+
+    # Calculate PRE summary data
+    pre_data = []
+    for pre in approved_pres:
+        line_items = []
+        for line_item in pre.line_items.all():
+            category_name = line_item.category.name if line_item.category else 'Other'
+
+            # Get quarterly breakdown
+            quarters_data = {}
+            total_budgeted = Decimal('0')
+            total_consumed = Decimal('0')
+            total_available = Decimal('0')
+
+            for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+                q_amount = line_item.get_quarter_amount(quarter)
+                q_consumed = line_item.get_quarter_consumed(quarter)
+                q_available = line_item.get_quarter_available(quarter)
+
+                quarters_data[quarter] = {
+                    'budgeted': q_amount,
+                    'consumed': q_consumed,
+                    'available': q_available
+                }
+
+                total_budgeted += q_amount
+                total_consumed += q_consumed
+                total_available += q_available
+
+            line_items.append({
+                'item': line_item,
+                'category': category_name,
+                'quarters': quarters_data,
+                'total_budgeted': total_budgeted,
+                'total_consumed': total_consumed,
+                'total_available': total_available
+            })
+
+        pre_data.append({
+            'pre': pre,
+            'line_items': line_items,
+            'total_amount': pre.total_amount,
+            'total_consumed': pre.total_consumed if hasattr(pre, 'total_consumed') else Decimal('0'),
+            'total_remaining': pre.total_amount - (pre.total_consumed if hasattr(pre, 'total_consumed') else Decimal('0'))
+        })
+
+    # Category distribution for chart
+    category_totals = {}
+    for pre in approved_pres:
+        for line_item in pre.line_items.all():
+            category_name = line_item.category.name if line_item.category else 'Other'
+            if category_name not in category_totals:
+                category_totals[category_name] = Decimal('0')
+            category_totals[category_name] += line_item.get_total()
+
+    context = {
+        'pre_data': pre_data,
+        'category_totals': category_totals,
+    }
+
+    return render(request, 'end_user_app/pre_budget_details.html', context)
+
+
+@role_required('end_user', login_url='/')
+def quarterly_analysis(request):
+    """
+    Quarterly Budget Analysis Page
+    Shows quarter-specific breakdown with tabs
+    """
+    selected_quarter = request.GET.get('quarter', 'Q1')
+
+    # Get user's budget allocations
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    )
+
+    # Get all approved PREs
+    approved_pres = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status__in=['Approved', 'Partially Approved']
+    ).prefetch_related('line_items__category', 'line_items__subcategory')
+
+    # Calculate quarter summary
+    quarter_total = Decimal('0')
+    quarter_consumed = Decimal('0')
+    quarter_remaining = Decimal('0')
+
+    # Get line items with budget in this quarter
+    quarter_line_items = []
+
+    for pre in approved_pres:
+        for line_item in pre.line_items.all():
+            q_amount = line_item.get_quarter_amount(selected_quarter)
+
+            if q_amount > 0:
+                q_consumed = line_item.get_quarter_consumed(selected_quarter)
+                q_available = line_item.get_quarter_available(selected_quarter)
+
+                category_name = line_item.category.name if line_item.category else 'Other'
+
+                quarter_line_items.append({
+                    'line_item': line_item,
+                    'category': category_name,
+                    'budgeted': q_amount,
+                    'consumed': q_consumed,
+                    'available': q_available
+                })
+
+                quarter_total += q_amount
+                quarter_consumed += q_consumed
+                quarter_remaining += q_available
+
+    quarter_utilization = (quarter_consumed / quarter_total * 100) if quarter_total > 0 else 0
+
+    # Get transactions for this quarter
+    pr_transactions = NewPurchaseRequestAllocation.objects.filter(
+        purchase_request__budget_allocation__in=budget_allocations,
+        quarter=selected_quarter
+    ).exclude(
+        purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
+    ).select_related('purchase_request', 'pre_line_item').order_by('-purchase_request__submitted_at')
+
+    ad_transactions = ActivityDesignAllocation.objects.filter(
+        activity_design__budget_allocation__in=budget_allocations,
+        quarter=selected_quarter
+    ).exclude(
+        activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+    ).select_related('activity_design', 'pre_line_item').order_by('-activity_design__submitted_at')
+
+    # Combine transactions
+    transactions = []
+    for pr_alloc in pr_transactions:
+        transactions.append({
+            'date': pr_alloc.purchase_request.submitted_at,
+            'type': 'PR',
+            'number': pr_alloc.purchase_request.pr_number,
+            'line_item': pr_alloc.pre_line_item.item_name,
+            'amount': pr_alloc.allocated_amount,
+            'status': pr_alloc.purchase_request.status
+        })
+
+    for ad_alloc in ad_transactions:
+        transactions.append({
+            'date': ad_alloc.activity_design.submitted_at,
+            'type': 'AD',
+            'number': ad_alloc.activity_design.ad_number,
+            'line_item': ad_alloc.pre_line_item.item_name,
+            'amount': ad_alloc.allocated_amount,
+            'status': ad_alloc.activity_design.status
+        })
+
+    # Sort by date
+    transactions.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+
+    context = {
+        'selected_quarter': selected_quarter,
+        'quarters': ['Q1', 'Q2', 'Q3', 'Q4'],
+        'quarter_total': quarter_total,
+        'quarter_consumed': quarter_consumed,
+        'quarter_remaining': quarter_remaining,
+        'quarter_utilization': quarter_utilization,
+        'quarter_line_items': quarter_line_items,
+        'transactions': transactions,
+    }
+
+    return render(request, 'end_user_app/quarterly_analysis.html', context)
+
+
+@role_required('end_user', login_url='/')
+def transaction_history(request):
+    """
+    Transaction History Page
+    Shows all PRs and ADs with filtering and pagination
+    """
+    from django.core.paginator import Paginator
+
+    # Get filter parameters
+    transaction_type = request.GET.get('type', 'all')
+    status_filter = request.GET.get('status', 'all')
+    quarter_filter = request.GET.get('quarter', 'all')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    # Get user's budget allocations
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    )
+
+    transactions = []
+
+    # Get PRE transactions
+    if transaction_type in ['all', 'pre']:
+        pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft')
+
+        if status_filter != 'all':
+            pres = pres.filter(status=status_filter)
+
+        for pre in pres:
+            quarters_used = []
+            for q in ['Q1', 'Q2', 'Q3', 'Q4']:
+                if pre.line_items.filter(**{f'{q.lower()}_amount__gt': 0}).exists():
+                    quarters_used.append(q)
+
+            transactions.append({
+                'date': pre.submitted_at or pre.created_at,
+                'type': 'PRE',
+                'number': f"{pre.department} - FY {pre.fiscal_year}",
+                'line_item': f"{pre.line_items.count()} Line Items",
+                'quarter': ', '.join(quarters_used) if quarters_used else 'All',
+                'amount': pre.total_amount,
+                'status': pre.status
+            })
+
+    # Get PR transactions
+    if transaction_type in ['all', 'pr']:
+        prs = NewPurchaseRequest.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft').prefetch_related('pre_allocations')
+
+        if status_filter != 'all':
+            prs = prs.filter(status=status_filter)
+
+        for pr in prs:
+            allocations = pr.pre_allocations.all()
+            if allocations:
+                # Group by quarter
+                quarters = set(alloc.quarter for alloc in allocations)
+                line_items = set(alloc.pre_line_item.item_name for alloc in allocations)
+
+                # Apply quarter filter
+                if quarter_filter != 'all' and quarter_filter not in quarters:
+                    continue
+
+                transactions.append({
+                    'date': pr.submitted_at or pr.created_at,
+                    'type': 'PR',
+                    'number': pr.pr_number,
+                    'line_item': ', '.join(list(line_items)[:2]) + ('...' if len(line_items) > 2 else ''),
+                    'quarter': ', '.join(sorted(quarters)),
+                    'amount': pr.total_amount,
+                    'status': pr.status
+                })
+
+    # Get AD transactions
+    if transaction_type in ['all', 'ad']:
+        ads = ActivityDesign.objects.filter(
+            budget_allocation__in=budget_allocations
+        ).exclude(status='Draft').prefetch_related('pre_allocations')
+
+        if status_filter != 'all':
+            ads = ads.filter(status=status_filter)
+
+        for ad in ads:
+            allocations = ad.pre_allocations.all()
+            if allocations:
+                quarters = set(alloc.quarter for alloc in allocations)
+                line_items = set(alloc.pre_line_item.item_name for alloc in allocations)
+
+                # Apply quarter filter
+                if quarter_filter != 'all' and quarter_filter not in quarters:
+                    continue
+
+                transactions.append({
+                    'date': ad.submitted_at or ad.created_at,
+                    'type': 'AD',
+                    'number': ad.ad_number,
+                    'line_item': ', '.join(list(line_items)[:2]) + ('...' if len(line_items) > 2 else ''),
+                    'quarter': ', '.join(sorted(quarters)),
+                    'amount': ad.total_amount,
+                    'status': ad.status
+                })
+
+    # Apply date filters
+    if date_from:
+        from datetime import datetime
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        transactions = [t for t in transactions if t['date'] and t['date'].date() >= date_from_obj]
+
+    if date_to:
+        from datetime import datetime
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+        transactions = [t for t in transactions if t['date'] and t['date'].date() <= date_to_obj]
+
+    # Sort by date descending
+    transactions.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+
+    # Pagination
+    paginator = Paginator(transactions, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'transactions': page_obj,
+        'transaction_type': transaction_type,
+        'status_filter': status_filter,
+        'quarter_filter': quarter_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_count': len(transactions),
+    }
+
+    return render(request, 'end_user_app/transaction_history.html', context)
+
+
+@role_required('end_user', login_url='/')
+def budget_reports(request):
+    """
+    Reports & Export Page
+    Provides different report types with export options
+    """
+    context = {
+        'report_types': [
+            {'value': 'summary', 'label': 'Budget Summary Report'},
+            {'value': 'quarterly', 'label': 'Quarterly Report'},
+            {'value': 'category', 'label': 'Category-wise Report'},
+            {'value': 'transaction', 'label': 'Transaction Report'},
+        ],
+        'quarters': ['Q1', 'Q2', 'Q3', 'Q4'],
+    }
+
+    return render(request, 'end_user_app/budget_reports.html', context)
+
+
+@role_required('end_user', login_url='/')
+def export_budget_excel(request):
+    """
+    Export budget data to Excel
+    Supports different report types
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    report_type = request.GET.get('type', 'summary')
+    quarter = request.GET.get('quarter', 'Q1')
+
+    # Create workbook
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    # Get user's budget allocations
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    )
+
+    if report_type == 'summary':
+        # Create Summary sheet
+        ws = wb.create_sheet('Budget Summary')
+
+        # Header styling
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+
+        # Title
+        ws['A1'] = 'BUDGET SUMMARY REPORT'
+        ws['A1'].font = Font(bold=True, size=14)
+        ws.merge_cells('A1:F1')
+
+        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells('A2:F2')
+
+        # Budget Allocation Summary
+        row = 4
+        ws[f'A{row}'] = 'BUDGET ALLOCATION'
+        ws[f'A{row}'].font = header_font
+        ws[f'A{row}'].fill = header_fill
+
+        row += 1
+        headers = ['Description', 'Amount']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row, col, header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+
+        total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+        total_used = sum(ba.get_total_used() for ba in budget_allocations)
+        total_remaining = total_allocated - total_used
+
+        row += 1
+        ws[f'A{row}'] = 'Total Allocated'
+        ws[f'B{row}'] = float(total_allocated)
+        ws[f'B{row}'].number_format = '₱#,##0.00'
+
+        row += 1
+        ws[f'A{row}'] = 'Total Used'
+        ws[f'B{row}'] = float(total_used)
+        ws[f'B{row}'].number_format = '₱#,##0.00'
+
+        row += 1
+        ws[f'A{row}'] = 'Total Remaining'
+        ws[f'B{row}'] = float(total_remaining)
+        ws[f'B{row}'].number_format = '₱#,##0.00'
+        ws[f'B{row}'].font = Font(bold=True)
+
+        # PRE Line Items sheet
+        ws_pre = wb.create_sheet('PRE Line Items')
+
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category')
+
+        row = 1
+        ws_pre['A1'] = 'PRE LINE ITEMS BREAKDOWN'
+        ws_pre['A1'].font = Font(bold=True, size=14)
+        ws_pre.merge_cells('A1:H1')
+
+        row = 3
+        headers = ['Line Item', 'Category', 'Q1', 'Q2', 'Q3', 'Q4', 'Total', 'Consumed']
+        for col, header in enumerate(headers, 1):
+            cell = ws_pre.cell(row, col, header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                row += 1
+                ws_pre.cell(row, 1, line_item.item_name)
+                ws_pre.cell(row, 2, line_item.category.name if line_item.category else 'Other')
+                ws_pre.cell(row, 3, float(line_item.q1_amount))
+                ws_pre.cell(row, 4, float(line_item.q2_amount))
+                ws_pre.cell(row, 5, float(line_item.q3_amount))
+                ws_pre.cell(row, 6, float(line_item.q4_amount))
+                ws_pre.cell(row, 7, float(line_item.get_total()))
+
+                total_consumed = sum(line_item.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4'])
+                ws_pre.cell(row, 8, float(total_consumed))
+
+                # Format as currency
+                for col in range(3, 9):
+                    ws_pre.cell(row, col).number_format = '₱#,##0.00'
+
+        # Adjust column widths
+        for ws_iter in [ws, ws_pre]:
+            for column in ws_iter.columns:
+                max_length = 0
+                column = list(column)
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws_iter.column_dimensions[get_column_letter(column[0].column)].width = adjusted_width
+
+    elif report_type == 'quarterly':
+        ws = wb.create_sheet(f'{quarter} Report')
+
+        # Similar implementation for quarterly report
+        ws['A1'] = f'QUARTERLY REPORT - {quarter}'
+        ws['A1'].font = Font(bold=True, size=14)
+
+        # Add quarterly data...
+        # (Implementation continues...)
+
+    # Prepare response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f'Budget_Report_{report_type}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response
+
+
+@role_required('end_user', login_url='/')
+def export_budget_pdf(request):
+    """
+    Export budget data to PDF (Optional)
+    """
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+    response = HttpResponse(content_type='application/pdf')
+    filename = f'Budget_Report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    # Create PDF
+    doc = SimpleDocTemplate(response, pagesize=A4)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#1f2937'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+
+    story.append(Paragraph('BUDGET SUMMARY REPORT', title_style))
+    story.append(Spacer(1, 12))
+
+    # Get data
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    )
+
+    total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+    total_used = sum(ba.get_total_used() for ba in budget_allocations)
+    total_remaining = total_allocated - total_used
+
+    # Summary table
+    data = [
+        ['Description', 'Amount'],
+        ['Total Allocated', f'₱{total_allocated:,.2f}'],
+        ['Total Used', f'₱{total_used:,.2f}'],
+        ['Total Remaining', f'₱{total_remaining:,.2f}'],
+    ]
+
+    t = Table(data, colWidths=[3*inch, 2*inch])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+
+    story.append(t)
+
+    doc.build(story)
+    return response

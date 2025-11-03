@@ -1,0 +1,775 @@
+# Implement Comprehensive Budget Monitoring Dashboard for End Users
+
+I need to create a complete Budget Monitoring Dashboard system that replaces the old `view_budget.html` and `budget_details.html` pages. The new dashboard should provide detailed analytics, charts, and reporting features with Excel/PDF export capabilities.
+
+## User Preferences
+
+- **Design:** Balanced mix of charts and tables with key metrics
+- **Chart Library:** Chart.js (popular, easy to use)
+- **Export:** Excel (required), PDF (optional/if needed)
+- **Structure:** Multiple pages for different views
+- **Replace:** Old `view_budget.html` and `budget_details.html` completely
+
+---
+
+## Current System Context
+
+### Models to Use (from `apps/budgets/models.py`):
+
+**BudgetAllocation:**
+- `allocated_amount`, `pre_amount_used`, `pr_amount_used`, `ad_amount_used`, `remaining_balance`
+- Method: `get_total_used()`
+
+**DepartmentPRE:**
+- `total_amount`, `status`, `submitted_at`, `partially_approved_at`, `final_approved_at`
+- Related: `line_items` (PRELineItem)
+- Properties to add: `total_consumed`, `total_remaining`
+
+**PRELineItem:**
+- `item_name`, `category`, `subcategory`
+- `q1_amount`, `q2_amount`, `q3_amount`, `q4_amount`
+- Methods: `get_quarter_amount()`, `get_quarter_consumed()`, `get_quarter_available()`
+
+**PurchaseRequest:**
+- `pr_number`, `total_amount`, `status`, `submitted_at`
+- Related: `pre_allocations` (PurchaseRequestAllocation)
+
+**ActivityDesign:**
+- `ad_number`, `total_amount`, `status`, `submitted_at`
+- Related: `pre_allocations` (ActivityDesignAllocation)
+
+**PurchaseRequestAllocation & ActivityDesignAllocation:**
+- `pre_line_item`, `quarter`, `allocated_amount`
+
+---
+
+## Dashboard Structure (Multiple Pages)
+
+### Page 1: Budget Overview Dashboard (`budget_overview.html`)
+
+**URL:** `/end-user/budget/overview/`
+
+**Layout:**
+
+**Top Section - Key Metrics Cards (4 cards in a row):**
+
+┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│ Total Allocated │ Total Used      │ Total Remaining │ Utilization %   │
+│ ₱500,000        │ ₱55,500         │ ₱444,500        │ 11.1%           │
+└─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+
+
+**Charts Section (2 columns):**
+
+┌──────────────────────────────┬──────────────────────────────┐
+│ Budget Allocation Breakdown  │ Quarterly Spending Trend     │
+│ (Doughnut Chart)             │ (Line Chart)                 │
+│ - PRE: ₱54,100 (54%)        │ Q1: ₱1,400                   │
+│ - PR: ₱700 (1%)             │ Q2: ₱700                     │
+│ - AD: ₱700 (1%)             │ Q3: ₱0                       │
+│ - Remaining: ₱444,500 (44%) │ Q4: ₱0                       │
+└──────────────────────────────┴──────────────────────────────┘
+
+
+**Recent Activity Table:**
+
+Recent Transactions (Last 10)
+┌──────────────┬──────┬────────┬──────────┬────────┬──────────┐
+│ Date         │ Type │ Number │ Purpose  │ Amount │ Status   │
+├──────────────┼──────┼────────┼──────────┼────────┼──────────┤
+│ Nov 02, 2025 │ PR   │ PR-... │ test     │ ₱700   │ Approved │
+│ Nov 02, 2025 │ AD   │ AD-... │ test     │ ₱700   │ Pending  │
+└──────────────┴──────┴────────┴──────────┴────────┴──────────┘
+
+
+**Quick Actions:**
+- View PRE Details
+- Create New PR
+- Create New AD
+- Export Budget Report
+
+---
+
+### Page 2: PRE Budget Details (`pre_budget_details.html`)
+
+**URL:** `/end-user/budget/pre-details/`
+
+**Shows:**
+
+**PRE Summary Card:**
+- PRE Name, Fiscal Year, Status
+- Grand Total, Total Consumed, Total Remaining
+- Approval dates
+
+**Line Items Table with Quarterly Breakdown:**
+
+┌─────────────────┬──────────┬──────────┬──────────┬──────────┬─────────┬───────────┐
+│ Line Item       │ Category │ Q1       │ Q2       │ Q3       │ Q4      │ Total     │
+├─────────────────┼──────────┼──────────┼──────────┼──────────┼─────────┼───────────┤
+│ Overtime Pay    │ Personnel│ ₱1,000   │ ₱1,000   │ ₱1,000   │ ₱1,000  │ ₱4,000    │
+│                 │          │ Used:₱0  │ Used:₱700│ Used:₱0  │ Used:₱0 │ Used:₱700 │
+│                 │          │ Avail:₱1k│ Avail:₱300│Avail:₱1k│Avail:₱1k│ Avail:₱3.3k│
+├─────────────────┼──────────┼──────────┼──────────┼──────────┼─────────┼───────────┤
+│ Training        │ MOOE     │ ₱6,000   │ ₱6,000   │ ₱6,000   │ ₱6,000  │ ₱24,000   │
+│                 │          │ Used:₱0  │ Used:₱0  │ Used:₱0  │ Used:₱0 │ Used:₱0   │
+└─────────────────┴──────────┴──────────┴──────────┴──────────┴─────────┴───────────┘
+
+
+**Charts:**
+- Category Distribution (Pie Chart)
+- Quarterly Allocation vs Consumption (Bar Chart)
+
+**Export Buttons:**
+- Export to Excel
+- Export to PDF (optional)
+
+---
+
+### Page 3: Quarterly Budget Analysis (`quarterly_analysis.html`)
+
+**URL:** `/end-user/budget/quarterly/`
+
+**Quarter Selector:** Tabs for Q1, Q2, Q3, Q4
+
+**For Selected Quarter:**
+
+**Summary Cards:**
+
+┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│ Q2 Total Budget │ Q2 Consumed     │ Q2 Remaining    │ Q2 Utilization  │
+│ ₱20,700         │ ₱700            │ ₱20,000         │ 3.4%            │
+└─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+
+
+**Line Items for This Quarter:**
+
+┌─────────────────┬──────────┬──────────┬──────────┬───────────┐
+│ Line Item       │ Category │ Budgeted │ Consumed │ Available │
+├─────────────────┼──────────┼──────────┼──────────┼───────────┤
+│ Overtime Pay    │ Personnel│ ₱1,000   │ ₱700     │ ₱300      │
+│ Training        │ MOOE     │ ₱6,000   │ ₱0       │ ₱6,000    │
+│ Travelling-for. │ MOOE     │ ₱5,000   │ ₱0       │ ₱5,000    │
+│ Travelling-loc. │ MOOE     │ ₱1,500   │ ₱0       │ ₱1,500    │
+└─────────────────┴──────────┴──────────┴──────────┴───────────┘
+
+
+**Transactions for This Quarter:**
+- List of PRs and ADs that used this quarter's budget
+- Drill-down to see details
+
+**Chart:**
+- Budget vs Actual (Bar Chart comparing budgeted vs consumed)
+
+---
+
+### Page 4: Transaction History (`transaction_history.html`)
+
+**URL:** `/end-user/budget/transactions/`
+
+**Filters:**
+- Date Range (From - To)
+- Type (All, PRE, PR, AD)
+- Status (All, Pending, Approved, Rejected)
+- Quarter (All, Q1, Q2, Q3, Q4)
+
+**Transactions Table:**
+
+┌──────────────┬──────┬────────────┬─────────────────┬─────────┬──────────┬──────────┐
+│ Date         │ Type │ Number     │ Line Item       │ Quarter │ Amount   │ Status   │
+├──────────────┼──────┼────────────┼─────────────────┼─────────┼──────────┼──────────┤
+│ Nov 02, 2025 │ PR   │ PR-2025-003│ Overtime Pay    │ Q1      │ ₱900     │ Pending  │
+│ Nov 02, 2025 │ PR   │ PR-2025-002│ Overtime Pay    │ Q2      │ ₱700     │ Approved │
+│ Nov 02, 2025 │ AD   │ AD-2025-001│ 2 Line Items    │ Q1, Q2  │ ₱700     │ Pending  │
+│ Oct 24, 2025 │ PRE  │ Extension..│ All Quarters    │ All     │ ₱54,100  │ Approved │
+└──────────────┴──────┴────────────┴─────────────────┴─────────┴──────────┴──────────┘
+
+
+**Pagination:** 20 items per page
+
+**Export:**
+- Export filtered results to Excel
+- Export to PDF (optional)
+
+---
+
+### Page 5: Reports & Export (`budget_reports.html`)
+
+**URL:** `/end-user/budget/reports/`
+
+**Report Types:**
+
+1. **Budget Summary Report**
+   - Overview of all allocations
+   - PRE details with line items
+   - PR and AD summaries
+   - Export to Excel/PDF
+
+2. **Quarterly Report**
+   - Select quarter
+   - Shows all line items for that quarter
+   - Consumption details
+   - Export to Excel/PDF
+
+3. **Category-wise Report**
+   - Group by category (Personnel, MOOE, Capital)
+   - Show totals and consumption
+   - Export to Excel/PDF
+
+4. **Transaction Report**
+   - Date range selection
+   - All transactions in period
+   - Export to Excel/PDF
+
+**Export Features:**
+- **Excel:** Use `openpyxl` to generate formatted Excel files
+- **PDF:** Use `reportlab` or `weasyprint` for PDF generation
+
+---
+
+## Technical Requirements
+
+### 1. Install Chart.js
+
+**Add to base template** (`dashboard.html`):
+```html
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+2. Create Views
+
+File: apps/end_user_app/views.py
+
+Create these views:
+
+
+
+
+
+budget_overview - Main dashboard with charts
+
+
+
+pre_budget_details - PRE line items with quarterly breakdown
+
+
+
+quarterly_analysis - Quarter-specific analysis
+
+
+
+transaction_history - All transactions with filters
+
+
+
+budget_reports - Report generation and export
+
+
+
+export_budget_excel - Excel export handler
+
+
+
+export_budget_pdf - PDF export handler (optional)
+
+3. Create Templates
+
+Files to create:
+
+
+
+
+
+budget_overview.html - Main dashboard
+
+
+
+pre_budget_details.html - PRE details
+
+
+
+quarterly_analysis.html - Quarterly view
+
+
+
+transaction_history.html - Transaction list
+
+
+
+budget_reports.html - Reports page
+
+4. Add URL Patterns
+
+# Budget Monitoring
+path('budget/overview/', views.budget_overview, name='budget_overview'),
+path('budget/pre-details/', views.pre_budget_details, name='pre_budget_details'),
+path('budget/quarterly/', views.quarterly_analysis, name='quarterly_analysis'),
+path('budget/transactions/', views.transaction_history, name='transaction_history'),
+path('budget/reports/', views.budget_reports, name='budget_reports'),
+path('budget/export/excel/', views.export_budget_excel, name='export_budget_excel'),
+path('budget/export/pdf/', views.export_budget_pdf, name='export_budget_pdf'),
+
+5. Navigation Menu
+
+Update dashboard.html sidebar to include:
+
+<li>
+    <a href="{% url 'budget_overview' %}" class="nav-link">
+        <svg>...</svg>
+        Budget Monitoring
+    </a>
+    <ul class="submenu">
+        <li><a href="{% url 'budget_overview' %}">Overview</a></li>
+        <li><a href="{% url 'pre_budget_details' %}">PRE Details</a></li>
+        <li><a href="{% url 'quarterly_analysis' %}">Quarterly Analysis</a></li>
+        <li><a href="{% url 'transaction_history' %}">Transactions</a></li>
+        <li><a href="{% url 'budget_reports' %}">Reports</a></li>
+    </ul>
+</li>
+
+
+
+Data to Display
+
+Budget Overview Page:
+
+Metrics:
+
+
+
+
+
+Total Allocated (from BudgetAllocation)
+
+
+
+Total Used (PRE + PR + AD)
+
+
+
+Total Remaining
+
+
+
+Utilization Percentage
+
+
+
+PRE Count, PR Count, AD Count
+
+Charts:
+
+
+
+
+
+Doughnut Chart: Budget breakdown (PRE/PR/AD/Remaining)
+
+
+
+Line Chart: Quarterly spending trend (Q1-Q4)
+
+
+
+Bar Chart: Category-wise allocation vs consumption
+
+Recent Activity:
+
+
+
+
+
+Last 10 PRs and ADs with status
+
+
+
+PRE Budget Details Page:
+
+Show:
+
+
+
+
+
+PRE information (name, fiscal year, status, dates)
+
+
+
+Grand total, consumed, remaining
+
+
+
+Table: All line items with quarterly breakdown
+
+
+
+
+
+
+Each row shows: Item, Category, Q1, Q2, Q3, Q4, Total
+
+
+
+For each quarter: Budgeted, Consumed, Available
+
+
+
+Charts:
+
+
+
+
+
+Category distribution (Pie)
+
+
+
+Quarterly allocation (Bar)
+
+Export:
+
+
+
+
+
+Excel: Formatted spreadsheet with all line items
+
+
+
+PDF: Formatted report with charts
+
+
+
+Quarterly Analysis Page:
+
+Quarter Tabs: Q1, Q2, Q3, Q4
+
+For Selected Quarter:
+
+
+
+
+
+Summary cards (Total, Consumed, Remaining, Utilization)
+
+
+
+Line items table (only items with budget in this quarter)
+
+
+
+Transactions list (PRs/ADs using this quarter)
+
+
+
+Chart: Budget vs Actual
+
+Export:
+
+
+
+
+
+Excel: Quarter-specific data
+
+
+
+PDF: Quarter report
+
+
+
+Transaction History Page:
+
+Filters:
+
+
+
+
+
+Date range picker
+
+
+
+Type dropdown (All, PRE, PR, AD)
+
+
+
+Status dropdown
+
+
+
+Quarter dropdown
+
+Table:
+
+
+
+
+
+Date, Type, Number, Description, Line Item, Quarter, Amount, Status
+
+
+
+Sortable columns
+
+
+
+Pagination (20 per page)
+
+Export:
+
+
+
+
+
+Excel: Filtered transactions
+
+
+
+PDF: Transaction report
+
+
+
+Reports Page:
+
+Report Generator:
+
+
+
+
+
+Select report type (Budget Summary, Quarterly, Category-wise, Transaction)
+
+
+
+Select parameters (date range, quarter, category)
+
+
+
+Preview report
+
+
+
+Export to Excel or PDF
+
+
+
+Excel Export Requirements
+
+Use openpyxl to create formatted Excel files with:
+
+
+
+
+
+Multiple sheets: Summary, Line Items, Transactions
+
+
+
+Formatting: Headers, borders, colors
+
+
+
+Formulas: Totals, percentages
+
+
+
+Charts: Embedded charts (if possible)
+
+Example structure:
+
+Sheet 1: Budget Summary
+- Budget Allocation details
+- PRE summary
+- PR/AD summary
+- Totals and percentages
+
+Sheet 2: PRE Line Items
+- All line items with quarterly breakdown
+- Category grouping
+- Subtotals
+
+Sheet 3: Transactions
+- All PRs and ADs
+- Sorted by date
+- Totals by quarter
+
+
+
+Chart.js Implementation
+
+Doughnut Chart (Budget Breakdown):
+
+const ctx = document.getElementById('budgetBreakdownChart');
+new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: ['PRE', 'PR', 'AD', 'Remaining'],
+        datasets: [{
+            data: [54100, 700, 700, 444500],
+            backgroundColor: ['#8b5cf6', '#3b82f6', '#10b981', '#e5e7eb']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { position: 'bottom' },
+            title: { display: true, text: 'Budget Allocation Breakdown' }
+        }
+    }
+});
+
+Line Chart (Quarterly Trend):
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+        datasets: [{
+            label: 'Spending',
+            data: [1400, 700, 0, 0],
+            borderColor: '#3b82f6',
+            tension: 0.1
+        }]
+    }
+});
+
+Bar Chart (Category-wise):
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: ['Personnel', 'MOOE', 'Capital'],
+        datasets: [
+            { label: 'Budgeted', data: [4000, 30100, 20000], backgroundColor: '#93c5fd' },
+            { label: 'Consumed', data: [700, 0, 0], backgroundColor: '#3b82f6' }
+        ]
+    }
+});
+
+
+
+Implementation Checklist
+
+
+
+
+
+[ ] Create 5 view functions with proper data calculations
+
+
+
+[ ] Create 5 HTML templates with Chart.js integration
+
+
+
+[ ] Implement Excel export using openpyxl
+
+
+
+[ ] Implement PDF export using reportlab (optional)
+
+
+
+[ ] Add URL patterns
+
+
+
+[ ] Update navigation menu
+
+
+
+[ ] Add date range picker (use flatpickr or similar)
+
+
+
+[ ] Add pagination for transaction history
+
+
+
+[ ] Add loading states for charts
+
+
+
+[ ] Add responsive design (mobile-friendly)
+
+
+
+[ ] Remove old view_budget.html and budget_details.html
+
+
+
+Expected User Flow
+
+
+
+
+
+User clicks "Budget Monitoring" in sidebar
+
+
+
+Lands on Overview page with charts and key metrics
+
+
+
+Can navigate to:
+
+
+
+
+
+
+PRE Details (see line items with quarterly breakdown)
+
+
+
+Quarterly Analysis (focus on specific quarter)
+
+
+
+Transaction History (see all PRs/ADs with filters)
+
+
+
+Reports (generate and export reports)
+
+
+
+Can export data to Excel from any page
+
+
+
+Can export formatted PDF reports
+
+
+
+Design Guidelines
+
+
+
+
+
+Use Tailwind CSS (already in project)
+
+
+
+Match existing admin panel design
+
+
+
+Responsive (mobile-friendly)
+
+
+
+Professional charts (Chart.js)
+
+
+
+Clean tables with sorting/filtering
+
+
+
+Export buttons prominently displayed
+
+
+
+Loading states for async operations

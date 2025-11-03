@@ -1,0 +1,202 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Transaction History{% endblock title %}
+
+{% block main-content %}
+<main class="content space-y-8">
+    <!-- Header -->
+    <header class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">Transaction History</h1>
+            <p class="text-gray-600 mt-1">Complete history of all budget transactions</p>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{% url 'budget_overview' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
+                ← Back to Overview
+            </a>
+            <a href="{% url 'export_budget_excel' %}?type=transaction" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Export
+            </a>
+        </div>
+    </header>
+
+    <!-- Filters -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Type Filter -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select name="type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="all" {% if transaction_type == 'all' %}selected{% endif %}>All Types</option>
+                    <option value="pre" {% if transaction_type == 'pre' %}selected{% endif %}>PRE</option>
+                    <option value="pr" {% if transaction_type == 'pr' %}selected{% endif %}>Purchase Request</option>
+                    <option value="ad" {% if transaction_type == 'ad' %}selected{% endif %}>Activity Design</option>
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Status</option>
+                    <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="Approved" {% if status_filter == 'Approved' %}selected{% endif %}>Approved</option>
+                    <option value="Partially Approved" {% if status_filter == 'Partially Approved' %}selected{% endif %}>Partially Approved</option>
+                    <option value="Rejected" {% if status_filter == 'Rejected' %}selected{% endif %}>Rejected</option>
+                </select>
+            </div>
+
+            <!-- Quarter Filter -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Quarter</label>
+                <select name="quarter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="all" {% if quarter_filter == 'all' %}selected{% endif %}>All Quarters</option>
+                    <option value="Q1" {% if quarter_filter == 'Q1' %}selected{% endif %}>Q1</option>
+                    <option value="Q2" {% if quarter_filter == 'Q2' %}selected{% endif %}>Q2</option>
+                    <option value="Q3" {% if quarter_filter == 'Q3' %}selected{% endif %}>Q3</option>
+                    <option value="Q4" {% if quarter_filter == 'Q4' %}selected{% endif %}>Q4</option>
+                </select>
+            </div>
+
+            <!-- Date From -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <!-- Date To -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <!-- Filter Buttons -->
+            <div class="lg:col-span-5 flex justify-end space-x-3">
+                <a href="{% url 'transaction_history' %}" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition">Clear</a>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Apply Filters</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Results Summary -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p class="text-sm text-blue-800">
+            <span class="font-semibold">{{ total_count }}</span> transaction(s) found
+            {% if transaction_type != 'all' %} | Type: <span class="font-semibold">{{ transaction_type|upper }}</span>{% endif %}
+            {% if status_filter != 'all' %} | Status: <span class="font-semibold">{{ status_filter }}</span>{% endif %}
+            {% if quarter_filter != 'all' %} | Quarter: <span class="font-semibold">{{ quarter_filter }}</span>{% endif %}
+        </p>
+    </div>
+
+    <!-- Transactions Table -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Line Item</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quarter</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for trans in transactions %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ trans.date|date:"M d, Y" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if trans.type == 'PRE' %}bg-purple-100 text-purple-800
+                                {% elif trans.type == 'PR' %}bg-blue-100 text-blue-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ trans.type }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                            {{ trans.number }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            {{ trans.line_item }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ trans.quarter }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                            ₱{{ trans.amount|floatformat:2|intcomma }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if trans.status == 'Approved' %}bg-green-100 text-green-800
+                                {% elif trans.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                                {% elif trans.status == 'Partially Approved' %}bg-blue-100 text-blue-800
+                                {% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ trans.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                            <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <p class="text-lg font-medium">No transactions found</p>
+                            <p class="text-sm mt-1">Try adjusting your filters</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if transactions.has_other_pages %}
+        <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+            <div class="flex flex-1 justify-between sm:hidden">
+                {% if transactions.has_previous %}
+                <a href="?page={{ transactions.previous_page_number }}&type={{ transaction_type }}&status={{ status_filter }}&quarter={{ quarter_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</a>
+                {% endif %}
+                {% if transactions.has_next %}
+                <a href="?page={{ transactions.next_page_number }}&type={{ transaction_type }}&status={{ status_filter }}&quarter={{ quarter_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</a>
+                {% endif %}
+            </div>
+            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium">{{ transactions.start_index }}</span> to <span class="font-medium">{{ transactions.end_index }}</span> of <span class="font-medium">{{ total_count }}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                        {% if transactions.has_previous %}
+                        <a href="?page={{ transactions.previous_page_number }}&type={{ transaction_type }}&status={{ status_filter }}&quarter={{ quarter_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20">
+                            <span class="sr-only">Previous</span>
+                            ←
+                        </a>
+                        {% endif %}
+                        <span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300">
+                            Page {{ transactions.number }} of {{ transactions.paginator.num_pages }}
+                        </span>
+                        {% if transactions.has_next %}
+                        <a href="?page={{ transactions.next_page_number }}&type={{ transaction_type }}&status={{ status_filter }}&quarter={{ quarter_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20">
+                            <span class="sr-only">Next</span>
+                            →
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+</main>
+{% endblock main-content %}

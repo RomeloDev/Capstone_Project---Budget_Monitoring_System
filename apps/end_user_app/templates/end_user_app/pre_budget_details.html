@@ -1,0 +1,244 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}PRE Budget Details{% endblock title %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block main-content %}
+<main class="content space-y-8">
+    <!-- Header -->
+    <header class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">PRE Budget Details</h1>
+            <p class="text-gray-600 mt-1">Detailed breakdown of PRE line items with quarterly allocations</p>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{% url 'budget_overview' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
+                ← Back to Overview
+            </a>
+            <a href="{% url 'export_budget_excel' %}?type=summary" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Export to Excel
+            </a>
+        </div>
+    </header>
+
+    {% if not pre_data %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+        <svg class="w-16 h-16 text-yellow-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        <p class="text-gray-700 text-lg font-semibold">No approved PRE found</p>
+        <p class="text-gray-600 mt-2">Please submit and get your PRE approved first.</p>
+    </div>
+    {% else %}
+        {% for data in pre_data %}
+        <!-- PRE Card -->
+        <section class="bg-white rounded-xl shadow-md p-6">
+            <!-- PRE Header -->
+            <div class="border-b border-gray-200 pb-4 mb-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">{{ data.pre.department }}</h2>
+                        <p class="text-gray-600 mt-1">Fiscal Year: {{ data.pre.fiscal_year }}</p>
+                        <div class="mt-2 flex items-center space-x-4">
+                            <span class="px-3 py-1 text-sm rounded-full
+                                {% if data.pre.status == 'Approved' %}bg-green-100 text-green-800
+                                {% elif data.pre.status == 'Partially Approved' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ data.pre.status }}
+                            </span>
+                            <span class="text-sm text-gray-500">Submitted: {{ data.pre.submitted_at|date:"M d, Y" }}</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Grand Total</p>
+                        <p class="text-3xl font-bold text-blue-600">₱{{ data.total_amount|floatformat:2|intcomma }}</p>
+                        <p class="text-sm text-gray-600 mt-1">Consumed: ₱{{ data.total_consumed|floatformat:2|intcomma }}</p>
+                        <p class="text-sm text-green-600 font-semibold">Remaining: ₱{{ data.total_remaining|floatformat:2|intcomma }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Line Items Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th rowspan="2" class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Line Item</th>
+                            <th rowspan="2" class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Category</th>
+                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q1</th>
+                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q2</th>
+                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q3</th>
+                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q4</th>
+                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Total</th>
+                        </tr>
+                        <tr>
+                            {% for i in "1234" %}
+                            <th class="px-2 py-2 text-xs text-gray-600 font-normal">Budget</th>
+                            <th class="px-2 py-2 text-xs text-gray-600 font-normal">Used</th>
+                            <th class="px-2 py-2 text-xs text-gray-600 font-normal border-r">Avail</th>
+                            {% endfor %}
+                            <th class="px-2 py-2 text-xs text-gray-600 font-normal">Budget</th>
+                            <th class="px-2 py-2 text-xs text-gray-600 font-normal">Used</th>
+                            <th class="px-2 py-2 text-xs text-gray-600 font-normal">Avail</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                        {% for item in data.line_items %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium text-gray-900 border-r">{{ item.item.item_name }}</td>
+                            <td class="px-4 py-3 text-gray-600 border-r">{{ item.category }}</td>
+
+                            <!-- Q1 -->
+                            <td class="px-2 py-3 text-right">₱{{ item.quarters.Q1.budgeted|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q1.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q1.available|floatformat:2|intcomma }}</td>
+
+                            <!-- Q2 -->
+                            <td class="px-2 py-3 text-right">₱{{ item.quarters.Q2.budgeted|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q2.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q2.available|floatformat:2|intcomma }}</td>
+
+                            <!-- Q3 -->
+                            <td class="px-2 py-3 text-right">₱{{ item.quarters.Q3.budgeted|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q3.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q3.available|floatformat:2|intcomma }}</td>
+
+                            <!-- Q4 -->
+                            <td class="px-2 py-3 text-right">₱{{ item.quarters.Q4.budgeted|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q4.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q4.available|floatformat:2|intcomma }}</td>
+
+                            <td class="px-2 py-3 text-right font-bold">₱{{ item.total_budgeted|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-red-600 font-bold">₱{{ item.total_consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-green-600 font-bold">₱{{ item.total_available|floatformat:2|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endfor %}
+
+        <!-- Charts Section -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Category Distribution -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Category Distribution</h3>
+                <div class="relative h-80">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Quarterly Allocation -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Quarterly Allocation</h3>
+                <div class="relative h-80">
+                    <canvas id="quarterlyChart"></canvas>
+                </div>
+            </div>
+        </section>
+    {% endif %}
+</main>
+
+{% if pre_data %}
+<script>
+// Category Distribution Pie Chart
+const ctxCategory = document.getElementById('categoryChart');
+new Chart(ctxCategory, {
+    type: 'pie',
+    data: {
+        labels: [{% for cat, amount in category_totals.items %}'{{ cat }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for cat, amount in category_totals.items %}{{ amount }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [
+                '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6'
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'right',
+                labels: {
+                    padding: 15,
+                    font: { size: 12 }
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.label + ': ₱' + context.parsed.toLocaleString('en-US', {minimumFractionDigits: 2});
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Quarterly Allocation Bar Chart
+const ctxQuarterly = document.getElementById('quarterlyChart');
+const quarterlyData = {Q1: 0, Q2: 0, Q3: 0, Q4: 0};
+
+{% for data in pre_data %}
+    {% for item in data.line_items %}
+        quarterlyData.Q1 += {{ item.quarters.Q1.budgeted|default:0 }};
+        quarterlyData.Q2 += {{ item.quarters.Q2.budgeted|default:0 }};
+        quarterlyData.Q3 += {{ item.quarters.Q3.budgeted|default:0 }};
+        quarterlyData.Q4 += {{ item.quarters.Q4.budgeted|default:0 }};
+    {% endfor %}
+{% endfor %}
+
+new Chart(ctxQuarterly, {
+    type: 'bar',
+    data: {
+        labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+        datasets: [{
+            label: 'Budgeted',
+            data: [quarterlyData.Q1, quarterlyData.Q2, quarterlyData.Q3, quarterlyData.Q4],
+            backgroundColor: '#93c5fd',
+            borderColor: '#3b82f6',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return '₱' + value.toLocaleString('en-US');
+                    }
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return 'Budget: ₱' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2});
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+
+{% endblock main-content %}

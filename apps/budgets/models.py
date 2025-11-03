@@ -784,34 +784,126 @@ class PRELineItem(models.Model):
         return getattr(self, f'{quarter.lower()}_amount', Decimal('0'))
 
     def get_quarter_consumed(self, quarter):
-        """Calculate consumed amount for a specific quarter"""
+        """
+        Calculate consumed amount for a specific quarter.
+        Includes Pending, Partially Approved, and Approved statuses.
+        Excludes Draft, Rejected, and Cancelled.
+
+        This ensures accurate budget tracking by counting budget as "consumed"
+        as soon as a PR/AD is submitted (Pending status), not just when fully approved.
+        """
         from django.db.models import Sum
         from django.db.models.functions import Coalesce
-        
-        consumed = PurchaseRequestAllocation.objects.filter(
+
+        # Count PR allocations (exclude only Draft, Rejected, Cancelled)
+        pr_consumed = PurchaseRequestAllocation.objects.filter(
             pre_line_item=self,
-            quarter=quarter,
-            purchase_request__status='Approved'
+            quarter=quarter
+        ).exclude(
+            purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
         ).aggregate(
             total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
         )['total']
-        
-        # Also include AD allocations
+
+        # Count AD allocations (exclude only Draft, Rejected, Cancelled)
         ad_consumed = ActivityDesignAllocation.objects.filter(
             pre_line_item=self,
-            quarter=quarter,
-            activity_design__status='Approved'
+            quarter=quarter
+        ).exclude(
+            activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
         ).aggregate(
             total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
         )['total']
-        
-        return consumed + ad_consumed
+
+        return pr_consumed + ad_consumed
 
     def get_quarter_available(self, quarter):
         """Calculate available amount for a specific quarter"""
         quarter_amount = self.get_quarter_amount(quarter)
         consumed = self.get_quarter_consumed(quarter)
         return quarter_amount - consumed
+
+    def get_quarter_pr_consumed(self, quarter):
+        """
+        Calculate consumed amount by Purchase Requests only for a specific quarter.
+        Includes Pending, Partially Approved, and Approved statuses.
+        """
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+
+        pr_consumed = PurchaseRequestAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter
+        ).exclude(
+            purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        return pr_consumed
+
+    def get_quarter_ad_consumed(self, quarter):
+        """
+        Calculate consumed amount by Activity Designs only for a specific quarter.
+        Includes Pending, Partially Approved, and Approved statuses.
+        """
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+
+        ad_consumed = ActivityDesignAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter
+        ).exclude(
+            activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        return ad_consumed
+
+    def get_quarter_pr_count(self, quarter):
+        """Get count of Purchase Requests using this line item in a quarter"""
+        return PurchaseRequestAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter
+        ).exclude(
+            purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).values('purchase_request').distinct().count()
+
+    def get_quarter_ad_count(self, quarter):
+        """Get count of Activity Designs using this line item in a quarter"""
+        return ActivityDesignAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter
+        ).exclude(
+            activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+        ).values('activity_design').distinct().count()
+
+    def get_quarter_breakdown(self, quarter):
+        """
+        Get detailed breakdown of budget usage for a specific quarter.
+        Returns a dictionary with original, consumed (PR + AD), and available amounts.
+        """
+        original = self.get_quarter_amount(quarter)
+        pr_consumed = self.get_quarter_pr_consumed(quarter)
+        ad_consumed = self.get_quarter_ad_consumed(quarter)
+        total_consumed = pr_consumed + ad_consumed
+        available = original - total_consumed
+
+        pr_count = self.get_quarter_pr_count(quarter)
+        ad_count = self.get_quarter_ad_count(quarter)
+
+        return {
+            'quarter': quarter,
+            'original': original,
+            'pr_consumed': pr_consumed,
+            'pr_count': pr_count,
+            'ad_consumed': ad_consumed,
+            'ad_count': ad_count,
+            'total_consumed': total_consumed,
+            'available': available,
+            'utilization_percent': (total_consumed / original * 100) if original > 0 else 0
+        }
 
 
 class PREReceipt(models.Model):

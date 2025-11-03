@@ -3005,12 +3005,12 @@ def admin_pre_list(request):
 @role_required('admin', login_url='/admin/')
 def admin_pre_detail(request, pre_id):
     """
-    Admin view to see detailed PRE information
+    Admin view to see detailed PRE information with budget tracking breakdown
     """
     if not request.user.is_staff:
         messages.error(request, "You don't have permission to access this page.")
         return redirect('dashboard')
-    
+
     pre = get_object_or_404(
         NewDepartmentPRE.objects.select_related(
             'submitted_by',
@@ -3022,13 +3022,13 @@ def admin_pre_detail(request, pre_id):
         ),
         id=pre_id
     )
-    
+
     # Get approval history
     approval_history = RequestApproval.objects.filter(
         content_type='pre',
         object_id=pre.id
     ).select_related('approved_by').order_by('-approved_at')
-    
+
     # Calculate totals by category
     from django.db.models import Sum
     category_totals = pre.line_items.values(
@@ -3036,13 +3036,28 @@ def admin_pre_detail(request, pre_id):
     ).annotate(
         total=Sum('q1_amount') + Sum('q2_amount') + Sum('q3_amount') + Sum('q4_amount')
     ).order_by('category__sort_order')
-    
+
+    # Calculate budget tracking breakdown for each line item
+    line_items_with_breakdown = []
+    for item in pre.line_items.all():
+        item_data = {
+            'item': item,
+            'quarters': []
+        }
+
+        for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+            breakdown = item.get_quarter_breakdown(quarter)
+            item_data['quarters'].append(breakdown)
+
+        line_items_with_breakdown.append(item_data)
+
     context = {
         'pre': pre,
         'approval_history': approval_history,
         'category_totals': category_totals,
+        'line_items_with_breakdown': line_items_with_breakdown,
     }
-    
+
     return render(request, 'admin_panel/pre_detail.html', context)
 
 @role_required('admin', login_url='/admin/')
