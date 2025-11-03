@@ -76,6 +76,7 @@ def user_dashboard(request):
     total_used = total_pre_used + total_pr_used + total_ad_used
     total_remaining = total_allocated - total_used
     utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+    remaining_percentage = 100 - utilization_percentage
 
     # Get document counts
     pre_count = NewDepartmentPRE.objects.filter(
@@ -198,6 +199,7 @@ def user_dashboard(request):
         'total_used': total_used,
         'total_remaining': total_remaining,
         'utilization_percentage': utilization_percentage,
+        'remaining_percentage': remaining_percentage,
 
         # Breakdown
         'total_pre_used': total_pre_used,

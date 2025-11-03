@@ -5,13 +5,19 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from apps.users.models import User
-from .models import BudgetAllocation, Budget, ApprovedBudget, AuditTrail
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, SupportingDocument, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, RequestApproval, SystemNotification
-from apps.users.models import User
+from .models import Budget, AuditTrail
+from apps.budgets.models import (
+    ApprovedBudget as NewApprovedBudget,
+    SupportingDocument,
+    BudgetAllocation as NewBudgetAllocation,
+    DepartmentPRE as NewDepartmentPRE,
+    PurchaseRequest as NewPurchaseRequest,
+    ActivityDesign as NewActivityDesign,
+    RequestApproval,
+    SystemNotification
+)
 from django.contrib import messages
 from decimal import Decimal
-from apps.end_user_app.models import PurchaseRequest, Budget_Realignment, DepartmentPRE, ActivityDesign, PRELineItemBudget, PurchaseRequestAllocation, ActivityDesignAllocations, PREBudgetRealignment
-from apps.users.models import User
 from django.db import transaction
 from django.db.models import Sum
 from django.template.defaultfilters import floatformat
@@ -40,86 +46,118 @@ def admin_dashboard(request):
         # Total Users (Active users who logged in within last 30 days)
         thirty_days_ago = timezone.now() - timedelta(days=30)
         end_users_total = User.objects.filter(
-            is_staff=False, 
-            is_approving_officer=True,
+            is_staff=False,
+            is_approving_officer=False,  # End users are NOT approving officers
             last_login__gte=thirty_days_ago
         ).count()
-        
-        # Alternative: All registered users if you prefer total count
-        # end_users_total = User.objects.filter(is_staff=False, is_approving_officer=True).count()
-        
-        # Total Budget from ApprovedBudget (since Budget model seems different)
-        total_budget = ApprovedBudget.objects.aggregate(
+
+        # Total Budget from NEW ApprovedBudget model
+        total_budget = NewApprovedBudget.objects.aggregate(
             Sum('amount')
         )['amount__sum'] or 0
-        
-        # Pending Requests Count
-        total_pending_realignment_request = Budget_Realignment.objects.filter(
-            status='pending'
-        ).count()
-        
-        # Approved Requests Count  
-        total_approved_realignment_request = Budget_Realignment.objects.filter(
-            status='approved'
-        ).count()
-        
-        # Budget allocations for the table
-        budget_allocated = BudgetAllocation.objects.select_related('approved_budget').all()
-        
-        # Calculate percentage changes for trends (you can customize this based on your needs)
-        # This is a simple example - you might want to compare with previous period
+
+        # Pending Requests Count (PRE + PR + AD)
+        pending_pre_count = NewDepartmentPRE.objects.filter(status='Pending').count()
+        pending_pr_count = NewPurchaseRequest.objects.filter(status='Pending').count()
+        pending_ad_count = NewActivityDesign.objects.filter(status='Pending').count()
+        total_pending_realignment_request = pending_pre_count + pending_pr_count + pending_ad_count
+
+        # Approved Requests Count (PRE + PR + AD)
+        approved_pre_count = NewDepartmentPRE.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+        approved_pr_count = NewPurchaseRequest.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+        approved_ad_count = NewActivityDesign.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+        total_approved_realignment_request = approved_pre_count + approved_pr_count + approved_ad_count
+
+        # Budget allocations for the table (using NEW model)
+        budget_allocated = NewBudgetAllocation.objects.select_related(
+            'approved_budget', 'end_user'
+        ).filter(is_active=True).all()
+
+        # Add computed fields for the template
+        budget_allocated_list = []
+        for allocation in budget_allocated:
+            budget_allocated_list.append({
+                'id': allocation.id,
+                'department': allocation.department,
+                'approved_budget': allocation.approved_budget,
+                'total_allocated': allocation.allocated_amount,
+                'spent': allocation.get_total_used(),
+                'remaining_budget': allocation.remaining_balance,
+                'end_user': allocation.end_user,
+            })
+
+        # Calculate percentage changes for trends
         user_trend = "up"  # You can calculate actual trend
         budget_trend = "up"
         pending_trend = "down" if total_pending_realignment_request < 10 else "up"
         approved_trend = "up"
-        
-        # Chart data (group by department)
+
+        # Chart data (group by department) - using NEW model
+        from django.db.models import F, ExpressionWrapper, DecimalField
+
         dept_agg = (
-            BudgetAllocation.objects
+            NewBudgetAllocation.objects
+            .filter(is_active=True)
             .values('department')
             .annotate(
-                total_allocated=Sum('total_allocated'),
-                total_spent=Sum('spent')
+                total_allocated=Sum('allocated_amount'),
+                total_pre_used=Sum('pre_amount_used'),
+                total_pr_used=Sum('pr_amount_used'),
+                total_ad_used=Sum('ad_amount_used')
             )
             .order_by('department')
         )
-        
+
         dept_labels = [row['department'] or 'Unknown' for row in dept_agg]
         dept_allocated = [float(row['total_allocated'] or 0) for row in dept_agg]
-        dept_spent = [float(row['total_spent'] or 0) for row in dept_agg]
+
+        # Calculate total spent (PRE + PR + AD)
+        dept_spent = [
+            float(
+                (row['total_pre_used'] or 0) +
+                (row['total_pr_used'] or 0) +
+                (row['total_ad_used'] or 0)
+            )
+            for row in dept_agg
+        ]
         dept_remaining = [max(0.0, a - s) for a, s in zip(dept_allocated, dept_spent)]
-        
+
         # Recent Activity (latest 8 for better display)
         recent_activities = (
             AuditTrail.objects
             .select_related('user')
             .order_by('-timestamp')[:8]
         )
-        
+
         # Additional metrics for enhanced dashboard
         # Total departments with active budgets
-        active_departments = BudgetAllocation.objects.values('department').distinct().count()
-        
+        active_departments = NewBudgetAllocation.objects.filter(
+            is_active=True
+        ).values('department').distinct().count()
+
         # Average budget utilization
         total_allocated_sum = sum(dept_allocated) or 1  # Avoid division by zero
         total_spent_sum = sum(dept_spent)
         avg_utilization = (total_spent_sum / total_allocated_sum * 100) if total_allocated_sum > 0 else 0
-        
+
         # Low budget departments (less than 20% remaining)
-        low_budget_depts = BudgetAllocation.objects.filter(
-            total_allocated__gt=0
-        ).extra(
-            where=["(total_allocated - spent) / total_allocated < 0.2"]
-        ).count()
-        
+        low_budget_depts = 0
+        for alloc in budget_allocated_list:
+            if alloc['total_allocated'] > 0:
+                remaining_pct = (alloc['remaining_budget'] / alloc['total_allocated']) * 100
+                if remaining_pct < 20:
+                    low_budget_depts += 1
+
     except Exception as e:
         # Fallback values in case of any errors
-        print(f"Dashboard error: {e}")  # For debugging
+        import traceback
+        print(f"Dashboard error: {e}")
+        print(traceback.format_exc())  # For debugging
         end_users_total = 0
         total_budget = 0
         total_pending_realignment_request = 0
         total_approved_realignment_request = 0
-        budget_allocated = BudgetAllocation.objects.none()
+        budget_allocated_list = []
         dept_labels, dept_allocated, dept_spent, dept_remaining = [], [], [], []
         recent_activities = AuditTrail.objects.none()
         user_trend = budget_trend = pending_trend = approved_trend = "neutral"
@@ -133,28 +171,28 @@ def admin_dashboard(request):
         'total_budget': total_budget,
         'total_pending_realignment_request': total_pending_realignment_request,
         'total_approved_realignment_request': total_approved_realignment_request,
-        
+
         # Trends (you can implement actual trend calculation)
         'user_trend': user_trend,
         'budget_trend': budget_trend,
         'pending_trend': pending_trend,
         'approved_trend': approved_trend,
-        
+
         # Data for table and charts
-        'budget_allocated': budget_allocated,
+        'budget_allocated': budget_allocated_list,  # Updated to use the list with computed fields
         'dept_labels': dept_labels,
         'dept_allocated': dept_allocated,
         'dept_spent': dept_spent,
         'dept_remaining': dept_remaining,
-        
+
         # Recent activity
         'recent_activities': recent_activities,
-        
+
         # Additional metrics
         'active_departments': active_departments,
         'avg_utilization': round(avg_utilization, 1),
         'low_budget_depts': low_budget_depts,
-        
+
         # Template helper
         'current_time': timezone.now(),
     }
