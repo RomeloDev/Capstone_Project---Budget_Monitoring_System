@@ -1,244 +1,672 @@
 {% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
 
-{% block title %}Users{% endblock %}
+{% block title %}User Management{% endblock %}
 
 {% block main-content %}
 
-<div x-data="{ showModal: false }" class="flex flex-col w-full">
-    <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg">
-        <h1 class="text-[20px] font-bold text-gray-100">Users</h1>
-        <p class="text-sm text-blue-100 mt-1">Manage all registered user accounts in the system.</p>
+<div x-data="{ showModal: false }" class="flex flex-col w-full min-h-screen mt-[-1rem] bg-gray-50 p-6">
+
+    <!-- Header -->
+    <header class="bg-blue-600 px-4 py-2 text-white shadow-sm rounded-lg mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-[20px] font-bold text-gray-100">User Management</h1>
+                <p class="text-sm text-blue-100 mt-1">Manage user accounts, roles, and permissions</p>
+            </div>
+            <button @click="showModal = true" type="button"
+                class="flex items-center bg-blue-50 text-blue-600 px-6 py-3 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path>
+                </svg>
+                Add User
+            </button>
+        </div>
     </header>
 
-    <!-- Action Buttons Section -->
-    <div class="flex justify-end gap-3 mt-9 px-4 mr-3">
-        <!-- Add User Button -->
-        <button @click="showModal = true" type="button"
-            class="flex items-center bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <i class="fas fa-plus mr-2"></i> Add User
-        </button>
-        {% comment %} <button type="button"
-            class="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
-            <i class="fas fa-filter mr-2"></i> Filter
-        </button> {% endcomment %}
-    </div>
-
-    <main class="flex-1 px-6 py-1 bg-gray-100 space-y-6">
-
-        <!-- Modal -->
-        <div x-show="showModal"
-             class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-             x-transition>
-            <div class="bg-white rounded-xl shadow-lg w-[500px] max-h-[90vh] overflow-y-auto p-6 relative">
-                
-                <!-- Close Button -->
-                <button @click="showModal = false"
-                        class="absolute top-3 right-3 text-gray-500 hover:text-gray-800">
-                    ✕
-                </button>
-
-                <!-- Registration Form -->
-                <form action="{% url 'register_account' %}" method="post">
-                    {% csrf_token %}
-                    <h2 class="text-center font-bold text-[1.4rem] text-[#2c3e50] mb-4">
-                        Create an End User Account
-                    </h2>
-                    <p class="font-semibold text-[1.1rem]">Personal Details:</p>
-
-                    <!-- Personal Details Section -->
-                    <div class="pl-8 pr-8 pt-2 pb-2">
-                        <div class="flex flex-col mb-3">
-                            <label for="username" class="font-medium text-[0.9rem]">Username:</label>
-                            <input type="text" name="username" id="username" class="rounded-lg h-[2rem]" required>
-                        </div>
-                        <div class="flex flex-col mb-3">
-                            <label for="fullname" class="font-medium text-[0.9rem]">Fullname:</label>
-                            <input type="text" name="fullname" id="fullname" class="rounded-lg h-[2rem]" required>
-                        </div>
-                        <div class="flex flex-col mb-3">
-                            <label for="position" class="font-medium text-[0.9rem]">Position:</label>
-                            <input type="text" name="position" id="position" class="rounded-lg h-[2rem]" required>
-                        </div>
-                        <div class="flex flex-col mb-3">
-                            <label for="email" class="font-medium text-[0.9rem]">Email:</label>
-                            <input type="email" name="email" id="email" class="rounded-lg h-[2rem]" required>
-                        </div>
-                    </div>
-
-                    <!-- Department Selection Section -->
-                    <p class="font-semibold text-[1.1rem]">Department:</p>
-                    
-                    <div x-data="{
-                        mainDept: '',
-                        subDept: '',
-                        subDepartments: {
-                            'Instruction': ['CCJ', 'CTAS', 'CCIS'],
-                            'Research': ['Research'],
-                            'Extension Services': ['Extension Services'],
-                            'Support Operations': ['Sports', 'Library', 'SDS', 'Medic', 'SSG', 'Guidance', 'Publication'],
-                            'GASS': ['Admin', 'Clearance', 'HR', 'Security', 'General Services', 'DRRM', 'GAD']
-                        },
-                        get availableSubDepts() {
-                            return this.subDepartments[this.mainDept] || [];
-                        },
-                        resetSubDept() {
-                            this.subDept = '';
-                        }
-                    }" class="ml-10 w-[25rem]">
-                        
-                        <!-- Main Department Dropdown -->
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Select Main Department</label>
-                            <div class="relative ml-7 w-[20rem]">
-                                <select 
-                                    x-model="mainDept" 
-                                    @change="resetSubDept()"
-                                    class="w-full px-4 py-2 border border-gray-500 rounded-lg shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                                    required>
-                                    <option value="">-- Choose Department --</option>
-                                    <option value="Instruction">Instruction</option>
-                                    <option value="Research">Research</option>
-                                    <option value="Extension Services">Extension Services</option>
-                                    <option value="Support Operations">Support Operations</option>
-                                    <option value="GASS">GASS</option>
-                                </select>
-                                <!-- Dropdown Arrow Icon -->
-                                <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" 
-                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                                </svg>
-                            </div>
-                            <div class="mt-2 ml-7 text-sm text-gray-600" x-show="mainDept">
-                                Main Department: <span class="font-semibold" x-text="mainDept"></span>
-                            </div>
-                        </div>
-
-                        <!-- Sub-Department Dropdown (appears after main selection) -->
-                        <div x-show="mainDept" x-transition class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Select Specific Department</label>
-                            <div class="relative ml-7 w-[20rem]">
-                                <select 
-                                    x-model="subDept"
-                                    class="w-full px-4 py-2 border border-gray-500 rounded-lg shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                                    required>
-                                    <option value="">-- Choose Specific Department --</option>
-                                    <template x-for="dept in availableSubDepts" :key="dept">
-                                        <option :value="dept" x-text="dept"></option>
-                                    </template>
-                                </select>
-                                <!-- Dropdown Arrow Icon -->
-                                <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" 
-                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                                </svg>
-                            </div>
-                            <div class="mt-2 ml-7 text-sm text-gray-600" x-show="subDept">
-                                Specific Department: <span class="font-semibold" x-text="subDept"></span>
-                            </div>
-                        </div>
-
-                        <!-- Hidden inputs for form submission -->
-                        <input type="hidden" name="mfo" :value="mainDept">
-                        <input type="hidden" name="department" :value="subDept">
-                        
-                        <!-- Final Selection Display -->
-                        <div class="mt-3 ml-7 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm" x-show="mainDept && subDept">
-                            <p class="font-semibold text-blue-800">Selected Department:</p>
-                            <p class="text-gray-700">
-                                <span x-text="mainDept"></span> → <span class="font-semibold" x-text="subDept"></span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Security Section -->
-                    <div>
-                        <p class="font-semibold text-[1.1rem] mt-4">Security:</p>
-                        <div class="pl-8 pr-8 pb-3 pt-3">
-                            <div class="flex flex-col mb-3">
-                                <label for="password" class="font-medium text-[0.9rem]">Password:</label>
-                                <input type="password" name="password" id="password" class="rounded-lg h-[2rem]" required>
-                            </div>
-                            <div class="flex flex-col">
-                                <label for="confirm-password" class="font-medium text-[0.9rem]">Confirm Password:</label>
-                                <input type="password" name="confirm-password" id="confirm-password" class="rounded-lg h-[2rem]" required>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Register Button -->
-                    <div class="flex justify-center items-center">
-                        <button type="submit"
-                            class="text-white shadow-lg bg-gradient-to-r from-green-400 via-green-500 to-green-600 
-                                hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300 
-                                font-semibold rounded-lg text-lg px-5 py-2.5 mt-5 w-[15rem] h-[3rem]">
-                            Register
-                        </button>
-                    </div>
-
-                    <p class="text-red-600 text-[1rem] text-center">{{ error }}</p>
-                    <p class="text-green-500 text-[1rem] text-center">{{ success }}</p>
-                </form>
+    <!-- Statistics Cards -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <!-- Total Users -->
+        <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 transform hover:scale-105 transition duration-300">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-gray-600 uppercase">Total Users</p>
+                    <p class="text-4xl font-bold text-gray-900 mt-2">{{ total_users }}</p>
+                    <p class="text-xs text-gray-500 mt-1">Registered accounts</p>
+                </div>
+                <div class="p-4 bg-blue-100 rounded-full">
+                    <svg class="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
+                    </svg>
+                </div>
             </div>
         </div>
 
-        <!-- User Accounts Table -->
-        <section class="bg-white p-6 rounded-xl shadow-lg mt-8">
-            <header class="mb-4">
-                <h2 class="text-2xl font-bold text-gray-800">Registered Clients</h2>
-                <p class="text-gray-600">View and manage all client accounts.</p>
-            </header>
-            <!-- keep your table here -->
-            <div class="overflow-x-auto rounded-md">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-blue-600">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-50 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-50 uppercase tracking-wider">Username</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-50 uppercase tracking-wider">Email</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-50 uppercase tracking-wider">MFO</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-50 uppercase tracking-wider">Department</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-50 uppercase tracking-wider">Last Login</th>
-                            <th class="px-6 py-3 text-center text-xs font-semibold text-gray-50 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 text-sm text-gray-700">
-                        {% for user in end_users %}
-                        <tr class="hover:bg-gray-50 transition duration-200">
-                            <td class="px-6 py-4 whitespace-nowrap">{{ user.id }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-800">{{ user.username }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-blue-600">{{ user.email }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                    {{ user.mfo|default:"N/A" }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {{ user.department }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-500">
-                                {% if user.last_login %}
-                                    {{ user.last_login|date:"M d, Y H:i" }}
-                                {% else %}
-                                    <span class="text-gray-400 italic">Never</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center space-x-2">
-                                <a href="#" class="inline-block px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition">Edit</a>
-                                <a href="#" class="inline-block px-4 py-2 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition">Disable</a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="px-6 py-4 text-center text-gray-400 italic">No End Users Found</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <!-- Active Users -->
+        <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-md border border-green-200 p-6 transform hover:scale-105 transition duration-300">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-green-700 uppercase">Active</p>
+                    <p class="text-4xl font-bold text-green-700 mt-2">{{ active_users }}</p>
+                    <p class="text-xs text-green-600 mt-1">Currently enabled</p>
+                </div>
+                <div class="p-4 bg-green-200 rounded-full">
+                    <svg class="w-8 h-8 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
             </div>
-        </section>
+        </div>
 
-    </main>
+        <!-- Inactive Users -->
+        <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl shadow-md border border-gray-200 p-6 transform hover:scale-105 transition duration-300">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-gray-600 uppercase">Inactive</p>
+                    <p class="text-4xl font-bold text-gray-700 mt-2">{{ inactive_users }}</p>
+                    <p class="text-xs text-gray-500 mt-1">Disabled accounts</p>
+                </div>
+                <div class="p-4 bg-gray-200 rounded-full">
+                    <svg class="w-8 h-8 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Users -->
+        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-md border border-blue-200 p-6 transform hover:scale-105 transition duration-300">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-blue-700 uppercase">End Users</p>
+                    <p class="text-4xl font-bold text-blue-700 mt-2">{{ end_user_count }}</p>
+                    <p class="text-xs text-blue-600 mt-1">Regular users</p>
+                </div>
+                <div class="p-4 bg-blue-200 rounded-full">
+                    <svg class="w-8 h-8 text-blue-700" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Search & Filter Bar -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-6">
+        <form method="GET" action="{% url 'client_accounts' %}" id="filterForm">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <input type="search" name="search" id="user-search" value="{{ current_search }}"
+                           placeholder="Search by name, email, username, or department..."
+                           class="w-full px-4 py-2 rounded-lg border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Role Filter</label>
+                    <select name="role" id="role-filter" class="w-full px-4 py-2 rounded-lg border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition">
+                        <option value="">All Roles</option>
+                        <option value="approving_officer" {% if current_role == 'approving_officer' %}selected{% endif %}>Approving Officer</option>
+                        <option value="end_user" {% if current_role == 'end_user' %}selected{% endif %}>End User</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Status Filter</label>
+                    <select name="status" id="status-filter" class="w-full px-4 py-2 rounded-lg border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition">
+                        <option value="">All Status</option>
+                        <option value="active" {% if current_status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if current_status == 'inactive' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex gap-2">
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold">
+                        Apply Filters
+                    </button>
+                    <a href="{% url 'client_accounts' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold">
+                        Clear Filters
+                    </a>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button type="button" onclick="bulkActivate()" id="bulk-activate-btn" disabled
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                        Activate Selected
+                    </button>
+                    <button type="button" onclick="bulkDeactivate()" id="bulk-deactivate-btn" disabled
+                        class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                        Deactivate Selected
+                    </button>
+                    <a href="{% url 'export_users_excel' %}"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold inline-flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                        Export to Excel
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-4 text-left">
+                            <input type="checkbox" id="select-all" class="rounded focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300">
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            User
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Department
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Role
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Status
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Last Login
+                        </th>
+                        <th class="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for user in end_users %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <input type="checkbox" class="user-checkbox rounded focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300" value="{{ user.id }}">
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="h-12 w-12 flex-shrink-0">
+                                    <div class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md">
+                                        <span class="text-white font-bold text-lg">{{ user.fullname|slice:":1"|upper }}</span>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-semibold text-gray-900">{{ user.fullname }}</div>
+                                    <div class="text-sm text-gray-500">{{ user.email }}</div>
+                                    <div class="text-xs text-gray-400">@{{ user.username }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-sm font-medium text-gray-900">{{ user.department }}</div>
+                            {% if user.mfo %}
+                            <div class="text-xs text-gray-500">MFO: {{ user.mfo }}</div>
+                            {% endif %}
+                            {% if user.position %}
+                            <div class="text-xs text-gray-500">{{ user.position }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full
+                                {% if user.is_approving_officer %}bg-purple-100 text-purple-800 border border-purple-200
+                                {% else %}bg-blue-100 text-blue-800 border border-blue-200{% endif %}">
+                                {% if user.is_approving_officer %}Approving Officer{% else %}End User{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full
+                                {% if user.is_active %}bg-green-100 text-green-800 border border-green-200
+                                {% else %}bg-gray-100 text-gray-800 border border-gray-200{% endif %}">
+                                {% if user.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {% if user.last_login %}
+                                {{ user.last_login|date:"M d, Y H:i" }}
+                            {% else %}
+                                <span class="text-gray-400 italic">Never</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right text-sm font-medium">
+                            <div class="flex justify-end gap-2">
+                                <button onclick="viewUserDetails({{ user.id }})"
+                                    class="text-blue-600 hover:text-blue-900 font-semibold transition" title="View Details">
+                                    View
+                                </button>
+                                <button onclick="editUser({{ user.id }})"
+                                    class="text-indigo-600 hover:text-indigo-900 font-semibold transition" title="Edit User">
+                                    Edit
+                                </button>
+                                <button onclick="toggleUserStatus({{ user.id }}, {{ user.is_active|yesno:'true,false' }})"
+                                    class="{% if user.is_active %}text-orange-600 hover:text-orange-900{% else %}text-green-600 hover:text-green-900{% endif %} font-semibold transition"
+                                    title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %}">
+                                    {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                                <button onclick="deleteUser({{ user.id }}, '{{ user.username|escapejs }}')"
+                                    class="text-red-600 hover:text-red-900 font-semibold transition" title="Delete User">
+                                    Delete
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center">
+                            <div class="flex flex-col items-center justify-center">
+                                <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                                </svg>
+                                <p class="text-gray-500 text-lg font-semibold">No users found</p>
+                                <p class="text-gray-400 text-sm mt-2">Try adjusting your search or filters</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if end_users.has_other_pages %}
+        <div class="bg-gray-50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200">
+            <div class="text-sm text-gray-700 mb-4 sm:mb-0">
+                Showing <span class="font-semibold">{{ end_users.start_index }}</span> to <span class="font-semibold">{{ end_users.end_index }}</span> of <span class="font-semibold">{{ end_users.paginator.count }}</span> users
+            </div>
+            <div class="flex gap-2">
+                {% if end_users.has_previous %}
+                <a href="?page={{ end_users.previous_page_number }}{% if current_search %}&search={{ current_search }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                   class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-semibold">
+                    Previous
+                </a>
+                {% endif %}
+
+                <span class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold">
+                    Page {{ end_users.number }} of {{ end_users.paginator.num_pages }}
+                </span>
+
+                {% if end_users.has_next %}
+                <a href="?page={{ end_users.next_page_number }}{% if current_search %}&search={{ current_search }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                   class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-semibold">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Original Add User Modal (Working) -->
+    <div x-show="showModal"
+         class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+         x-transition>
+        <div class="bg-white rounded-xl shadow-lg w-[500px] max-h-[90vh] overflow-y-auto p-6 relative">
+
+            <!-- Close Button -->
+            <button @click="showModal = false"
+                    class="absolute top-3 right-3 text-gray-500 hover:text-gray-800">
+                ✕
+            </button>
+
+            <!-- Registration Form -->
+            <form action="{% url 'register_account' %}" method="post">
+                {% csrf_token %}
+                <h2 class="text-center font-bold text-[1.4rem] text-[#2c3e50] mb-4">
+                    Create an End User Account
+                </h2>
+                <p class="font-semibold text-[1.1rem]">Personal Details:</p>
+
+                <!-- Personal Details Section -->
+                <div class="pl-8 pr-8 pt-2 pb-2">
+                    <div class="flex flex-col mb-3">
+                        <label for="username" class="font-medium text-[0.9rem]">Username:</label>
+                        <input type="text" name="username" id="username" class="rounded-lg h-[2rem]" required>
+                    </div>
+                    <div class="flex flex-col mb-3">
+                        <label for="fullname" class="font-medium text-[0.9rem]">Fullname:</label>
+                        <input type="text" name="fullname" id="fullname" class="rounded-lg h-[2rem]" required>
+                    </div>
+                    <div class="flex flex-col mb-3">
+                        <label for="position" class="font-medium text-[0.9rem]">Position:</label>
+                        <input type="text" name="position" id="position" class="rounded-lg h-[2rem]" required>
+                    </div>
+                    <div class="flex flex-col mb-3">
+                        <label for="email" class="font-medium text-[0.9rem]">Email:</label>
+                        <input type="email" name="email" id="email" class="rounded-lg h-[2rem]" required>
+                    </div>
+                </div>
+
+                <!-- Department Selection Section -->
+                <p class="font-semibold text-[1.1rem]">Department:</p>
+
+                <div x-data="{
+                    mainDept: '',
+                    subDept: '',
+                    subDepartments: {
+                        'Instruction': ['CCJ', 'CTAS', 'CCIS'],
+                        'Research': ['Research'],
+                        'Extension Services': ['Extension Services'],
+                        'Support Operations': ['Sports', 'Library', 'SDS', 'Medic', 'SSG', 'Guidance', 'Publication'],
+                        'GASS': ['Admin', 'Clearance', 'HR', 'Security', 'General Services', 'DRRM', 'GAD']
+                    },
+                    get availableSubDepts() {
+                        return this.subDepartments[this.mainDept] || [];
+                    },
+                    resetSubDept() {
+                        this.subDept = '';
+                    }
+                }" class="ml-10 w-[25rem]">
+
+                    <!-- Main Department Dropdown -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Main Department</label>
+                        <div class="relative ml-7 w-[20rem]">
+                            <select
+                                x-model="mainDept"
+                                @change="resetSubDept()"
+                                class="w-full px-4 py-2 border border-gray-500 rounded-lg shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                                required>
+                                <option value="">-- Choose Department --</option>
+                                <option value="Instruction">Instruction</option>
+                                <option value="Research">Research</option>
+                                <option value="Extension Services">Extension Services</option>
+                                <option value="Support Operations">Support Operations</option>
+                                <option value="GASS">GASS</option>
+                            </select>
+                            <!-- Dropdown Arrow Icon -->
+                            <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                        <div class="mt-2 ml-7 text-sm text-gray-600" x-show="mainDept">
+                            Main Department: <span class="font-semibold" x-text="mainDept"></span>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Department Dropdown (appears after main selection) -->
+                    <div x-show="mainDept" x-transition class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Specific Department</label>
+                        <div class="relative ml-7 w-[20rem]">
+                            <select
+                                x-model="subDept"
+                                class="w-full px-4 py-2 border border-gray-500 rounded-lg shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                                required>
+                                <option value="">-- Choose Specific Department --</option>
+                                <template x-for="dept in availableSubDepts" :key="dept">
+                                    <option :value="dept" x-text="dept"></option>
+                                </template>
+                            </select>
+                            <!-- Dropdown Arrow Icon -->
+                            <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                        <div class="mt-2 ml-7 text-sm text-gray-600" x-show="subDept">
+                            Specific Department: <span class="font-semibold" x-text="subDept"></span>
+                        </div>
+                    </div>
+
+                    <!-- Hidden inputs for form submission -->
+                    <input type="hidden" name="mfo" :value="mainDept">
+                    <input type="hidden" name="department" :value="subDept">
+
+                    <!-- Final Selection Display -->
+                    <div class="mt-3 ml-7 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm" x-show="mainDept && subDept">
+                        <p class="font-semibold text-blue-800">Selected Department:</p>
+                        <p class="text-gray-700">
+                            <span x-text="mainDept"></span> → <span class="font-semibold" x-text="subDept"></span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Security Section -->
+                <div>
+                    <p class="font-semibold text-[1.1rem] mt-4">Security:</p>
+                    <div class="pl-8 pr-8 pb-3 pt-3">
+                        <div class="flex flex-col mb-3">
+                            <label for="password" class="font-medium text-[0.9rem]">Password:</label>
+                            <input type="password" name="password" id="password" class="rounded-lg h-[2rem]" required>
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="confirm-password" class="font-medium text-[0.9rem]">Confirm Password:</label>
+                            <input type="password" name="confirm-password" id="confirm-password" class="rounded-lg h-[2rem]" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Register Button -->
+                <div class="flex justify-center items-center">
+                    <button type="submit"
+                        class="text-white shadow-lg bg-gradient-to-r from-green-400 via-green-500 to-green-600
+                            hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-green-300
+                            font-semibold rounded-lg text-lg px-5 py-2.5 mt-5 w-[15rem] h-[3rem]">
+                        Register
+                    </button>
+                </div>
+
+                <p class="text-red-600 text-[1rem] text-center">{{ error }}</p>
+                <p class="text-green-500 text-[1rem] text-center">{{ success }}</p>
+            </form>
+        </div>
+    </div>
+
 </div>
+
+{% include "admin_panel/user_management_modals.html" %}
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg z-50 transform transition-all duration-300 ${
+        type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+    } text-white font-semibold`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+function openEditUserModal() { document.getElementById('editUserModal').classList.remove('hidden'); }
+function closeEditUserModal() { document.getElementById('editUserModal').classList.add('hidden'); }
+function openDetailsModal() { document.getElementById('detailsModal').classList.remove('hidden'); }
+function closeDetailsModal() { document.getElementById('detailsModal').classList.add('hidden'); }
+function openDeleteModal() { document.getElementById('deleteModal').classList.remove('hidden'); }
+function closeDeleteModal() { document.getElementById('deleteModal').classList.add('hidden'); }
+
+function viewUserDetails(userId) {
+    fetch(`/admin/users/${userId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const user = data.user;
+                document.getElementById('details-fullname').textContent = user.fullname;
+                document.getElementById('details-username').textContent = user.username;
+                document.getElementById('details-email').textContent = user.email;
+                document.getElementById('details-department').textContent = user.department;
+                document.getElementById('details-mfo').textContent = user.mfo || 'N/A';
+                document.getElementById('details-position').textContent = user.position || 'N/A';
+                document.getElementById('details-role').textContent = user.is_approving_officer ? 'Approving Officer' : 'End User';
+                document.getElementById('details-status').textContent = user.is_active ? 'Active' : 'Inactive';
+                document.getElementById('details-created').textContent = user.created_at;
+                document.getElementById('details-lastlogin').textContent = user.last_login;
+                document.getElementById('details-pr-count').textContent = user.pr_count;
+                document.getElementById('details-pre-count').textContent = user.pre_count;
+                document.getElementById('details-ad-count').textContent = user.ad_count;
+                openDetailsModal();
+            }
+        })
+        .catch(error => { showNotification('Error loading user details', 'error'); });
+}
+
+function editUser(userId) {
+    fetch(`/admin/users/${userId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const user = data.user;
+                document.getElementById('edit-user-id').value = user.id;
+                document.getElementById('edit-fullname').value = user.fullname;
+                document.getElementById('edit-email').value = user.email;
+                document.getElementById('edit-department').value = user.department;
+                document.getElementById('edit-mfo').value = user.mfo;
+                document.getElementById('edit-position').value = user.position;
+                document.getElementById('edit-role').value = user.is_approving_officer ? 'approving_officer' : 'end_user';
+                document.getElementById('edit-is_active').value = user.is_active ? 'true' : 'false';
+                openEditUserModal();
+            }
+        })
+        .catch(error => { showNotification('Error loading user data', 'error'); });
+}
+
+document.getElementById('editUserForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const userId = document.getElementById('edit-user-id').value;
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData);
+    fetch(`/admin/users/${userId}/edit/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            closeEditUserModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.error, 'error');
+        }
+    })
+    .catch(error => { showNotification('An error occurred', 'error'); });
+});
+
+function toggleUserStatus(userId, currentStatus) {
+    const action = currentStatus ? 'deactivate' : 'activate';
+    if (confirm(`Are you sure you want to ${action} this user?`)) {
+        fetch(`/admin/users/${userId}/toggle-status/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.error, 'error');
+            }
+        })
+        .catch(error => { showNotification('An error occurred', 'error'); });
+    }
+}
+
+let userToDelete = null;
+function deleteUser(userId, username) {
+    userToDelete = userId;
+    document.getElementById('delete-username').textContent = username;
+    openDeleteModal();
+}
+
+document.getElementById('confirmDeleteBtn')?.addEventListener('click', function() {
+    if (userToDelete) {
+        fetch(`/admin/users/${userToDelete}/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                closeDeleteModal();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.error, 'error');
+            }
+        })
+        .catch(error => { showNotification('An error occurred', 'error'); });
+    }
+});
+
+document.getElementById('select-all')?.addEventListener('change', function() {
+    const checkboxes = document.querySelectorAll('.user-checkbox');
+    checkboxes.forEach(cb => cb.checked = this.checked);
+    updateBulkButtons();
+});
+
+document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateBulkButtons);
+});
+
+function updateBulkButtons() {
+    const selected = document.querySelectorAll('.user-checkbox:checked').length;
+    document.getElementById('bulk-activate-btn').disabled = selected === 0;
+    document.getElementById('bulk-deactivate-btn').disabled = selected === 0;
+}
+
+function bulkActivate() {
+    const userIds = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
+    if (userIds.length === 0) return;
+    if (confirm(`Activate ${userIds.length} user(s)?`)) {
+        fetch('/admin/users/bulk-action/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ action: 'activate', user_ids: userIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.error, 'error');
+            }
+        })
+        .catch(error => { showNotification('An error occurred', 'error'); });
+    }
+}
+
+function bulkDeactivate() {
+    const userIds = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
+    if (userIds.length === 0) return;
+    if (confirm(`Deactivate ${userIds.length} user(s)?`)) {
+        fetch('/admin/users/bulk-action/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            body: JSON.stringify({ action: 'deactivate', user_ids: userIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showNotification(data.error, 'error');
+            }
+        })
+        .catch(error => { showNotification('An error occurred', 'error'); });
+    }
+}
+</script>
+
 {% endblock %}

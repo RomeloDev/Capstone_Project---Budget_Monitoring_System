@@ -1,0 +1,60 @@
+<!-- TEST: Check what end_users contains -->
+{% load humanize %}
+
+<h1>Debug Test</h1>
+
+<h2>Context Variables:</h2>
+<pre>
+total_users: {{ total_users }}
+active_users: {{ active_users }}
+inactive_users: {{ inactive_users }}
+recent_signups: {{ recent_signups }}
+</pre>
+
+<h2>end_users queryset:</h2>
+<pre>
+{{ end_users }}
+</pre>
+
+<h2>Iterating over end_users:</h2>
+<ul>
+{% for user in end_users %}
+    <li>
+        ID: {{ user.id }}<br>
+        Username: {{ user.username }}<br>
+        Email: {{ user.email }}<br>
+        Department: {{ user.department }}<br>
+        is_active: {{ user.is_active }}<br>
+    </li>
+{% empty %}
+    <li>NO USERS FOUND IN LOOP!</li>
+{% endfor %}
+</ul>
+
+<h2>JavaScript Array Test:</h2>
+<pre>
+const users = [
+    {% for user in end_users %}
+    {
+        id: {{ user.id }},
+        username: "{{ user.username|escapejs }}",
+        email: "{{ user.email|escapejs }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+console.log('Users array:', users);
+</pre>
+
+<script>
+const users = [
+    {% for user in end_users %}
+    {
+        id: {{ user.id }},
+        username: "{{ user.username|escapejs }}",
+        email: "{{ user.email|escapejs }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+console.log('Users array:', users);
+console.log('Users count:', users.length);
+</script>

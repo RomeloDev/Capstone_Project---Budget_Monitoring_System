@@ -62,4 +62,13 @@ urlpatterns = [
     # PR Signed Copy Upload
     path('pr/<uuid:pr_id>/upload-signed-copy/', views.admin_upload_pr_signed_copy, name='admin_upload_pr_signed_copy'),
     path('pr/<uuid:pr_id>/manual-pdf-upload/', views.admin_manual_pdf_upload, name='admin_manual_pdf_upload'),
+
+    # User Management AJAX Endpoints
+    path('users/create/', views.create_user_ajax, name='create_user_ajax'),
+    path('users/<int:user_id>/details/', views.get_user_details_ajax, name='get_user_details_ajax'),
+    path('users/<int:user_id>/edit/', views.edit_user_ajax, name='edit_user_ajax'),
+    path('users/<int:user_id>/toggle-status/', views.toggle_user_status_ajax, name='toggle_user_status_ajax'),
+    path('users/<int:user_id>/delete/', views.delete_user_ajax, name='delete_user_ajax'),
+    path('users/bulk-action/', views.bulk_user_action_ajax, name='bulk_user_action_ajax'),
+    path('users/export-excel/', views.export_users_excel, name='export_users_excel'),
 ]

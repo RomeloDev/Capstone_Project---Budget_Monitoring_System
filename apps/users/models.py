@@ -68,6 +68,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     is_approving_officer = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)  # Users are active by default
 
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)

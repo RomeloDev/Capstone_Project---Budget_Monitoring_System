@@ -201,11 +201,114 @@ def admin_dashboard(request):
     
 @role_required('admin', login_url='/admin/')
 def client_accounts(request):
+    """
+    Enhanced User Management Page with Statistics, Search, Filters, and Pagination
+    """
+    from datetime import timedelta
+
     try:
-        end_users = User.objects.filter(is_staff=False)
-    except User.DoesNotExist:
-        end_users = None
-    return render(request, 'admin_panel/client_accounts.html', {'end_users': end_users})
+        # Get filter parameters
+        search_query = request.GET.get('search', '')
+        role_filter = request.GET.get('role', '')
+        status_filter = request.GET.get('status', '')
+        department_filter = request.GET.get('department', '')
+
+        # Base queryset - all non-staff users (end users)
+        end_users = User.objects.filter(is_staff=False).order_by('-created_at')
+
+        # Apply search filter
+        if search_query:
+            end_users = end_users.filter(
+                Q(fullname__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(department__icontains=search_query) |
+                Q(username__icontains=search_query)
+            )
+
+        # Apply role filter
+        if role_filter == 'approving_officer':
+            end_users = end_users.filter(is_approving_officer=True)
+        elif role_filter == 'end_user':
+            end_users = end_users.filter(is_approving_officer=False)
+
+        # Apply status filter
+        if status_filter == 'active':
+            end_users = end_users.filter(is_active=True)
+        elif status_filter == 'inactive':
+            end_users = end_users.filter(is_active=False)
+
+        # Apply department filter
+        if department_filter:
+            end_users = end_users.filter(department=department_filter)
+
+        # Calculate statistics
+        all_users = User.objects.filter(is_staff=False)
+        total_users = all_users.count()
+        active_users = all_users.filter(is_active=True).count()
+        inactive_users = all_users.filter(is_active=False).count()
+
+        # Count by role
+        approving_officer_count = all_users.filter(is_approving_officer=True).count()
+        end_user_count = all_users.filter(is_approving_officer=False).count()
+
+        # Recent signups (last 7 days)
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        recent_signups = all_users.filter(created_at__gte=seven_days_ago).count()
+
+        # Get unique departments for filter dropdown
+        departments = all_users.values_list('department', flat=True).distinct().order_by('department')
+
+        # Pagination
+        paginator = Paginator(end_users, 20)  # 20 users per page
+        page = request.GET.get('page', 1)
+        try:
+            users_page = paginator.page(page)
+        except PageNotAnInteger:
+            users_page = paginator.page(1)
+        except EmptyPage:
+            users_page = paginator.page(paginator.num_pages)
+
+        # Debug logging
+        print(f"\n=== CLIENT ACCOUNTS DEBUG ===")
+        print(f"Total users found: {total_users}")
+        print(f"Active: {active_users}, Inactive: {inactive_users}")
+        print(f"Approving Officers: {approving_officer_count}, End Users: {end_user_count}")
+        print(f"Filtered results: {end_users.count()}")
+        print(f"=========================\n")
+
+        context = {
+            'end_users': users_page,
+            'total_users': total_users,
+            'active_users': active_users,
+            'inactive_users': inactive_users,
+            'approving_officer_count': approving_officer_count,
+            'end_user_count': end_user_count,
+            'recent_signups': recent_signups,
+            'departments': departments,
+            'current_search': search_query,
+            'current_role': role_filter,
+            'current_status': status_filter,
+            'current_department': department_filter,
+        }
+
+        return render(request, 'admin_panel/client_accounts.html', context)
+
+    except Exception as e:
+        import traceback
+        print(f"Error in client_accounts: {e}")
+        print(traceback.format_exc())
+        context = {
+            'end_users': [],
+            'total_users': 0,
+            'active_users': 0,
+            'inactive_users': 0,
+            'approving_officer_count': 0,
+            'end_user_count': 0,
+            'recent_signups': 0,
+            'departments': [],
+            'error_message': str(e)
+        }
+        return render(request, 'admin_panel/client_accounts.html', context)
 
 @role_required('admin', login_url='/admin/')
 def register_account(request):
@@ -3673,3 +3776,732 @@ def admin_quick_approve_with_upload(request, pre_id):
             'success': False,
             'error': str(e)
         }, status=500)
+# ===========================
+# User Management AJAX Endpoints
+# ===========================
+
+@role_required('admin', login_url='/admin/')
+def create_user_ajax(request):
+    """AJAX endpoint to create new user"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+
+            username = data.get('username')
+            fullname = data.get('fullname')
+            email = data.get('email')
+            password = data.get('password')
+            department = data.get('department')
+            position = data.get('position', '')
+            mfo = data.get('mfo', '')
+            role = data.get('role')
+            is_active = data.get('is_active', 'true') == 'true'
+
+            # Validation
+            if User.objects.filter(username=username).exists():
+                return JsonResponse({'success': False, 'error': 'Username already exists'}, status=400)
+            if User.objects.filter(email=email).exists():
+                return JsonResponse({'success': False, 'error': 'Email already exists'}, status=400)
+
+            # Create user based on role
+            if role == 'approving_officer':
+                user = User.objects.create_approving_officer(
+                    username=username,
+                    fullname=fullname,
+                    email=email,
+                    password=password,
+                    department=department,
+                    mfo=mfo
+                )
+            else:
+                user = User.objects.create_user(
+                    username=username,
+                    fullname=fullname,
+                    email=email,
+                    password=password,
+                    department=department,
+                    mfo=mfo
+                )
+
+            user.position = position
+            user.is_active = is_active
+            user.save()
+
+            log_audit_trail(
+                request.user,
+                'CREATE',
+                'User',
+                user.id,
+                f'Created new user: {user.username}'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': 'User created successfully',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'fullname': user.fullname,
+                    'department': user.department,
+                    'position': user.position,
+                    'is_active': user.is_active,
+                    'is_approving_officer': user.is_approving_officer
+                }
+            })
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def get_user_details_ajax(request, user_id):
+    """AJAX endpoint to get user details"""
+    try:
+        user = get_object_or_404(User, id=user_id)
+
+        # Get user activity stats
+        pr_count = user.purchase_requests.count() if hasattr(user, 'purchase_requests') else 0
+        pre_count = user.submitted_pres.count() if hasattr(user, 'submitted_pres') else 0
+        ad_count = user.activity_designs.count() if hasattr(user, 'activity_designs') else 0
+
+        return JsonResponse({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'fullname': user.fullname,
+                'department': user.department,
+                'mfo': user.mfo or '',
+                'position': user.position or '',
+                'is_active': user.is_active,
+                'is_approving_officer': user.is_approving_officer,
+                'created_at': user.created_at.strftime('%B %d, %Y at %I:%M %p') if user.created_at else 'N/A',
+                'last_login': user.last_login.strftime('%B %d, %Y at %I:%M %p') if user.last_login else 'Never',
+                'pr_count': pr_count,
+                'pre_count': pre_count,
+                'ad_count': ad_count,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@role_required('admin', login_url='/admin/')
+def edit_user_ajax(request, user_id):
+    """AJAX endpoint to edit user"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+
+            user = get_object_or_404(User, id=user_id)
+
+            # Update fields
+            user.fullname = data.get('fullname', user.fullname)
+            user.email = data.get('email', user.email)
+            user.department = data.get('department', user.department)
+            user.position = data.get('position', user.position)
+            user.mfo = data.get('mfo', user.mfo)
+            user.is_active = data.get('is_active', 'true') == 'true'
+
+            # Handle role change
+            role = data.get('role')
+            if role == 'approving_officer':
+                user.is_approving_officer = True
+            else:
+                user.is_approving_officer = False
+
+            user.save()
+
+            log_audit_trail(
+                request.user,
+                'UPDATE',
+                'User',
+                user.id,
+                f'Updated user: {user.username}'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': 'User updated successfully',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'fullname': user.fullname,
+                    'department': user.department,
+                    'position': user.position,
+                    'is_active': user.is_active,
+                    'is_approving_officer': user.is_approving_officer
+                }
+            })
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def toggle_user_status_ajax(request, user_id):
+    """AJAX endpoint to activate/deactivate user"""
+    if request.method == 'POST':
+        try:
+            user = get_object_or_404(User, id=user_id)
+            user.is_active = not user.is_active
+            user.save()
+
+            action = 'activated' if user.is_active else 'deactivated'
+            log_audit_trail(
+                request.user,
+                'UPDATE',
+                'User',
+                user.id,
+                f'User {action}: {user.username}'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': f'User {action} successfully',
+                'is_active': user.is_active
+            })
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def delete_user_ajax(request, user_id):
+    """AJAX endpoint to delete user"""
+    if request.method == 'POST':
+        try:
+            user = get_object_or_404(User, id=user_id)
+            username = user.username
+
+            # Prevent deleting yourself
+            if user.id == request.user.id:
+                return JsonResponse({'success': False, 'error': 'You cannot delete your own account'}, status=400)
+
+            log_audit_trail(
+                request.user,
+                'DELETE',
+                'User',
+                user.id,
+                f'Deleted user: {username}'
+            )
+
+            user.delete()
+
+            return JsonResponse({
+                'success': True,
+                'message': f'User {username} deleted successfully'
+            })
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def bulk_user_action_ajax(request):
+    """AJAX endpoint for bulk user actions"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+
+            action = data.get('action')  # 'activate' or 'deactivate'
+            user_ids = data.get('user_ids', [])
+
+            if not user_ids:
+                return JsonResponse({'success': False, 'error': 'No users selected'}, status=400)
+
+            users = User.objects.filter(id__in=user_ids)
+
+            if action == 'activate':
+                users.update(is_active=True)
+                message = f'{users.count()} user(s) activated successfully'
+            elif action == 'deactivate':
+                users.update(is_active=False)
+                message = f'{users.count()} user(s) deactivated successfully'
+            else:
+                return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+
+            log_audit_trail(
+                request.user,
+                'UPDATE',
+                'User',
+                None,
+                f'Bulk {action}: {users.count()} users'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': message
+            })
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def export_users_excel(request):
+    """Export users to Excel file"""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        # Get all non-staff users
+        users = User.objects.filter(is_staff=False).order_by('department', 'fullname')
+
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Users"
+
+        # Define styles
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # Headers
+        headers = ['Full Name', 'Username', 'Email', 'Department', 'MFO', 'Position', 'Role', 'Status', 'Last Login', 'Created At']
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        # Data rows
+        for row_num, user in enumerate(users, 2):
+            role = 'Approving Officer' if user.is_approving_officer else 'End User'
+            status = 'Active' if user.is_active else 'Inactive'
+            last_login = user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never'
+            created_at = user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else 'N/A'
+
+            data = [
+                user.fullname,
+                user.username,
+                user.email,
+                user.department,
+                user.mfo or 'N/A',
+                user.position or 'N/A',
+                role,
+                status,
+                last_login,
+                created_at
+            ]
+
+            for col_num, value in enumerate(data, 1):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.value = value
+                cell.border = border
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+
+        # Adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # Prepare response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename=users_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return HttpResponse(f'Error exporting users: {str(e)}', status=500)
+
+# ===========================
+# User Management AJAX Endpoints
+# ===========================
+
+@role_required('admin', login_url='/admin/')
+def create_user_ajax(request):
+    """AJAX endpoint to create new user"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+
+            username = data.get('username')
+            fullname = data.get('fullname')
+            email = data.get('email')
+            password = data.get('password')
+            department = data.get('department')
+            position = data.get('position', '')
+            mfo = data.get('mfo', '')
+            role = data.get('role')
+            is_active = data.get('is_active', 'true') == 'true'
+
+            # Validation
+            if User.objects.filter(username=username).exists():
+                return JsonResponse({'success': False, 'error': 'Username already exists'}, status=400)
+            if User.objects.filter(email=email).exists():
+                return JsonResponse({'success': False, 'error': 'Email already exists'}, status=400)
+
+            # Create user based on role
+            if role == 'approving_officer':
+                user = User.objects.create_approving_officer(
+                    username=username,
+                    fullname=fullname,
+                    email=email,
+                    password=password,
+                    department=department,
+                    mfo=mfo
+                )
+            else:
+                user = User.objects.create_user(
+                    username=username,
+                    fullname=fullname,
+                    email=email,
+                    password=password,
+                    department=department,
+                    mfo=mfo
+                )
+
+            user.position = position
+            user.is_active = is_active
+            user.save()
+
+            log_audit_trail(
+                request.user,
+                'CREATE',
+                'User',
+                user.id,
+                f'Created new user: {user.username}'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': 'User created successfully',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'fullname': user.fullname,
+                    'department': user.department,
+                    'position': user.position,
+                    'is_active': user.is_active,
+                    'is_approving_officer': user.is_approving_officer
+                }
+            })
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def get_user_details_ajax(request, user_id):
+    """AJAX endpoint to get user details"""
+    try:
+        user = get_object_or_404(User, id=user_id)
+
+        # Get user activity stats
+        pr_count = user.purchase_requests.count() if hasattr(user, 'purchase_requests') else 0
+        pre_count = user.submitted_pres.count() if hasattr(user, 'submitted_pres') else 0
+        ad_count = user.activity_designs.count() if hasattr(user, 'activity_designs') else 0
+
+        return JsonResponse({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'fullname': user.fullname,
+                'department': user.department,
+                'mfo': user.mfo or '',
+                'position': user.position or '',
+                'is_active': user.is_active,
+                'is_approving_officer': user.is_approving_officer,
+                'created_at': user.created_at.strftime('%B %d, %Y at %I:%M %p') if user.created_at else 'N/A',
+                'last_login': user.last_login.strftime('%B %d, %Y at %I:%M %p') if user.last_login else 'Never',
+                'pr_count': pr_count,
+                'pre_count': pre_count,
+                'ad_count': ad_count,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@role_required('admin', login_url='/admin/')
+def edit_user_ajax(request, user_id):
+    """AJAX endpoint to edit user"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+
+            user = get_object_or_404(User, id=user_id)
+
+            # Update fields
+            user.fullname = data.get('fullname', user.fullname)
+            user.email = data.get('email', user.email)
+            user.department = data.get('department', user.department)
+            user.position = data.get('position', user.position)
+            user.mfo = data.get('mfo', user.mfo)
+            user.is_active = data.get('is_active', 'true') == 'true'
+
+            # Handle role change
+            role = data.get('role')
+            if role == 'approving_officer':
+                user.is_approving_officer = True
+            else:
+                user.is_approving_officer = False
+
+            user.save()
+
+            log_audit_trail(
+                request.user,
+                'UPDATE',
+                'User',
+                user.id,
+                f'Updated user: {user.username}'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': 'User updated successfully',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'fullname': user.fullname,
+                    'department': user.department,
+                    'position': user.position,
+                    'is_active': user.is_active,
+                    'is_approving_officer': user.is_approving_officer
+                }
+            })
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def toggle_user_status_ajax(request, user_id):
+    """AJAX endpoint to activate/deactivate user"""
+    if request.method == 'POST':
+        try:
+            user = get_object_or_404(User, id=user_id)
+            user.is_active = not user.is_active
+            user.save()
+
+            action = 'activated' if user.is_active else 'deactivated'
+            log_audit_trail(
+                request.user,
+                'UPDATE',
+                'User',
+                user.id,
+                f'User {action}: {user.username}'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': f'User {action} successfully',
+                'is_active': user.is_active
+            })
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def delete_user_ajax(request, user_id):
+    """AJAX endpoint to delete user"""
+    if request.method == 'POST':
+        try:
+            user = get_object_or_404(User, id=user_id)
+            username = user.username
+
+            # Prevent deleting yourself
+            if user.id == request.user.id:
+                return JsonResponse({'success': False, 'error': 'You cannot delete your own account'}, status=400)
+
+            log_audit_trail(
+                request.user,
+                'DELETE',
+                'User',
+                user.id,
+                f'Deleted user: {username}'
+            )
+
+            user.delete()
+
+            return JsonResponse({
+                'success': True,
+                'message': f'User {username} deleted successfully'
+            })
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def bulk_user_action_ajax(request):
+    """AJAX endpoint for bulk user actions"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+
+            action = data.get('action')  # 'activate' or 'deactivate'
+            user_ids = data.get('user_ids', [])
+
+            if not user_ids:
+                return JsonResponse({'success': False, 'error': 'No users selected'}, status=400)
+
+            users = User.objects.filter(id__in=user_ids)
+
+            if action == 'activate':
+                users.update(is_active=True)
+                message = f'{users.count()} user(s) activated successfully'
+            elif action == 'deactivate':
+                users.update(is_active=False)
+                message = f'{users.count()} user(s) deactivated successfully'
+            else:
+                return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+
+            log_audit_trail(
+                request.user,
+                'UPDATE',
+                'User',
+                None,
+                f'Bulk {action}: {users.count()} users'
+            )
+
+            return JsonResponse({
+                'success': True,
+                'message': message
+            })
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+
+@role_required('admin', login_url='/admin/')
+def export_users_excel(request):
+    """Export users to Excel file"""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        # Get all non-staff users
+        users = User.objects.filter(is_staff=False).order_by('department', 'fullname')
+
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Users"
+
+        # Define styles
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # Headers
+        headers = ['Full Name', 'Username', 'Email', 'Department', 'MFO', 'Position', 'Role', 'Status', 'Last Login', 'Created At']
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        # Data rows
+        for row_num, user in enumerate(users, 2):
+            role = 'Approving Officer' if user.is_approving_officer else 'End User'
+            status = 'Active' if user.is_active else 'Inactive'
+            last_login = user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never'
+            created_at = user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else 'N/A'
+
+            data = [
+                user.fullname,
+                user.username,
+                user.email,
+                user.department,
+                user.mfo or 'N/A',
+                user.position or 'N/A',
+                role,
+                status,
+                last_login,
+                created_at
+            ]
+
+            for col_num, value in enumerate(data, 1):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.value = value
+                cell.border = border
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+
+        # Adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # Prepare response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename=users_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return HttpResponse(f'Error exporting users: {str(e)}', status=500)

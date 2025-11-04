@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Test</title>
+</head>
+<body>
+    <h1>Simple User Test (No Alpine.js)</h1>
+
+    <h2>Statistics:</h2>
+    <ul>
+        <li>Total Users: {{ total_users }}</li>
+        <li>Active Users: {{ active_users }}</li>
+        <li>Inactive Users: {{ inactive_users }}</li>
+        <li>Recent Signups: {{ recent_signups }}</li>
+    </ul>
+
+    <h2>Users List:</h2>
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th>Active</th>
+        </tr>
+        {% for user in end_users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.department }}</td>
+            <td>{{ user.is_active|yesno:"Yes,No" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5">NO USERS FOUND!</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Raw End Users:</h2>
+    <pre>{{ end_users }}</pre>
+
+</body>
+</html>
