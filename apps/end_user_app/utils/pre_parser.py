@@ -1,4 +1,3 @@
-# bb_budget_monitoring_system/apps/end_user_app/utils/pre_parser.py
 """
 PRE Excel Parser Utility
 Extracts data from PRE template with fixed cell positions
@@ -56,7 +55,7 @@ class PREParser:
             'other_supplies': [
                 ('Other Supplies & Materials Expenses', 'E42', 'F42', 'G42', 'H42', 'I42'),
             ],
-            'machinery': [
+            'semi_expendable_machinery_and_equipment_expenses': [
                 ('Machinery', 'E44', 'F44', 'G44', 'H44', 'I44'),
                 ('Office Equipment', 'E45', 'F45', 'G45', 'H45', 'I45'),
                 ('Information and Communications Technology Equipment', 'E46', 'F46', 'G46', 'H46', 'I46'),
@@ -89,7 +88,7 @@ class PREParser:
                 ('Prizes', 'E73', 'F73', 'G73', 'H73', 'I73'),
             ],
             'research': [
-                ('Survey, Research, Exploration and Development', 'E74', 'F74', 'G74', 'H74', 'I74'),
+                # ('Survey, Research, Exploration and Development', 'E74', 'F74', 'G74', 'H74', 'I74'),
                 ('Survey expenses', 'E75', 'F75', 'G75', 'H75', 'I75'),
                 ('Survey, Research, Exploration and Development expenses', 'E76', 'F76', 'G76', 'H76', 'I76'),
             ],
@@ -102,29 +101,112 @@ class PREParser:
             'general_services': [
                 ('Security services', 'E83', 'F83', 'G83', 'H83', 'I83'),
                 ('Janitorial Services', 'E84', 'F84', 'G84', 'H84', 'I84'),
+                ('Other General Services', 'E85', 'F85', 'G85', 'H85', 'I85'),
+                ('Environment/Sanitary Services', 'E86', 'F86', 'G86', 'H86', 'I86'),
             ],
+            'repair_and_maintenance': [
+                ('Repair & Maintenance - Land Improvements', 'E88', 'F88', 'G88', 'H88', 'I88'),
+                ('Repair & Maintenance - Buildings and other structures', 'E89', 'F89', 'G89', 'H89', 'I89'),
+                ('Buildings', 'E90', 'F90', 'G90', 'H90', 'I90'),
+                ('School Buildings', 'E91', 'F91', 'G91', 'H91', 'I91'),
+                ('Hostels and Dormitories', 'E92', 'F92', 'G92', 'H92', 'I92'),
+                ('Other Structures', 'E93', 'F93', 'G93', 'H93', 'I93'),
+                ('Repair & Maintenance - Machinery and Equipment', 'E94', 'F94', 'G94', 'H94', 'I94'),
+                ('Machinery', 'E95', 'F95', 'G95', 'H95', 'I95'),
+                ('Office Equipment', 'E96', 'F96', 'G96', 'H96', 'I96'),
+                ('ICT Equipment', 'E97', 'F97', 'G97', 'H97', 'I97'),
+                ('Agricultural and Forestry Equipment', 'E98', 'F98', 'G98', 'H98', 'I98'),
+                ('Marine and Fishery Equipment', 'E99', 'F99', 'G99', 'H99', 'I99'),
+                ('Airport Equipment', 'E100', 'F100', 'G100', 'H100', 'I100'),
+                ('Communication Equipment', 'E101', 'F101', 'G101', 'H101', 'I101'),
+                ('Disaster Response and Rescue Equipment', 'E102', 'F102', 'G102', 'H102', 'I102'),
+                ('Medical Equipment', 'E103', 'F103', 'G103', 'H103', 'I103'),
+                ('Printing Equipment', 'E104', 'F104', 'G104', 'H104', 'I104'),
+                ('Sports Equipment', 'E105', 'F105', 'G105', 'H105', 'I105'),
+                ('Technical and Scientific Equipment', 'E106', 'F106', 'G106', 'H106', 'I106'),
+                ('Other Machinery and Equipment', 'E107', 'F107', 'G107', 'H107', 'I107'),
+                ('Repairs & Maintenance - Transportation Equipment', 'E108', 'F108', 'G108', 'H108', 'I108'),
+                ('Motor Vehicles', 'E109', 'F109', 'G109', 'H109', 'I109'),
+                ('Other Transportation Equipment', 'E110', 'F110', 'G110', 'H110', 'I110'),
+                ('Repairs & Maintenance - Furniture & Fixtures', 'E111', 'F111', 'G111', 'H111', 'I111'),
+                ('Repairs & Maintenance - Semi-Expendable Machinery & Equipment', 'E112', 'F112', 'G112', 'H112', 'I112'),
+                ('Repairs & Maintenance -  Other Property, Plant & Equipment', 'E113', 'F113', 'G113', 'H113', 'I113'),
+            ],
+            'taxes_insurance_premiums_and_other_fees': [
+                ('Taxes, Duties and Licenses', 'E115', 'F115', 'G115', 'H115', 'I115'),
+                ('Fidelity Bond Premiums', 'E116', 'F116', 'G116', 'H116', 'I116'),
+                ('Insurance Expenses', 'E117', 'F117', 'G117', 'H117', 'I117'),
+            ],
+            'labor_and_wages': [
+                ('Labor and Wages', 'E119', 'F119', 'G119', 'H119', 'I119'),
+            ],
+            'other_maintenance_and_operating_expenses': [
+                ('Advertising Expenses', 'E121', 'F121', 'G121', 'H121', 'I121'),
+                ('Printing and Publication Expenses', 'E122', 'F122', 'G122', 'H122', 'I122'),
+                ('Representation Expenses', 'E123', 'F123', 'G123', 'H123', 'I123'),
+                ('Transportation and Delivery Expenses', 'E124', 'F124', 'G124', 'H124', 'I124'),
+                ('Rent/Lease Expenses', 'E125', 'F125', 'G125', 'H125', 'I125'),
+                ('Membership Dues and Contributions to Organizations', 'E126', 'F126', 'G126', 'H126', 'I126'),
+                ('Subscription Expenses', 'E127', 'F127', 'G127', 'H127', 'I127'),
+                ('Other Maintenance and Operating Expenses', 'E128', 'F128', 'G128', 'H128', 'I128'),
+                ('Website Maintenance', 'E129', 'F129', 'G129', 'H129', 'I129'),
+                ('Other Maintenance and Operating Expenses - COVID-19', 'E130', 'F130', 'G130', 'H130', 'I130'),
+                ('Total Maintenance and Other Operating Expenses', 'E131', 'F131', 'G131', 'H131', 'I131'),
+            ]
         },
         
         # CAPITAL OUTLAYS
         'capital': {
             'land': [
-                ('Land', 'E135', 'F135', 'G135', 'H135', 'I135'),
+                # ('Land', 'E135', 'F135', 'G135', 'H135', 'I135'),
                 ('Land', 'E136', 'F136', 'G136', 'H136', 'I136'),
             ],
             'land_improvements': [
                 ('Land Improvements, Aquaculture Structure', 'E138', 'F138', 'G138', 'H138', 'I138'),
             ],
-            'infrastructure': [
+            'infrastructure_assets': [
                 ('Water Supply Systems', 'E140', 'F140', 'G140', 'H140', 'I140'),
                 ('Power Supply System', 'E141', 'F141', 'G141', 'H141', 'I141'),
                 ('Other Infrastructure Assets', 'E142', 'F142', 'G142', 'H142', 'I142'),
             ],
-            'buildings': [
+            'buildings_and_other_structures': [
                 ('Building', 'E144', 'F144', 'G144', 'H144', 'I144'),
                 ('School Buildings', 'E145', 'F145', 'G145', 'H145', 'I145'),
                 ('Hostels and Dormitories', 'E146', 'F146', 'G146', 'H146', 'I146'),
                 ('Other Structures', 'E147', 'F147', 'G147', 'H147', 'I147'),
             ],
+            'machinery_and_equipment': [
+                ('Machinery', 'E149', 'F149', 'G149', 'H149', 'I149'),
+                ('Office Equipment', 'E150', 'F150', 'G150', 'H150', 'I150'),
+                ('Information and Communications Technology Equipment', 'E151', 'F151', 'G151', 'H151', 'I151'),
+                ('Communication Equipment', 'E152', 'F152', 'G152', 'H152', 'I152'),
+                ('Disaster Response and Rescue Equipment', 'E153', 'F153', 'G153', 'H153', 'I153'),
+                ('Medical Equipment', 'E154', 'F154', 'G154', 'H154', 'I154'),
+                ('Printing Equipment', 'E155', 'F155', 'G155', 'H155', 'I155'),
+                ('Sports Equipment', 'E156', 'F156', 'G156', 'H156', 'I156'),
+                ('Technical and Scientific Equipment', 'E157', 'F157', 'G157', 'H157', 'I157'),
+                ('Other Machinery and Equipment', 'E158', 'F158', 'G158', 'H158', 'I158'),
+            ],
+            'transportation_equipment': [
+                ('Motor Vehicles', 'E160', 'F160', 'G160', 'H160', 'I160'),
+                ('Other Transportation Equipment', 'E161', 'F161', 'G161', 'H161', 'I161'),
+            ],
+            'furniture_fixtures_and_books': [
+                ('Furniture and Fixtures', 'E163', 'F163', 'G163', 'H163', 'I163'),
+                ('Books', 'E164', 'F164', 'G164', 'H164', 'I164'),
+            ],
+            'construction_in_progress': [
+                ('Construction in Progress - Land Improvements', 'E166', 'F166', 'G166', 'H166', 'I166'),
+                ('Construction in Progress - Infrastructure Assets', 'E167', 'F167', 'G167', 'H167', 'I167'),
+                ('Construction in Progress - Buildings and Other Structures', 'E168', 'F168', 'G168', 'H168', 'I168'),
+                ('Construction in Progress - Leased Assets', 'E169', 'F169', 'G169', 'H169', 'I169'),
+                ('Construction in Progress - Leased Assets Improvements', 'E170', 'F170', 'G170', 'H170', 'I170'),
+            ],
+            'intangible_assets': [
+                ('Computer Software', 'E172', 'F172', 'G172', 'H172', 'I172'),
+                ('Websites', 'E173', 'F173', 'G173', 'H173', 'I173'),
+                ('Other Intangible Assets', 'E174', 'F174', 'G174', 'H174', 'I174'),
+            ]
         }
     }
     
