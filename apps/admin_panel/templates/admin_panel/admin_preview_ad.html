@@ -76,7 +76,7 @@
                         <dt class="text-sm font-medium text-gray-500">Budget Allocation</dt>
                         <dd class="text-sm text-gray-900">
                             {{ ad.budget_allocation.approved_budget.title }}<br>
-                            <span class="text-xs text-gray-500">Remaining: ₱{{ ad.budget_allocation.remaining_balance|floatformat:2|intcomma }}</span>
+                            <span class="text-sm font-bold text-blue-600">Total Allocated: ₱{{ ad.budget_allocation.allocated_amount|floatformat:2|intcomma }}</span>
                         </dd>
                     </div>
                     <div class="flex justify-between items-center">
@@ -291,8 +291,8 @@
                         <dd class="mt-1 text-2xl font-bold text-gray-900">₱{{ ad.total_amount|floatformat:2|intcomma }}</dd>
                     </div>
                     <div class="pt-3 border-t border-gray-200">
-                        <dt class="text-xs font-medium text-gray-500 uppercase">Remaining Balance</dt>
-                        <dd class="mt-1 text-lg font-semibold text-green-600">₱{{ ad.budget_allocation.remaining_balance|floatformat:2|intcomma }}</dd>
+                        <dt class="text-xs font-medium text-gray-500 uppercase">Remaining PRE Balance</dt>
+                        <dd class="mt-1 text-lg font-semibold text-green-600">₱{{ budget_summary.total_pre_remaining|floatformat:2|intcomma }}</dd>
                     </div>
                 </dl>
             </div>

@@ -152,7 +152,7 @@
                         <option value="">Select Budget Allocation</option>
                         {% for alloc in budget_allocations %}
                             <option value="{{ alloc.id }}">
-                                {{ alloc.approved_budget.title }} - Remaining: ₱{{ alloc.remaining_balance|floatformat:2|intcomma }}
+                                {{ alloc.approved_budget.title }} - PRE Total Remaining: ₱{{ alloc.pre_amount_used|floatformat:2|intcomma }}
                             </option>
                         {% endfor %}
                     </select>

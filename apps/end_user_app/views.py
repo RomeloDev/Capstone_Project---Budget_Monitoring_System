@@ -3948,13 +3948,42 @@ def activity_design_upload(request):
                         'amount': amount
                     })
 
-                # Check if total amount exceeds allocation remaining
-                if total_amount > budget_allocation.remaining_balance:
+                # Get all unique PREs used in this AD
+                pres_used = set()
+                for alloc in allocations_to_create:
+                    pres_used.add(alloc['line_item'].pre)
+
+                # Calculate total remaining across all PREs
+                total_pre_remaining = Decimal('0')
+                for pre in pres_used:
+                    # Use total_remaining property if exists, otherwise calculate
+                    if hasattr(pre, 'total_remaining'):
+                        total_pre_remaining += pre.total_remaining
+                    else:
+                        # Fallback: calculate from line items
+                        pre_total = sum(
+                            line_item.get_quarter_available(q)
+                            for line_item in pre.line_items.all()
+                            for q in ['Q1', 'Q2', 'Q3', 'Q4']
+                        )
+                        total_pre_remaining += pre_total
+
+                # Validate total amount against PRE remaining
+                if total_amount > total_pre_remaining:
                     messages.error(
                         request,
-                        f"Total amount (₱{total_amount:,.2f}) exceeds remaining budget (₱{budget_allocation.remaining_balance:,.2f})"
+                        f"Total amount (₱{total_amount:,.2f}) exceeds total PRE remaining budget (₱{total_pre_remaining:,.2f}). "
+                        f"The PRE has ₱{total_pre_remaining:,.2f} available across all line items and quarters."
                     )
                     return redirect('activity_design_upload')
+
+                # Check if total amount exceeds allocation remaining
+                # if total_amount > budget_allocation.remaining_balance:
+                #     messages.error(
+                #         request,
+                #         f"Total amount (₱{total_amount:,.2f}) exceeds remaining budget (₱{budget_allocation.remaining_balance:,.2f})"
+                #     )
+                #     return redirect('activity_design_upload')
 
                 # Create Activity Design with atomic transaction
                 with transaction.atomic():

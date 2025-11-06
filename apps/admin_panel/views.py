@@ -834,19 +834,22 @@ def admin_preview_ad(request, ad_id):
             'supporting_documents',
             'pre_allocations',
             'pre_allocations__pre_line_item',
-            'pre_allocations__pre_line_item__category'
+            'pre_allocations__pre_line_item__category',
+            'pre_allocations__pre_line_item__pre'  # ✅ Changed from 'department_pre' to 'pre'
         ),
         id=ad_id
     )
 
     # Get all allocations with quarter remaining calculations
     allocations_data = []
+    total_pre_remaining = Decimal('0.00')
+    processed_pres = set()  # Track which PREs we've already counted
+    
     for allocation in ad.pre_allocations.all():
         line_item = allocation.pre_line_item
         quarter = allocation.quarter
 
         # Get quarter-specific available amount AFTER this allocation
-        # This shows how much budget remains in this quarter after using this AD
         quarter_total = line_item.get_quarter_amount(quarter)
         quarter_consumed = line_item.get_quarter_consumed(quarter)
         quarter_remaining = quarter_total - quarter_consumed
@@ -855,10 +858,20 @@ def admin_preview_ad(request, ad_id):
             'allocation': allocation,
             'quarter_remaining': quarter_remaining
         })
+        
+        # Calculate PRE total remaining (avoid counting same PRE multiple times)
+        pre = line_item.pre  # ✅ Changed from 'department_pre' to 'pre'
+        if pre and pre.id not in processed_pres:
+            processed_pres.add(pre.id)
+            pre_total_amount = pre.total_amount
+            pre_total_consumed = pre.total_consumed if hasattr(pre, 'total_consumed') else Decimal('0')
+            pre_remaining = pre_total_amount - pre_total_consumed
+            total_pre_remaining += pre_remaining
 
     # Budget summary
     budget_summary = {
         'line_items_count': ad.pre_allocations.count(),
+        'total_pre_remaining': total_pre_remaining,
     }
 
     context = {
