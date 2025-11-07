@@ -82,7 +82,7 @@ def admin_dashboard(request):
                 'approved_budget': allocation.approved_budget,
                 'total_allocated': allocation.allocated_amount,
                 'spent': allocation.get_total_used(),
-                'remaining_budget': allocation.remaining_balance,
+                'remaining_budget': allocation.allocated_amount - allocation.get_total_used(),
                 'end_user': allocation.end_user,
             })
 
@@ -111,10 +111,9 @@ def admin_dashboard(request):
         dept_labels = [row['department'] or 'Unknown' for row in dept_agg]
         dept_allocated = [float(row['total_allocated'] or 0) for row in dept_agg]
 
-        # Calculate total spent (PRE + PR + AD)
+        # Calculate total spent (PR + AD only, excluding PRE)
         dept_spent = [
             float(
-                (row['total_pre_used'] or 0) +
                 (row['total_pr_used'] or 0) +
                 (row['total_ad_used'] or 0)
             )
@@ -823,6 +822,7 @@ def admin_preview_ad(request, ad_id):
     """
     from apps.budgets.models import ActivityDesign, ActivityDesignAllocation
     from decimal import Decimal
+    import os
 
     ad = get_object_or_404(
         ActivityDesign.objects.select_related(
@@ -839,6 +839,14 @@ def admin_preview_ad(request, ad_id):
         ),
         id=ad_id
     )
+
+    # Check if the uploaded document file exists
+    ad_file_exists = False
+    if ad.uploaded_document:
+        try:
+            ad_file_exists = os.path.exists(ad.uploaded_document.path)
+        except (ValueError, AttributeError):
+            ad_file_exists = False
 
     # Get all allocations with quarter remaining calculations
     allocations_data = []
@@ -876,6 +884,7 @@ def admin_preview_ad(request, ad_id):
 
     context = {
         'ad': ad,
+        'ad_file_exists': ad_file_exists,
         'allocations': allocations_data,
         'budget_summary': budget_summary,
     }
@@ -1026,12 +1035,10 @@ def budget_allocation(request):
             try:
                 allocation = NewBudgetAllocation.objects.select_related('approved_budget').get(id=allocation_id)
                 new_amount = Decimal(new_amount)
-                
-                # Calculate amount already used
-                amount_used = (allocation.pre_amount_used + 
-                             allocation.pr_amount_used + 
-                             allocation.ad_amount_used)
-                
+
+                # Calculate amount already used (PR and AD only, excluding PRE)
+                amount_used = allocation.pr_amount_used + allocation.ad_amount_used
+
                 # Validation: new amount must be >= amount used
                 if new_amount < amount_used:
                     messages.error(request, 
@@ -1188,25 +1195,36 @@ def budget_allocation(request):
         )
     
     # Calculate summary statistics based on selected year
+    # Calculate total used (PR + AD only, excluding PRE)
     allocation_stats = summary_allocations.aggregate(
         total_allocated=Sum('allocated_amount'),
-        total_remaining=Sum('remaining_balance'),
+        total_pr_used=Sum('pr_amount_used'),
+        total_ad_used=Sum('ad_amount_used'),
         total_departments=Count('department', distinct=True)
     )
-    
+
     total_allocated = allocation_stats['total_allocated'] or Decimal('0')
-    total_remaining = allocation_stats['total_remaining'] or Decimal('0')
+    total_pr_used = allocation_stats['total_pr_used'] or Decimal('0')
+    total_ad_used = allocation_stats['total_ad_used'] or Decimal('0')
+    total_used = total_pr_used + total_ad_used
+    total_remaining = total_allocated - total_used
     total_departments = allocation_stats['total_departments'] or 0
-    
+
     # Calculate utilization rate
     utilization_rate = 0
     if total_allocated > 0:
-        total_used = total_allocated - total_remaining
         utilization_rate = round((total_used / total_allocated) * 100, 1)
     
     # Get all allocations for the table (not filtered by year)
+    # Annotate with dynamically calculated remaining balance (excluding PRE from used amount)
+    from django.db.models import F, ExpressionWrapper, DecimalField
     allocations_list = NewBudgetAllocation.objects.select_related(
         'approved_budget', 'end_user'
+    ).annotate(
+        calculated_remaining=ExpressionWrapper(
+            F('allocated_amount') - F('pr_amount_used') - F('ad_amount_used'),
+            output_field=DecimalField()
+        )
     ).order_by('-allocated_at')
     
     # Apply table filters
@@ -1417,10 +1435,11 @@ def export_allocation_excel(request, allocation_id):
         ("PR Amount Used:", f"₱{allocation.pr_amount_used:,.2f}"),
         ("AD Amount Used:", f"₱{allocation.ad_amount_used:,.2f}"),
     ]
-    
-    total_used = allocation.pre_amount_used + allocation.pr_amount_used + allocation.ad_amount_used
+
+    # Total Used now only includes PR and AD (excluding PRE)
+    total_used = allocation.pr_amount_used + allocation.ad_amount_used
     financial_data.append(("Total Amount Used:", f"₱{total_used:,.2f}"))
-    
+
     # Calculate utilization rate
     utilization_rate = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
     financial_data.append(("Utilization Rate:", f"{utilization_rate:.2f}%"))

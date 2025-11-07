@@ -73,7 +73,8 @@ def user_dashboard(request):
     total_pre_used = sum(ba.pre_amount_used for ba in budget_allocations)
     total_pr_used = sum(ba.pr_amount_used for ba in budget_allocations)
     total_ad_used = sum(ba.ad_amount_used for ba in budget_allocations)
-    total_used = total_pre_used + total_pr_used + total_ad_used
+    # Total Used now only includes PR and AD (excluding PRE)
+    total_used = total_pr_used + total_ad_used
     total_remaining = total_allocated - total_used
     utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
     remaining_percentage = 100 - utilization_percentage
@@ -1020,14 +1021,20 @@ def purchase_request_upload(request):
             try:
                 from django.db import transaction
                 from django.core.files.base import ContentFile
-                
+
                 with transaction.atomic():
                     # Generate PR number
                     pr_number = generate_pr_number()
-                    
+
                     # Get budget allocation
                     budget_allocation = NewBudgetAllocation.objects.get(id=budget_allocation_id)
-                    
+
+                    # Read the draft PR file to copy it
+                    draft.pr_file.open('rb')
+                    pr_file_content = draft.pr_file.read()
+                    pr_filename = draft.pr_filename
+                    draft.pr_file.close()
+
                     # ✅ CORRECTED: Create PR with correct field names
                     pr = NewPurchaseRequest.objects.create(
                         pr_number=pr_number,
@@ -1040,23 +1047,29 @@ def purchase_request_upload(request):
                         purpose=purpose,
                         total_amount=total_amount,
                         status='Pending',
-                        uploaded_document=draft.pr_file,  # ✅ Correct field name
                     )
-                    
+
+                    # Save the copied PR file to the permanent location
+                    pr.uploaded_document.save(
+                        pr_filename,
+                        ContentFile(pr_file_content),
+                        save=True
+                    )
+
                     # Copy supporting documents from draft
                     for draft_doc in draft.supporting_documents.all():
                         # Read the draft document
                         draft_doc.document.open('rb')
                         file_content = draft_doc.document.read()
                         draft_doc.document.close()
-                        
+
                         # Create new supporting document for PR
                         pr_doc = PurchaseRequestSupportingDocument.objects.create(
                             purchase_request=pr,
                             file_name=draft_doc.file_name,
                             file_size=draft_doc.file_size
                         )
-                        
+
                         # Save the file
                         pr_doc.document.save(
                             draft_doc.file_name,
@@ -3987,8 +4000,16 @@ def activity_design_upload(request):
 
                 # Create Activity Design with atomic transaction
                 with transaction.atomic():
+                    from django.core.files.base import ContentFile
+
                     # Generate AD number
                     ad_number = generate_ad_number()
+
+                    # Read the draft AD file to copy it
+                    draft.ad_file.open('rb')
+                    ad_file_content = draft.ad_file.read()
+                    ad_filename = draft.ad_filename
+                    draft.ad_file.close()
 
                     # Create Activity Design
                     activity_design = ActivityDesign.objects.create(
@@ -3998,9 +4019,15 @@ def activity_design_upload(request):
                         department=budget_allocation.department,
                         purpose=purpose,
                         total_amount=total_amount,
-                        uploaded_document=draft.ad_file,
                         status='Pending',
                         submitted_at=timezone.now()
+                    )
+
+                    # Save the copied AD file to the permanent location
+                    activity_design.uploaded_document.save(
+                        ad_filename,
+                        ContentFile(ad_file_content),
+                        save=True
                     )
 
                     # Create allocations for each line item
@@ -4015,12 +4042,24 @@ def activity_design_upload(request):
 
                     # Copy supporting documents to AD
                     for draft_doc in draft.supporting_documents.all():
-                        ActivityDesignSupportingDocument.objects.create(
+                        # Read the draft document
+                        draft_doc.document.open('rb')
+                        file_content = draft_doc.document.read()
+                        draft_doc.document.close()
+
+                        # Create new supporting document for AD
+                        ad_doc = ActivityDesignSupportingDocument.objects.create(
                             activity_design=activity_design,
-                            document=draft_doc.document,
                             file_name=draft_doc.file_name,
                             file_size=draft_doc.file_size,
                             uploaded_by=request.user
+                        )
+
+                        # Save the copied file
+                        ad_doc.document.save(
+                            draft_doc.file_name,
+                            ContentFile(file_content),
+                            save=True
                         )
 
                     # Update budget allocation
@@ -4269,7 +4308,8 @@ def budget_overview(request):
     total_pre_used = sum(ba.pre_amount_used for ba in budget_allocations)
     total_pr_used = sum(ba.pr_amount_used for ba in budget_allocations)
     total_ad_used = sum(ba.ad_amount_used for ba in budget_allocations)
-    total_used = total_pre_used + total_pr_used + total_ad_used
+    # Total Used now only includes PR and AD (excluding PRE)
+    total_used = total_pr_used + total_ad_used
     total_remaining = total_allocated - total_used
     utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
 

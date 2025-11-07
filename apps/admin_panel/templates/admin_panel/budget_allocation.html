@@ -191,8 +191,8 @@
                             <td class="py-2 px-4 border-b">{{ allocation.end_user.get_full_name }}</td>
                             <td class="py-2 px-4 border-b">₱{{ allocation.allocated_amount|intcomma }}</td>
                             <td class="py-2 px-4 border-b">
-                                <span class="{% if allocation.remaining_balance <= 0 %}text-red-600{% else %}text-green-600{% endif %} font-medium">
-                                    ₱{{ allocation.remaining_balance|intcomma }}
+                                <span class="{% if allocation.calculated_remaining <= 0 %}text-red-600{% else %}text-green-600{% endif %} font-medium">
+                                    ₱{{ allocation.calculated_remaining|intcomma }}
                                 </span>
                             </td>
                             <td class="py-2 px-4 border-b">₱{{ allocation.pre_amount_used|intcomma }}</td>
@@ -938,7 +938,7 @@ const allocationsData = {
             position: "{{ allocation.end_user.position|default:'N/A' }}"
         },
         allocated_amount: {{ allocation.allocated_amount }},
-        remaining_balance: {{ allocation.remaining_balance }},
+        remaining_balance: {{ allocation.calculated_remaining }},
         pre_amount_used: {{ allocation.pre_amount_used }},
         pr_amount_used: {{ allocation.pr_amount_used }},
         ad_amount_used: {{ allocation.ad_amount_used }},
@@ -981,13 +981,13 @@ function viewAllocation(allocationId) {
     document.getElementById('view_pre_used').textContent = `₱${allocation.pre_amount_used.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     document.getElementById('view_pr_used').textContent = `₱${allocation.pr_amount_used.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     document.getElementById('view_ad_used').textContent = `₱${allocation.ad_amount_used.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    
-    // Calculate total used
-    const totalUsed = allocation.pre_amount_used + allocation.pr_amount_used + allocation.ad_amount_used;
+
+    // Calculate total used (PR and AD only, excluding PRE)
+    const totalUsed = allocation.pr_amount_used + allocation.ad_amount_used;
     document.getElementById('view_total_used').textContent = `₱${totalUsed.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    
+
     // Calculate utilization rate
-    const utilizationRate = allocation.allocated_amount > 0 
+    const utilizationRate = allocation.allocated_amount > 0
         ? ((totalUsed / allocation.allocated_amount) * 100).toFixed(1)
         : 0;
     const rateElement = document.getElementById('view_utilization_rate');
@@ -1043,10 +1043,10 @@ function editAllocation(allocationId) {
         alert('Allocation not found!');
         return;
     }
-    
-    // Calculate amount used
-    const amountUsed = allocation.pre_amount_used + allocation.pr_amount_used + allocation.ad_amount_used;
-    
+
+    // Calculate amount used (PR and AD only, excluding PRE)
+    const amountUsed = allocation.pr_amount_used + allocation.ad_amount_used;
+
     // Populate form
     document.getElementById('edit_allocation_id').value = allocation.id;
     document.getElementById('edit_current_budget').textContent = `${allocation.approved_budget.title} (FY ${allocation.approved_budget.fiscal_year})`;

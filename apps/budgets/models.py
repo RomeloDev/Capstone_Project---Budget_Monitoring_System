@@ -180,8 +180,8 @@ class BudgetAllocation(models.Model):
         return f"{self.department} - {self.end_user.get_full_name()} (₱{self.allocated_amount:,.2f})"
     
     def get_total_used(self):
-        """Calculate total amount used across all request types"""
-        return self.pre_amount_used + self.pr_amount_used + self.ad_amount_used
+        """Calculate total amount used (PR and AD only, excluding PRE)"""
+        return self.pr_amount_used + self.ad_amount_used
     
     def update_remaining_balance(self):
         """Update remaining balance based on approved requests"""
