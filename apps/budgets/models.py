@@ -557,16 +557,40 @@ class PurchaseRequest(models.Model):
     def validate_against_budget(self):
         """Validate PR total against allocated budget"""
         errors = []
-        
+
         if not self.budget_allocation:
             errors.append("PR must be linked to a budget allocation")
-        
+            return errors
+
         if not self.source_line_item:
             errors.append("PR must have a PRE line item as funding source")
-        
+
         if self.total_amount <= 0:
             errors.append("PR total amount must be greater than zero")
-        
+
+        # Check if approving this PR would exceed the budget allocation
+        allocation = self.budget_allocation
+
+        # Calculate current used amount (excluding this PR if it's already approved)
+        current_pr_used = allocation.pr_amount_used
+        if self.status == 'Approved':
+            # Subtract this PR's amount if already counted
+            current_pr_used -= self.total_amount
+
+        # Calculate what the new total would be
+        new_pr_total = current_pr_used + self.total_amount
+        new_total_used = new_pr_total + allocation.ad_amount_used
+
+        # Check against allocated amount
+        if new_total_used > allocation.allocated_amount:
+            available = allocation.allocated_amount - (allocation.pr_amount_used + allocation.ad_amount_used)
+            if self.status == 'Approved':
+                available += self.total_amount  # Add back this PR's current amount
+            errors.append(
+                f"PR amount (₱{self.total_amount:,.2f}) would exceed available budget. "
+                f"Available: ₱{available:,.2f}"
+            )
+
         return errors
 
 
@@ -699,9 +723,33 @@ class ActivityDesign(models.Model):
 
         if not self.budget_allocation:
             errors.append("AD must be linked to a budget allocation")
+            return errors
 
         if self.total_amount <= 0:
             errors.append("AD total amount must be greater than zero")
+
+        # Check if approving this AD would exceed the budget allocation
+        allocation = self.budget_allocation
+
+        # Calculate current used amount (excluding this AD if it's already approved)
+        current_ad_used = allocation.ad_amount_used
+        if self.status == 'Approved':
+            # Subtract this AD's amount if already counted
+            current_ad_used -= self.total_amount
+
+        # Calculate what the new total would be
+        new_ad_total = current_ad_used + self.total_amount
+        new_total_used = allocation.pr_amount_used + new_ad_total
+
+        # Check against allocated amount
+        if new_total_used > allocation.allocated_amount:
+            available = allocation.allocated_amount - (allocation.pr_amount_used + allocation.ad_amount_used)
+            if self.status == 'Approved':
+                available += self.total_amount  # Add back this AD's current amount
+            errors.append(
+                f"AD amount (₱{self.total_amount:,.2f}) would exceed available budget. "
+                f"Available: ₱{available:,.2f}"
+            )
 
         return errors
 

@@ -5,6 +5,43 @@ from django.utils import timezone
 from .models import DepartmentPRE, PurchaseRequest, ActivityDesign, SystemNotification, BudgetAllocation
 from decimal import Decimal
 
+# Track old status before save to detect status changes
+@receiver(pre_save, sender=DepartmentPRE)
+def track_pre_old_status(sender, instance, **kwargs):
+    """Track old status before save"""
+    if instance.pk:
+        try:
+            old_instance = sender.objects.get(pk=instance.pk)
+            instance._old_status = old_instance.status
+        except sender.DoesNotExist:
+            instance._old_status = None
+    else:
+        instance._old_status = None
+
+@receiver(pre_save, sender=PurchaseRequest)
+def track_pr_old_status(sender, instance, **kwargs):
+    """Track old status before save"""
+    if instance.pk:
+        try:
+            old_instance = sender.objects.get(pk=instance.pk)
+            instance._old_status = old_instance.status
+        except sender.DoesNotExist:
+            instance._old_status = None
+    else:
+        instance._old_status = None
+
+@receiver(pre_save, sender=ActivityDesign)
+def track_ad_old_status(sender, instance, **kwargs):
+    """Track old status before save"""
+    if instance.pk:
+        try:
+            old_instance = sender.objects.get(pk=instance.pk)
+            instance._old_status = old_instance.status
+        except sender.DoesNotExist:
+            instance._old_status = None
+    else:
+        instance._old_status = None
+
 @receiver(post_save, sender=DepartmentPRE)
 def update_budget_on_pre_approval(sender, instance, created, **kwargs):
     """Update budget allocation when PRE is finally approved"""
@@ -12,12 +49,14 @@ def update_budget_on_pre_approval(sender, instance, created, **kwargs):
         # Check if this is a status change to 'Approved' (not just an update)
         if not created:  # Only for updates, not new creations
             allocation = instance.budget_allocation
-            
-            # Only update if this amount hasn't been deducted yet
-            if allocation.pre_amount_used < instance.total_amount:
-                allocation.pre_amount_used = instance.total_amount
+
+            # Check if status changed FROM something else TO 'Approved'
+            old_status = getattr(instance, '_old_status', None)
+            if old_status != 'Approved':
+                # This is a NEW approval, add the amount
+                allocation.pre_amount_used += instance.total_amount
                 allocation.update_remaining_balance()
-                
+
                 # Create notification for user
                 SystemNotification.objects.create(
                     recipient=instance.submitted_by,
@@ -33,11 +72,21 @@ def update_budget_on_pr_approval(sender, instance, created, **kwargs):
     if instance.status == 'Approved' and instance.final_approved_at:
         if not created:
             allocation = instance.budget_allocation
-            
-            if allocation.pr_amount_used < instance.total_amount:
-                allocation.pr_amount_used = instance.total_amount
+
+            # Check if status changed FROM something else TO 'Approved'
+            old_status = getattr(instance, '_old_status', None)
+            if old_status != 'Approved':
+                # Validate before adding (safety check - should already be validated in view)
+                validation_errors = instance.validate_against_budget()
+                if validation_errors:
+                    print(f"⚠️  WARNING: PR {instance.pr_number} approved but has budget errors:")
+                    for error in validation_errors:
+                        print(f"   - {error}")
+
+                # This is a NEW approval, add the amount
+                allocation.pr_amount_used += instance.total_amount
                 allocation.update_remaining_balance()
-                
+
                 # Create notification for user
                 SystemNotification.objects.create(
                     recipient=instance.submitted_by,
@@ -53,11 +102,21 @@ def update_budget_on_ad_approval(sender, instance, created, **kwargs):
     if instance.status == 'Approved' and instance.final_approved_at:
         if not created:
             allocation = instance.budget_allocation
-            
-            if allocation.ad_amount_used < instance.total_amount:
-                allocation.ad_amount_used = instance.total_amount
+
+            # Check if status changed FROM something else TO 'Approved'
+            old_status = getattr(instance, '_old_status', None)
+            if old_status != 'Approved':
+                # Validate before adding (safety check - should already be validated in view)
+                validation_errors = instance.validate_against_budget()
+                if validation_errors:
+                    print(f"⚠️  WARNING: AD {instance.ad_number or instance.id.hex[:8]} approved but has budget errors:")
+                    for error in validation_errors:
+                        print(f"   - {error}")
+
+                # This is a NEW approval, add the amount
+                allocation.ad_amount_used += instance.total_amount
                 allocation.update_remaining_balance()
-                
+
                 # Create notification for user
                 SystemNotification.objects.create(
                     recipient=instance.submitted_by,
