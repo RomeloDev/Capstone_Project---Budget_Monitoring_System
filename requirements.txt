@@ -19,6 +19,7 @@ docxcompose==1.4.0
 docxtpl==0.20.1
 et_xmlfile==2.0.0
 fonttools==4.60.1
+gunicorn
 idna==3.10
 Jinja2==3.1.6
 kiwisolver==1.4.9
@@ -56,4 +57,5 @@ typing_extensions==4.15.0
 tzdata==2025.1
 urllib3==2.3.0
 xlwings==0.33.15
+
 
