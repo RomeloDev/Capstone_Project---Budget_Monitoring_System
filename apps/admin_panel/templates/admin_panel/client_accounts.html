@@ -242,10 +242,12 @@
                                     title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %}">
                                     {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
                                 </button>
+                                <!--
                                 <button onclick="deleteUser({{ user.id }}, '{{ user.username|escapejs }}')"
                                     class="text-red-600 hover:text-red-900 font-semibold transition" title="Delete User">
                                     Delete
                                 </button>
+                            -->
                             </div>
                         </td>
                     </tr>

@@ -95,6 +95,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     objects = UserManager()
+    all_objects = models.Manager()  # Fallback: includes everything (for archive operations)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username", "position", "fullname", "department"]
