@@ -19,7 +19,7 @@
             <a href="{% url 'budget_overview' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
                 ← Back to Overview
             </a>
-            <a href="{% url 'export_budget_excel' %}?type=pre_details" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+            <a href="{% url 'export_budget_excel' %}?type=pre_details{% if selected_year and selected_year != 'all' %}&year={{ selected_year }}{% endif %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                 </svg>
@@ -27,6 +27,34 @@
             </a>
         </div>
     </header>
+
+    <!-- Year Filter Section -->
+    <section class="bg-white rounded-xl shadow-md p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800">PRE Budget Details</h3>
+                <p class="text-sm text-gray-600">View PRE budget details for a specific year</p>
+            </div>
+            <form method="GET" action="{% url 'pre_budget_details' %}" class="flex items-center gap-3">
+                <label for="year_filter" class="text-sm font-medium text-gray-700">Select Year:</label>
+                <select name="year"
+                        id="year_filter"
+                        onchange="this.form.submit()"
+                        class="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-sm">
+                    <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All Years</option>
+                    {% for year in available_years %}
+                        <option value="{{ year }}" {% if selected_year == year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+                {% if selected_year != 'all' and selected_year != current_year|stringformat:"s" %}
+                    <a href="{% url 'pre_budget_details' %}"
+                    class="text-sm text-blue-600 hover:text-blue-800 underline">
+                        Reset to Current Year
+                    </a>
+                {% endif %}
+            </form>
+        </div>
+    </section>
 
     {% if not pre_data %}
     <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">

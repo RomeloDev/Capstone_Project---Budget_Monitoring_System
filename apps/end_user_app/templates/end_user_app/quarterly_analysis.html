@@ -15,17 +15,54 @@
             <h1 class="text-3xl font-bold text-gray-800">Quarterly Budget Analysis</h1>
             <p class="text-gray-600 mt-1">Analyze budget allocation and consumption by quarter</p>
         </div>
-        <a href="{% url 'budget_overview' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
-            ← Back to Overview
-        </a>
+        <div class="flex space-x-3">
+            <a href="{% url 'budget_overview' %}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
+                ← Back to Overview
+            </a>
+            <a href="{% url 'export_budget_excel' %}?type=quarterly&quarter={{ selected_quarter }}{% if selected_year and selected_year != 'all' %}&year={{ selected_year }}{% endif %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Export to Excel
+            </a>
+        </div>
     </header>
+
+    <!-- Year Filter Section -->
+    <section class="bg-white rounded-xl shadow-md p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800">Quarterly Analysis</h3>
+                <p class="text-sm text-gray-600">View quarterly budget data for a specific year</p>
+            </div>
+            <form method="GET" action="{% url 'quarterly_analysis' %}" class="flex items-center gap-3">
+                <input type="hidden" name="quarter" value="{{ selected_quarter }}">
+                <label for="year_filter" class="text-sm font-medium text-gray-700">Select Year:</label>
+                <select name="year"
+                        id="year_filter"
+                        onchange="this.form.submit()"
+                        class="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-sm">
+                    <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All Years</option>
+                    {% for year in available_years %}
+                        <option value="{{ year }}" {% if selected_year == year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+                {% if selected_year != 'all' and selected_year != current_year|stringformat:"s" %}
+                    <a href="{% url 'quarterly_analysis' %}?quarter={{ selected_quarter }}"
+                    class="text-sm text-blue-600 hover:text-blue-800 underline">
+                        Reset to Current Year
+                    </a>
+                {% endif %}
+            </form>
+        </div>
+    </section>
 
     <!-- Quarter Selector Tabs -->
     <section class="bg-white rounded-xl shadow-md p-6">
         <div class="border-b border-gray-200">
             <nav class="-mb-px flex space-x-8">
                 {% for q in quarters %}
-                <a href="?quarter={{ q }}" class="{% if selected_quarter == q %}border-blue-500 text-blue-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                <a href="?quarter={{ q }}{% if selected_year %}&year={{ selected_year }}{% endif %}" class="{% if selected_quarter == q %}border-blue-500 text-blue-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
                     {{ q }}
                 </a>
                 {% endfor %}

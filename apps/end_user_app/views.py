@@ -4296,12 +4296,35 @@ def budget_overview(request):
     """
     from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
     from django.db.models import Q
+    from django.db.models.functions import ExtractYear
+    from datetime import datetime
 
-    # Get user's budget allocations
-    budget_allocations = NewBudgetAllocation.objects.filter(
+    # Get current year and year filter
+    current_year = str(datetime.now().year)
+    selected_year = request.GET.get('year', current_year)
+
+    # Get user's budget allocations with year filtering
+    base_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True
     ).select_related('approved_budget')
+
+    # Get available years from budget allocations
+    available_years = (
+        base_allocations
+        .annotate(year=ExtractYear('allocated_at'))
+        .values_list('year', flat=True)
+        .distinct()
+        .order_by('-year')
+    )
+
+    # Apply year filter
+    if selected_year == 'all':
+        budget_allocations = base_allocations
+    else:
+        budget_allocations = base_allocations.filter(
+            allocated_at__year=selected_year
+        )
 
     # Calculate totals across all allocations
     total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
@@ -4406,6 +4429,9 @@ def budget_overview(request):
         'ad_count': ad_count,
         'quarterly_spending': quarterly_spending,
         'recent_activity': recent_activity,
+        'available_years': available_years,
+        'selected_year': selected_year,
+        'current_year': current_year,
     }
 
     return render(request, 'end_user_app/budget_overview.html', context)
@@ -4417,11 +4443,35 @@ def pre_budget_details(request):
     PRE Budget Details Page
     Shows all PRE line items with quarterly breakdown
     """
-    # Get user's budget allocations
-    budget_allocations = NewBudgetAllocation.objects.filter(
+    from django.db.models.functions import ExtractYear
+    from datetime import datetime
+
+    # Get current year and year filter
+    current_year = str(datetime.now().year)
+    selected_year = request.GET.get('year', current_year)
+
+    # Get user's budget allocations with year filtering
+    base_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True
     ).select_related('approved_budget')
+
+    # Get available years from budget allocations
+    available_years = (
+        base_allocations
+        .annotate(year=ExtractYear('allocated_at'))
+        .values_list('year', flat=True)
+        .distinct()
+        .order_by('-year')
+    )
+
+    # Apply year filter
+    if selected_year == 'all':
+        budget_allocations = base_allocations
+    else:
+        budget_allocations = base_allocations.filter(
+            allocated_at__year=selected_year
+        )
 
     # Get all approved PREs
     approved_pres = NewDepartmentPRE.objects.filter(
@@ -4489,6 +4539,9 @@ def pre_budget_details(request):
     context = {
         'pre_data': pre_data,
         'category_totals': category_totals,
+        'available_years': available_years,
+        'selected_year': selected_year,
+        'current_year': current_year,
     }
 
     return render(request, 'end_user_app/pre_budget_details.html', context)
@@ -4500,13 +4553,36 @@ def quarterly_analysis(request):
     Quarterly Budget Analysis Page
     Shows quarter-specific breakdown with tabs
     """
+    from django.db.models.functions import ExtractYear
+    from datetime import datetime
+
+    # Get current year and year filter
+    current_year = str(datetime.now().year)
+    selected_year = request.GET.get('year', current_year)
     selected_quarter = request.GET.get('quarter', 'Q1')
 
-    # Get user's budget allocations
-    budget_allocations = NewBudgetAllocation.objects.filter(
+    # Get user's budget allocations with year filtering
+    base_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True
     )
+
+    # Get available years from budget allocations
+    available_years = (
+        base_allocations
+        .annotate(year=ExtractYear('allocated_at'))
+        .values_list('year', flat=True)
+        .distinct()
+        .order_by('-year')
+    )
+
+    # Apply year filter
+    if selected_year == 'all':
+        budget_allocations = base_allocations
+    else:
+        budget_allocations = base_allocations.filter(
+            allocated_at__year=selected_year
+        )
 
     # Get all approved PREs
     approved_pres = NewDepartmentPRE.objects.filter(
@@ -4595,6 +4671,9 @@ def quarterly_analysis(request):
         'quarter_utilization': quarter_utilization,
         'quarter_line_items': quarter_line_items,
         'transactions': transactions,
+        'available_years': available_years,
+        'selected_year': selected_year,
+        'current_year': current_year,
     }
 
     return render(request, 'end_user_app/quarterly_analysis.html', context)
@@ -4762,24 +4841,33 @@ def budget_reports(request):
 def export_budget_excel(request):
     """
     Export budget data to Excel
-    Supports different report types
+    Supports different report types with year filtering
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from openpyxl.utils import get_column_letter
+    from datetime import datetime
 
     report_type = request.GET.get('type', 'summary')
     quarter = request.GET.get('quarter', 'Q1')
+    year_filter = request.GET.get('year')
 
     # Create workbook
     wb = Workbook()
     wb.remove(wb.active)
 
-    # Get user's budget allocations
+    # Get user's budget allocations with year filtering
     budget_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True
     )
+
+    # Apply year filter if provided
+    if year_filter and year_filter != 'all':
+        budget_allocations = budget_allocations.filter(allocated_at__year=year_filter)
+        year_suffix = f" - Year {year_filter}"
+    else:
+        year_suffix = " - All Years" if year_filter == 'all' else ""
 
     if report_type == 'pre_details':
         # Create PRE Details report
@@ -4790,7 +4878,7 @@ def export_budget_excel(request):
         header_font = Font(bold=True, color='FFFFFF', size=12)
 
         # Title
-        ws['A1'] = 'PRE BUDGET DETAILS REPORT'
+        ws['A1'] = f'PRE BUDGET DETAILS REPORT{year_suffix}'
         ws['A1'].font = Font(bold=True, size=14)
         ws.merge_cells('A1:L1')
 
@@ -4904,7 +4992,7 @@ def export_budget_excel(request):
         header_font = Font(bold=True, color='FFFFFF', size=12)
 
         # Title
-        ws['A1'] = 'BUDGET SUMMARY REPORT'
+        ws['A1'] = f'BUDGET SUMMARY REPORT{year_suffix}'
         ws['A1'].font = Font(bold=True, size=14)
         ws.merge_cells('A1:F1')
 
@@ -5509,7 +5597,10 @@ def export_budget_excel(request):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    filename = f'Budget_Report_{report_type}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+
+    # Include year in filename
+    year_text = f"_{year_filter}" if year_filter and year_filter != 'all' else "_AllYears" if year_filter == 'all' else ""
+    filename = f'Budget_Report_{report_type}{year_text}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     wb.save(response)

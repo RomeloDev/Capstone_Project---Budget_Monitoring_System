@@ -43,6 +43,13 @@ from .forms import ApprovedDocumentUploadForm
 @role_required('admin', login_url='/admin/')
 def admin_dashboard(request):
     try:
+        from django.db.models.functions import ExtractYear
+        from datetime import datetime
+
+        # Get current year and year filter
+        current_year = str(datetime.now().year)
+        selected_year = request.GET.get('year', current_year)
+
         # Total Users (Active users who logged in within last 30 days)
         thirty_days_ago = timezone.now() - timedelta(days=30)
         end_users_total = User.objects.filter(
@@ -51,27 +58,72 @@ def admin_dashboard(request):
             last_login__gte=thirty_days_ago
         ).count()
 
-        # Total Budget from NEW ApprovedBudget model
-        total_budget = NewApprovedBudget.objects.aggregate(
-            Sum('amount')
-        )['amount__sum'] or 0
+        # Get base budget allocations with year filtering
+        base_allocations = NewBudgetAllocation.objects.select_related(
+            'approved_budget', 'end_user'
+        ).filter(is_active=True)
 
-        # Pending Requests Count (PRE + PR + AD)
-        pending_pre_count = NewDepartmentPRE.objects.filter(status='Pending').count()
-        pending_pr_count = NewPurchaseRequest.objects.filter(status='Pending').count()
-        pending_ad_count = NewActivityDesign.objects.filter(status='Pending').count()
+        # Get available years from budget allocations
+        available_years = (
+            base_allocations
+            .annotate(year=ExtractYear('allocated_at'))
+            .values_list('year', flat=True)
+            .distinct()
+            .order_by('-year')
+        )
+
+        # Apply year filter to budget allocations
+        if selected_year == 'all':
+            budget_allocated = base_allocations
+        else:
+            budget_allocated = base_allocations.filter(
+                allocated_at__year=selected_year
+            )
+
+        # Total Budget from filtered allocations
+        total_budget = budget_allocated.aggregate(
+            Sum('allocated_amount')
+        )['allocated_amount__sum'] or 0
+
+        # Pending Requests Count (PRE + PR + AD) - filtered by year
+        if selected_year == 'all':
+            pending_pre_count = NewDepartmentPRE.objects.filter(status='Pending').count()
+            pending_pr_count = NewPurchaseRequest.objects.filter(status='Pending').count()
+            pending_ad_count = NewActivityDesign.objects.filter(status='Pending').count()
+        else:
+            pending_pre_count = NewDepartmentPRE.objects.filter(
+                status='Pending',
+                budget_allocation__allocated_at__year=selected_year
+            ).count()
+            pending_pr_count = NewPurchaseRequest.objects.filter(
+                status='Pending',
+                budget_allocation__allocated_at__year=selected_year
+            ).count()
+            pending_ad_count = NewActivityDesign.objects.filter(
+                status='Pending',
+                budget_allocation__allocated_at__year=selected_year
+            ).count()
         total_pending_realignment_request = pending_pre_count + pending_pr_count + pending_ad_count
 
-        # Approved Requests Count (PRE + PR + AD)
-        approved_pre_count = NewDepartmentPRE.objects.filter(status__in=['Approved', 'Partially Approved']).count()
-        approved_pr_count = NewPurchaseRequest.objects.filter(status__in=['Approved', 'Partially Approved']).count()
-        approved_ad_count = NewActivityDesign.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+        # Approved Requests Count (PRE + PR + AD) - filtered by year
+        if selected_year == 'all':
+            approved_pre_count = NewDepartmentPRE.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+            approved_pr_count = NewPurchaseRequest.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+            approved_ad_count = NewActivityDesign.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+        else:
+            approved_pre_count = NewDepartmentPRE.objects.filter(
+                status__in=['Approved', 'Partially Approved'],
+                budget_allocation__allocated_at__year=selected_year
+            ).count()
+            approved_pr_count = NewPurchaseRequest.objects.filter(
+                status__in=['Approved', 'Partially Approved'],
+                budget_allocation__allocated_at__year=selected_year
+            ).count()
+            approved_ad_count = NewActivityDesign.objects.filter(
+                status__in=['Approved', 'Partially Approved'],
+                budget_allocation__allocated_at__year=selected_year
+            ).count()
         total_approved_realignment_request = approved_pre_count + approved_pr_count + approved_ad_count
-
-        # Budget allocations for the table (using NEW model)
-        budget_allocated = NewBudgetAllocation.objects.select_related(
-            'approved_budget', 'end_user'
-        ).filter(is_active=True).all()
 
         # Add computed fields for the template
         budget_allocated_list = []
@@ -129,10 +181,8 @@ def admin_dashboard(request):
         )
 
         # Additional metrics for enhanced dashboard
-        # Total departments with active budgets
-        active_departments = NewBudgetAllocation.objects.filter(
-            is_active=True
-        ).values('department').distinct().count()
+        # Total departments with active budgets (filtered by year)
+        active_departments = budget_allocated.values('department').distinct().count()
 
         # Average budget utilization
         total_allocated_sum = sum(dept_allocated) or 1  # Avoid division by zero
@@ -150,6 +200,7 @@ def admin_dashboard(request):
     except Exception as e:
         # Fallback values in case of any errors
         import traceback
+        from datetime import datetime
         print(f"Dashboard error: {e}")
         print(traceback.format_exc())  # For debugging
         end_users_total = 0
@@ -163,6 +214,9 @@ def admin_dashboard(request):
         active_departments = 0
         avg_utilization = 0
         low_budget_depts = 0
+        current_year = str(datetime.now().year)
+        selected_year = request.GET.get('year', current_year)
+        available_years = []
 
     context = {
         # Main metrics
@@ -191,6 +245,11 @@ def admin_dashboard(request):
         'active_departments': active_departments,
         'avg_utilization': round(avg_utilization, 1),
         'low_budget_depts': low_budget_depts,
+
+        # Year filter variables
+        'available_years': available_years,
+        'selected_year': selected_year,
+        'current_year': current_year,
 
         # Template helper
         'current_time': timezone.now(),
@@ -372,23 +431,27 @@ def departments_pr_request(request):
     Admin view to manage Purchase Requests from departments
     Uses NEW models from budgets app
     """
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    from django.db.models.functions import ExtractYear
+
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
         ('Partially Approved', 'Partially Approved'),
         ('Rejected', 'Rejected'),
         ('Approved', 'Approved')
     )
-    
+
+    # Get current year and year filter
+    current_year = str(datetime.now().year)
+    summary_year = request.GET.get('summary_year', current_year)
+
     # Get distinct departments from users who submitted PRs
     departments = User.objects.filter(
-        is_staff=False, 
+        is_staff=False,
         is_approving_officer=False,
         purchase_requests__isnull=False  # Has submitted PRs
     ).values_list('department', flat=True).distinct()
-    
-    # ✅ NEW: Use NewPurchaseRequest from budgets app
-    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
-    
+
     try:
         users_purchase_requests = NewPurchaseRequest.objects.select_related(
             'submitted_by',
@@ -399,38 +462,56 @@ def departments_pr_request(request):
             'supporting_documents',
             'pre_allocations'
         ).order_by('-created_at')
-        
+
     except Exception as e:
         print(f"Error loading PRs: {e}")
         users_purchase_requests = NewPurchaseRequest.objects.none()
-    
-    # ✅ Calculate status counts
+
+    # Filter by year for summary statistics
+    if summary_year == 'all':
+        summary_prs = users_purchase_requests
+    else:
+        summary_prs = users_purchase_requests.filter(created_at__year=summary_year)
+
+    # Calculate status counts based on selected year
     status_counts = {
-        'total': users_purchase_requests.count(),
-        'pending': users_purchase_requests.filter(status='Pending').count(),
-        'approved': users_purchase_requests.filter(status='Approved').count(),
-        'partially_approved': users_purchase_requests.filter(status='Partially Approved').count(),
-        'rejected': users_purchase_requests.filter(status='Rejected').count(),
+        'total': summary_prs.count(),
+        'pending': summary_prs.filter(status='Pending').count(),
+        'approved': summary_prs.filter(status='Approved').count(),
+        'partially_approved': summary_prs.filter(status='Partially Approved').count(),
+        'rejected': summary_prs.filter(status='Rejected').count(),
     }
-    
-    # Apply filters
+
+    # Get available years from created_at field
+    available_years = (
+        NewPurchaseRequest.objects
+        .annotate(year=ExtractYear('created_at'))
+        .values_list('year', flat=True)
+        .distinct()
+        .order_by('-year')
+    )
+
+    # Apply table filters (department and status)
     filter_department = request.GET.get('department')
     if filter_department:
         users_purchase_requests = users_purchase_requests.filter(
             submitted_by__department=filter_department
         )
-        
+
     status_filter = request.GET.get('status')
     if status_filter:
         users_purchase_requests = users_purchase_requests.filter(status=status_filter)
-    
+
     context = {
         'users_purchase_requests': users_purchase_requests,
         'departments': departments,
         'status_choices': STATUS_CHOICES,
-        'status_counts': status_counts
+        'status_counts': status_counts,
+        'available_years': available_years,
+        'selected_year': summary_year,
+        'current_year': current_year,
     }
-    
+
     return render(request, 'admin_panel/departments_pr_request.html', context)
 
 @role_required('admin', login_url='/admin/')
@@ -2755,6 +2836,7 @@ def departments_ad_request(request):
     Enhanced admin view for Activity Design requests with status counts and filtering
     """
     from apps.budgets.models import ActivityDesign
+    from django.db.models.functions import ExtractYear
 
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
@@ -2762,6 +2844,10 @@ def departments_ad_request(request):
         ('Approved', 'Approved'),
         ('Rejected', 'Rejected')
     )
+
+    # Get current year and year filter
+    current_year = str(datetime.now().year)
+    summary_year = request.GET.get('summary_year', current_year)
 
     # Get all Activity Designs with related data
     ads = ActivityDesign.objects.select_related(
@@ -2773,13 +2859,19 @@ def departments_ad_request(request):
         'pre_allocations__pre_line_item'
     ).order_by('-submitted_at')
 
-    # Calculate status counts before filtering
+    # Filter by year for summary statistics
+    if summary_year == 'all':
+        summary_ads = ads
+    else:
+        summary_ads = ads.filter(submitted_at__year=summary_year)
+
+    # Calculate status counts based on selected year
     status_counts = {
-        'total': ads.count(),
-        'pending': ads.filter(status='Pending').count(),
-        'partially_approved': ads.filter(status='Partially Approved').count(),
-        'approved': ads.filter(status='Approved').count(),
-        'rejected': ads.filter(status='Rejected').count(),
+        'total': summary_ads.count(),
+        'pending': summary_ads.filter(status='Pending').count(),
+        'partially_approved': summary_ads.filter(status='Partially Approved').count(),
+        'approved': summary_ads.filter(status='Approved').count(),
+        'rejected': summary_ads.filter(status='Rejected').count(),
     }
 
     # Get distinct departments
@@ -2791,7 +2883,16 @@ def departments_ad_request(request):
         .order_by('department')
     )
 
-    # Apply filters
+    # Get available years from submitted_at field
+    available_years = (
+        ActivityDesign.objects
+        .annotate(year=ExtractYear('submitted_at'))
+        .values_list('year', flat=True)
+        .distinct()
+        .order_by('-year')
+    )
+
+    # Apply table filters (department and status)
     department_filter = request.GET.get('department')
     if department_filter:
         ads = ads.filter(department=department_filter)
@@ -2806,6 +2907,9 @@ def departments_ad_request(request):
         'departments': departments,
         'selected_department': department_filter,
         'status_choices': STATUS_CHOICES,
+        'available_years': available_years,
+        'selected_year': summary_year,
+        'current_year': current_year,
     }
     return render(request, 'admin_panel/departments_ad_request.html', context)
 
@@ -3007,6 +3111,253 @@ def handle_activity_design_request(request, pk):
         activity_design.save(update_fields=['status', 'updated_at'])
 
     return redirect('departments_ad_request')
+
+
+@role_required('admin', login_url='/admin/')
+def export_ad_requests_excel(request):
+    """Export Activity Design requests to Excel with optional year filter"""
+    from apps.budgets.models import ActivityDesign
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from django.http import HttpResponse
+    from datetime import datetime
+
+    # Get year filter from query params
+    year_filter = request.GET.get('year')
+
+    # Get all Activity Designs
+    ads = ActivityDesign.objects.select_related(
+        'submitted_by',
+        'budget_allocation',
+        'budget_allocation__approved_budget'
+    ).prefetch_related(
+        'pre_allocations',
+        'pre_allocations__pre_line_item'
+    ).order_by('-submitted_at')
+
+    # Apply year filter if provided
+    if year_filter and year_filter != 'all':
+        ads = ads.filter(submitted_at__year=year_filter)
+        title_suffix = f" - Year {year_filter}"
+    else:
+        title_suffix = " - All Years"
+
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Activity Designs"
+
+    # Styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    title_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    title_font = Font(bold=True, size=14, color="FFFFFF")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    # Title
+    ws.merge_cells('A1:H1')
+    title_cell = ws['A1']
+    title_cell.value = f"ACTIVITY DESIGN REQUESTS REPORT{title_suffix}"
+    title_cell.font = title_font
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    title_cell.fill = title_fill
+    ws.row_dimensions[1].height = 30
+
+    # Headers
+    headers = ['AD Number', 'Department', 'Submitted By', 'Purpose', 'Total Amount', 'Funding Sources', 'Date Submitted', 'Status']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = thin_border
+
+    # Column widths
+    ws.column_dimensions['A'].width = 15
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 25
+    ws.column_dimensions['D'].width = 40
+    ws.column_dimensions['E'].width = 18
+    ws.column_dimensions['F'].width = 20
+    ws.column_dimensions['G'].width = 20
+    ws.column_dimensions['H'].width = 18
+
+    # Data rows
+    row_num = 4
+    for ad in ads:
+        ws.cell(row=row_num, column=1, value=ad.ad_number).border = thin_border
+        ws.cell(row=row_num, column=2, value=ad.department).border = thin_border
+        ws.cell(row=row_num, column=3, value=ad.submitted_by.get_full_name()).border = thin_border
+        ws.cell(row=row_num, column=4, value=ad.purpose).border = thin_border
+
+        # Format amount
+        amount_cell = ws.cell(row=row_num, column=5, value=float(ad.total_amount))
+        amount_cell.number_format = '₱#,##0.00'
+        amount_cell.border = thin_border
+
+        # Funding sources count
+        funding_count = ad.pre_allocations.count()
+        ws.cell(row=row_num, column=6, value=f"{funding_count} Line Item(s)").border = thin_border
+
+        # Date submitted
+        ws.cell(row=row_num, column=7, value=ad.submitted_at.strftime("%b %d, %Y %I:%M %p")).border = thin_border
+
+        # Status with color coding
+        status_cell = ws.cell(row=row_num, column=8, value=ad.status)
+        status_cell.border = thin_border
+        if ad.status == 'Approved':
+            status_cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        elif ad.status == 'Pending':
+            status_cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+        elif ad.status == 'Rejected':
+            status_cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        elif ad.status == 'Partially Approved':
+            status_cell.fill = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
+
+        row_num += 1
+
+    # Summary row
+    summary_row = row_num + 1
+    ws.cell(row=summary_row, column=1, value="TOTAL REQUESTS:").font = Font(bold=True)
+    ws.cell(row=summary_row, column=2, value=ads.count()).font = Font(bold=True)
+
+    # Footer
+    footer_row = summary_row + 2
+    ws.cell(row=footer_row, column=1, value=f"Generated on: {datetime.now().strftime('%B %d, %Y %I:%M %p')}")
+
+    # Prepare response
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"Activity_Design_Requests{title_suffix.replace(' - ', '_')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response
+
+
+@role_required('admin', login_url='/admin/')
+def export_pr_requests_excel(request):
+    """Export Purchase Requests to Excel with optional year filter"""
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from django.http import HttpResponse
+    from datetime import datetime
+
+    # Get year filter from query params
+    year_filter = request.GET.get('year')
+
+    # Get all Purchase Requests
+    prs = NewPurchaseRequest.objects.select_related(
+        'submitted_by',
+        'budget_allocation__approved_budget',
+        'source_pre',
+        'source_line_item'
+    ).prefetch_related(
+        'supporting_documents',
+        'pre_allocations'
+    ).order_by('-created_at')
+
+    # Apply year filter if provided
+    if year_filter and year_filter != 'all':
+        prs = prs.filter(created_at__year=year_filter)
+        title_suffix = f" - Year {year_filter}"
+    else:
+        title_suffix = " - All Years"
+
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Purchase Requests"
+
+    # Styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    title_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    title_font = Font(bold=True, size=14, color="FFFFFF")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    # Title
+    ws.merge_cells('A1:G1')
+    title_cell = ws['A1']
+    title_cell.value = f"PURCHASE REQUESTS REPORT{title_suffix}"
+    title_cell.font = title_font
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    title_cell.fill = title_fill
+    ws.row_dimensions[1].height = 30
+
+    # Headers
+    headers = ['PR Number', 'Department', 'Submitted By', 'Purpose', 'Date Submitted', 'Status', 'Funding Sources']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = thin_border
+
+    # Column widths
+    ws.column_dimensions['A'].width = 18
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 25
+    ws.column_dimensions['D'].width = 45
+    ws.column_dimensions['E'].width = 20
+    ws.column_dimensions['F'].width = 18
+    ws.column_dimensions['G'].width = 20
+
+    # Data rows
+    row_num = 4
+    for pr in prs:
+        ws.cell(row=row_num, column=1, value=pr.pr_number or 'N/A').border = thin_border
+        ws.cell(row=row_num, column=2, value=pr.department).border = thin_border
+        ws.cell(row=row_num, column=3, value=pr.submitted_by.fullname).border = thin_border
+        ws.cell(row=row_num, column=4, value=pr.purpose).border = thin_border
+        ws.cell(row=row_num, column=5, value=pr.created_at.strftime("%b %d, %Y %I:%M %p")).border = thin_border
+
+        # Status with color coding
+        status_cell = ws.cell(row=row_num, column=6, value=pr.status)
+        status_cell.border = thin_border
+        if pr.status == 'Approved':
+            status_cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        elif pr.status == 'Pending':
+            status_cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+        elif pr.status == 'Rejected':
+            status_cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        elif pr.status == 'Partially Approved':
+            status_cell.fill = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
+
+        # Funding sources count
+        funding_count = pr.pre_allocations.count()
+        ws.cell(row=row_num, column=7, value=f"{funding_count} Line Item(s)").border = thin_border
+
+        row_num += 1
+
+    # Summary row
+    summary_row = row_num + 1
+    ws.cell(row=summary_row, column=1, value="TOTAL REQUESTS:").font = Font(bold=True)
+    ws.cell(row=summary_row, column=2, value=prs.count()).font = Font(bold=True)
+
+    # Footer
+    footer_row = summary_row + 2
+    ws.cell(row=footer_row, column=1, value=f"Generated on: {datetime.now().strftime('%B %d, %Y %I:%M %p')}")
+
+    # Prepare response
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"Purchase_Requests{title_suffix.replace(' - ', '_')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response
 
 
 @role_required('admin', login_url='/admin/')
@@ -4172,6 +4523,225 @@ def export_users_excel(request):
         import traceback
         print(traceback.format_exc())
         return HttpResponse(f'Error exporting users: {str(e)}', status=500)
+
+
+@role_required('admin', login_url='/admin/')
+def export_admin_dashboard_excel(request):
+    """
+    Export Admin Dashboard data to Excel
+    Includes summary metrics and department budget breakdown
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+        from django.db.models.functions import ExtractYear
+        from datetime import datetime, timedelta
+
+        # Get year filter
+        current_year = str(datetime.now().year)
+        year_filter = request.GET.get('year', current_year)
+
+        # Create workbook
+        wb = Workbook()
+        wb.remove(wb.active)
+
+        # Define styles
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        title_font = Font(bold=True, size=14)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+
+        # Year suffix for titles
+        if year_filter and year_filter != 'all':
+            year_suffix = f" - Year {year_filter}"
+        else:
+            year_suffix = " - All Years" if year_filter == 'all' else ""
+
+        # Get filtered budget allocations
+        base_allocations = NewBudgetAllocation.objects.select_related(
+            'approved_budget', 'end_user'
+        ).filter(is_active=True)
+
+        if year_filter == 'all':
+            budget_allocated = base_allocations
+        else:
+            budget_allocated = base_allocations.filter(
+                allocated_at__year=year_filter
+            )
+
+        # ========== SHEET 1: Summary ==========
+        ws_summary = wb.create_sheet('Summary')
+
+        # Title
+        ws_summary['A1'] = f'ADMIN DASHBOARD SUMMARY{year_suffix}'
+        ws_summary['A1'].font = title_font
+        ws_summary.merge_cells('A1:B1')
+
+        ws_summary['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws_summary.merge_cells('A2:B2')
+
+        # Calculate summary metrics
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        end_users_total = User.objects.filter(
+            is_staff=False,
+            is_approving_officer=False,
+            last_login__gte=thirty_days_ago
+        ).count()
+
+        total_budget = budget_allocated.aggregate(
+            Sum('allocated_amount')
+        )['allocated_amount__sum'] or 0
+
+        # Pending Requests
+        if year_filter == 'all':
+            pending_pre = NewDepartmentPRE.objects.filter(status='Pending').count()
+            pending_pr = NewPurchaseRequest.objects.filter(status='Pending').count()
+            pending_ad = NewActivityDesign.objects.filter(status='Pending').count()
+        else:
+            pending_pre = NewDepartmentPRE.objects.filter(
+                status='Pending',
+                budget_allocation__allocated_at__year=year_filter
+            ).count()
+            pending_pr = NewPurchaseRequest.objects.filter(
+                status='Pending',
+                budget_allocation__allocated_at__year=year_filter
+            ).count()
+            pending_ad = NewActivityDesign.objects.filter(
+                status='Pending',
+                budget_allocation__allocated_at__year=year_filter
+            ).count()
+        total_pending = pending_pre + pending_pr + pending_ad
+
+        # Approved Requests
+        if year_filter == 'all':
+            approved_pre = NewDepartmentPRE.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+            approved_pr = NewPurchaseRequest.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+            approved_ad = NewActivityDesign.objects.filter(status__in=['Approved', 'Partially Approved']).count()
+        else:
+            approved_pre = NewDepartmentPRE.objects.filter(
+                status__in=['Approved', 'Partially Approved'],
+                budget_allocation__allocated_at__year=year_filter
+            ).count()
+            approved_pr = NewPurchaseRequest.objects.filter(
+                status__in=['Approved', 'Partially Approved'],
+                budget_allocation__allocated_at__year=year_filter
+            ).count()
+            approved_ad = NewActivityDesign.objects.filter(
+                status__in=['Approved', 'Partially Approved'],
+                budget_allocation__allocated_at__year=year_filter
+            ).count()
+        total_approved = approved_pre + approved_pr + approved_ad
+
+        active_departments = budget_allocated.values('department').distinct().count()
+
+        # Summary data
+        row = 4
+        summary_data = [
+            ('Active Users (Last 30 Days)', end_users_total),
+            ('Total Budget Allocated', f'₱{total_budget:,.2f}'),
+            ('Active Departments', active_departments),
+            ('', ''),
+            ('Pending Requests', ''),
+            ('  - PRE Requests', pending_pre),
+            ('  - PR Requests', pending_pr),
+            ('  - AD Requests', pending_ad),
+            ('  Total Pending', total_pending),
+            ('', ''),
+            ('Approved Requests', ''),
+            ('  - PRE Requests', approved_pre),
+            ('  - PR Requests', approved_pr),
+            ('  - AD Requests', approved_ad),
+            ('  Total Approved', total_approved),
+        ]
+
+        for metric, value in summary_data:
+            ws_summary[f'A{row}'] = metric
+            ws_summary[f'B{row}'] = value
+            if metric and not metric.startswith('  '):
+                ws_summary[f'A{row}'].font = Font(bold=True)
+            row += 1
+
+        # Adjust column widths
+        ws_summary.column_dimensions['A'].width = 35
+        ws_summary.column_dimensions['B'].width = 20
+
+        # ========== SHEET 2: Department Budget Breakdown ==========
+        ws_dept = wb.create_sheet('Department Budgets')
+
+        # Title
+        ws_dept['A1'] = f'DEPARTMENT BUDGET BREAKDOWN{year_suffix}'
+        ws_dept['A1'].font = title_font
+        ws_dept.merge_cells('A1:E1')
+
+        ws_dept['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws_dept.merge_cells('A2:E2')
+
+        # Headers
+        row = 4
+        headers = ['Department', 'Allocated Budget', 'Spent Budget', 'Remaining Budget', 'Status']
+        for col_num, header in enumerate(headers, 1):
+            cell = ws_dept.cell(row=row, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        # Data
+        row += 1
+        for allocation in budget_allocated:
+            total_allocated = allocation.allocated_amount
+            spent = allocation.get_total_used()
+            remaining = total_allocated - spent
+            status = 'Active' if remaining > 0 else 'Depleted'
+
+            data = [
+                allocation.department,
+                float(total_allocated),
+                float(spent),
+                float(remaining),
+                status
+            ]
+
+            for col_num, value in enumerate(data, 1):
+                cell = ws_dept.cell(row=row, column=col_num)
+                if col_num in [2, 3, 4]:  # Budget columns
+                    cell.value = value
+                    cell.number_format = '₱#,##0.00'
+                else:
+                    cell.value = value
+                cell.border = border
+                cell.alignment = Alignment(horizontal='left' if col_num == 1 else 'right', vertical='center')
+            row += 1
+
+        # Adjust column widths
+        ws_dept.column_dimensions['A'].width = 30
+        ws_dept.column_dimensions['B'].width = 20
+        ws_dept.column_dimensions['C'].width = 20
+        ws_dept.column_dimensions['D'].width = 20
+        ws_dept.column_dimensions['E'].width = 15
+
+        # Prepare response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f'admin_dashboard{year_suffix.replace(" - ", "_").replace(" ", "_")}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        response['Content-Disposition'] = f'attachment; filename={filename}'
+
+        wb.save(response)
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return HttpResponse(f'Error exporting dashboard data: {str(e)}', status=500)
+
 
 # ===========================
 # User Management AJAX Endpoints

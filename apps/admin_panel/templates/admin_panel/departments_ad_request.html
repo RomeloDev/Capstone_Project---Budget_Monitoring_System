@@ -12,6 +12,34 @@
 
   <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
 
+    <!-- Year Filter Section -->
+    <section class="bg-white rounded-lg shadow-md p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800">Activity Design Summary</h3>
+                <p class="text-sm text-gray-600">View activity design statistics for a specific year</p>
+            </div>
+            <form method="GET" action="{% url 'department_ad_request' %}" class="flex items-center gap-3">
+                <label for="summary_year" class="text-sm font-medium text-gray-700">Select Year:</label>
+                <select name="summary_year"
+                        id="summary_year"
+                        onchange="this.form.submit()"
+                        class="border border-gray-300 rounded px-4 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All Years</option>
+                    {% for year in available_years %}
+                        <option value="{{ year }}" {% if selected_year == year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+                {% if selected_year != 'all' and selected_year != current_year|stringformat:"s" %}
+                    <a href="{% url 'department_ad_request' %}"
+                    class="text-sm text-blue-600 hover:text-blue-800 underline">
+                        Clear Filter
+                    </a>
+                {% endif %}
+            </form>
+        </div>
+    </section>
+
     <!-- Dashboard Summary Cards -->
     <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <!-- Total Requests Card -->
@@ -20,7 +48,9 @@
                 <div>
                     <p class="text-sm font-medium text-gray-600">Total ADs</p>
                     <p class="text-3xl font-bold text-gray-900">{{ status_counts.total|default:0 }}</p>
-                    <p class="text-xs text-gray-500 mt-1">All activity designs</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {% if selected_year == 'all' %}All years{% else %}{{ selected_year }}{% endif %}
+                    </p>
                 </div>
                 <div class="p-3 bg-blue-100 rounded-full">
                     <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,16 +133,26 @@
         </div>
     </section>
 
-    <!-- Filter Button Section -->
+    <!-- Filter & Export Button Section -->
     <section class="flex justify-between items-center">
-      <button
-        onclick="openFilterModal()"
-        class="bg-blue-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition flex items-center space-x-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
-        </svg>
-        <span>Filter Activity Designs</span>
-      </button>
+      <div class="flex gap-3">
+        <button
+          onclick="openFilterModal()"
+          class="bg-blue-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition flex items-center space-x-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+          </svg>
+          <span>Filter Activity Designs</span>
+        </button>
+
+        <a href="{% url 'export_ad_requests_excel' %}{% if selected_year and selected_year != 'all' %}?year={{ selected_year }}{% endif %}"
+           class="bg-green-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition flex items-center space-x-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <span>Export Report</span>
+        </a>
+      </div>
     </section>
 
     {% if messages %}

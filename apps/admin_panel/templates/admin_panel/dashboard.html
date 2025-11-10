@@ -14,6 +14,12 @@
         </p>
       </div>
       <div class="hidden md:flex items-center space-x-4">
+        <a href="{% url 'export_admin_dashboard_excel' %}?{% if selected_year and selected_year != 'all' %}year={{ selected_year }}{% endif %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          Export Report
+        </a>
         <div class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
           <div class="text-xs text-blue-100">Last Updated</div>
           <div class="font-semibold" id="current-time">{{ current_time|date:"M d, Y g:i A" }}</div>
@@ -21,6 +27,34 @@
       </div>
     </div>
   </header>
+
+  <!-- Year Filter Section -->
+  <section class="bg-white rounded-xl shadow-md p-5 mb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-800">Dashboard Overview</h3>
+        <p class="text-sm text-gray-600">View system statistics for a specific year</p>
+      </div>
+      <form method="GET" action="{% url 'admin_dashboard' %}" class="flex items-center gap-3">
+        <label for="year_filter" class="text-sm font-medium text-gray-700">Select Year:</label>
+        <select name="year"
+                id="year_filter"
+                onchange="this.form.submit()"
+                class="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-sm">
+          <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All Years</option>
+          {% for year in available_years %}
+            <option value="{{ year }}" {% if selected_year == year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+          {% endfor %}
+        </select>
+        {% if selected_year != 'all' and selected_year != current_year|stringformat:"s" %}
+          <a href="{% url 'admin_dashboard' %}"
+             class="text-sm text-blue-600 hover:text-blue-800 underline">
+            Reset to Current Year
+          </a>
+        {% endif %}
+      </form>
+    </div>
+  </section>
 
   <!-- Main Section -->
   <main class="flex-1 px-6 pb-8 space-y-8">

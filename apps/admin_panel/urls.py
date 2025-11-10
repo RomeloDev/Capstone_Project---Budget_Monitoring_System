@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    path('dashboard/export-excel/', views.export_admin_dashboard_excel, name='export_admin_dashboard_excel'),
     path('client_accounts/', views.client_accounts, name='client_accounts'),
     path('budget_allocation/', views.budget_allocation, name='budget_allocation'),
     path('departments-pr-request/', views.departments_pr_request, name='department_pr_request'),
@@ -11,6 +12,7 @@ urlpatterns = [
     # Purchase Request Management
     path('pr/<uuid:pr_id>/preview/', views.admin_preview_pr, name='admin_preview_pr'),
     path('pr/<uuid:request_id>/handle/', views.handle_departments_request, name='handle_purchase_request'),
+    path('pr/export-excel/', views.export_pr_requests_excel, name='export_pr_requests_excel'),
     path('institutional-funds/', views.institutional_funds, name='institutional_funds'),
     path('admin_logout/', views.admin_logout, name='admin_logout'),
     path('registration/', views.register_account, name='register_account'),
@@ -27,9 +29,11 @@ urlpatterns = [
     path('ad/<uuid:ad_id>/preview/', views.admin_preview_ad, name='admin_preview_ad'),
     path('ad/<uuid:pk>/handle/', views.handle_activity_design_request, name='handle_activity_design_request'),
     path('ad/<uuid:ad_id>/upload-signed-copy/', views.admin_upload_ad_signed_copy, name='admin_upload_ad_signed_copy'),
+    path('ad/export-excel/', views.export_ad_requests_excel, name='export_ad_requests_excel'),
 
     # Legacy AD URLs (keep for backwards compatibility)
     path('department_activity_design/', views.departments_ad_request, name='department_activity_design'),
+    path('department_ad_request/', views.departments_ad_request, name='department_ad_request'),
     path('handle_activity_design/<int:pk>/', views.handle_activity_design_request, name='handle_activity_design_request_legacy'),
     path('admin-preview-activity-design/<int:pk>/', views.admin_preview_activity_design, name='admin_preview_activity_design'),
 
