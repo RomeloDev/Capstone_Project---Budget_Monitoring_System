@@ -107,24 +107,18 @@ WSGI_APPLICATION = 'bb_budget_monitoring_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# This is for local development with PostgreSQL
-# DATABASES = {   
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'postgres_bb_budget_monitoring_db',
-#         'USER': 'postgres',
-#         'PASSWORD': 'superuser',
-#         'HOST': 'localhost',
-#         'PORT': '5432'
-#     }
-# }
-
-
-# This is for production deployment with PostgreSQL (Railway)
 import dj_database_url
 
-DATABASES = {
-    'default': dj_database_url.config(default=os.getenv('DATABASE_URL')),
+DATABASES = {   
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres_bb_budget_monitoring_db',
+        'USER': 'postgres',
+        'PASSWORD': 'superuser',
+        'HOST': 'localhost',
+        'PORT': '5432'
+    }, # For development with PostgreSQL (local)
+    'prod': dj_database_url.config(default=os.getenv('DATABASE_URL')), # For production with PostgreSQL (Railway)
 }
 
 
