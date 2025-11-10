@@ -75,4 +75,10 @@ urlpatterns = [
     path('users/<int:user_id>/delete/', views.delete_user_ajax, name='delete_user_ajax'),
     path('users/bulk-action/', views.bulk_user_action_ajax, name='bulk_user_action_ajax'),
     path('users/export-excel/', views.export_users_excel, name='export_users_excel'),
+
+    # Archive Management
+    path('archive/', views.archive_center, name='archive_center'),
+    path('archive/fiscal-year/<str:fiscal_year>/archive/', views.archive_fiscal_year_view, name='archive_fiscal_year'),
+    path('archive/fiscal-year/<str:fiscal_year>/unarchive/', views.unarchive_fiscal_year_view, name='unarchive_fiscal_year'),
+    path('archive/statistics/', views.archive_statistics_ajax, name='archive_statistics_ajax'),
 ]

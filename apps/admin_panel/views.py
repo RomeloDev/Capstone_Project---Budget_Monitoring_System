@@ -4362,29 +4362,31 @@ def toggle_user_status_ajax(request, user_id):
 
 @role_required('admin', login_url='/admin/')
 def delete_user_ajax(request, user_id):
-    """AJAX endpoint to delete user"""
+    """AJAX endpoint to archive user (soft-delete replacement)"""
     if request.method == 'POST':
         try:
+            from apps.budgets.services import archive_record
+
             user = get_object_or_404(User, id=user_id)
             username = user.username
 
-            # Prevent deleting yourself
+            # Prevent archiving yourself
             if user.id == request.user.id:
-                return JsonResponse({'success': False, 'error': 'You cannot delete your own account'}, status=400)
+                return JsonResponse({'success': False, 'error': 'You cannot archive your own account'}, status=400)
 
-            log_audit_trail(
-                request.user,
-                'DELETE',
-                'User',
-                user.id,
-                f'Deleted user: {username}'
+            # Archive the user instead of deleting
+            reason = request.POST.get('reason', 'User account archived by administrator')
+            archive_record(
+                model_class=User,
+                record_id=user.id,
+                archived_by=request.user,
+                reason=reason,
+                archive_type='MANUAL'
             )
-
-            user.delete()
 
             return JsonResponse({
                 'success': True,
-                'message': f'User {username} deleted successfully'
+                'message': f'User {username} archived successfully. They can be restored from the Archive Center.'
             })
 
         except Exception as e:
@@ -4946,29 +4948,31 @@ def toggle_user_status_ajax(request, user_id):
 
 @role_required('admin', login_url='/admin/')
 def delete_user_ajax(request, user_id):
-    """AJAX endpoint to delete user"""
+    """AJAX endpoint to archive user (soft-delete replacement)"""
     if request.method == 'POST':
         try:
+            from apps.budgets.services import archive_record
+
             user = get_object_or_404(User, id=user_id)
             username = user.username
 
-            # Prevent deleting yourself
+            # Prevent archiving yourself
             if user.id == request.user.id:
-                return JsonResponse({'success': False, 'error': 'You cannot delete your own account'}, status=400)
+                return JsonResponse({'success': False, 'error': 'You cannot archive your own account'}, status=400)
 
-            log_audit_trail(
-                request.user,
-                'DELETE',
-                'User',
-                user.id,
-                f'Deleted user: {username}'
+            # Archive the user instead of deleting
+            reason = request.POST.get('reason', 'User account archived by administrator')
+            archive_record(
+                model_class=User,
+                record_id=user.id,
+                archived_by=request.user,
+                reason=reason,
+                archive_type='MANUAL'
             )
-
-            user.delete()
 
             return JsonResponse({
                 'success': True,
-                'message': f'User {username} deleted successfully'
+                'message': f'User {username} archived successfully. They can be restored from the Archive Center.'
             })
 
         except Exception as e:
@@ -5107,3 +5111,126 @@ def export_users_excel(request):
         import traceback
         print(traceback.format_exc())
         return HttpResponse(f'Error exporting users: {str(e)}', status=500)
+
+
+# ============================================================================
+# ARCHIVE MANAGEMENT VIEWS
+# ============================================================================
+
+@role_required('admin', login_url='/admin/')
+def archive_center(request):
+    """
+    Archive Center - Main archive management dashboard
+    """
+    from apps.budgets.services import get_fiscal_years_list, get_archive_statistics
+    
+    # Get fiscal years with archive status
+    include_archived = request.GET.get('show_archived', 'true') == 'true'
+    fiscal_years = get_fiscal_years_list(include_archived=True)
+    
+    # Get archive statistics
+    stats = get_archive_statistics()
+    
+    context = {
+        'fiscal_years': fiscal_years,
+        'stats': stats,
+        'show_archived': include_archived,
+    }
+    
+    return render(request, 'admin_panel/archive_center.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+@require_http_methods(["POST"])
+def archive_fiscal_year_view(request, fiscal_year):
+    """
+    Archive a fiscal year (POST only)
+    """
+    from apps.budgets.services import archive_fiscal_year
+    
+    reason = request.POST.get('archive_reason', '').strip()
+    
+    if not reason:
+        messages.error(request, 'Archive reason is required.')
+        return redirect('archive_center')
+    
+    try:
+        # Perform the archive
+        archived_counts = archive_fiscal_year(
+            fiscal_year=fiscal_year,
+            archived_by=request.user,
+            reason=reason,
+            archive_type='FISCAL_YEAR'
+        )
+        
+        messages.success(
+            request,
+            f'Fiscal year {fiscal_year} has been archived successfully. '
+            f'Archived: {archived_counts["approved_budgets"]} budget(s), '
+            f'{archived_counts["budget_allocations"]} allocation(s), '
+            f'{archived_counts["department_pres"]} PRE(s), '
+            f'{archived_counts["purchase_requests"]} PR(s), '
+            f'{archived_counts["activity_designs"]} AD(s).'
+        )
+        
+    except ValueError as e:
+        messages.error(request, str(e))
+    except Exception as e:
+        messages.error(request, f'Error archiving fiscal year: {str(e)}')
+    
+    return redirect('archive_center')
+
+
+@role_required('admin', login_url='/admin/')
+@require_http_methods(["POST"])
+def unarchive_fiscal_year_view(request, fiscal_year):
+    """
+    Unarchive a fiscal year (POST only)
+    """
+    from apps.budgets.services import unarchive_fiscal_year
+    
+    reason = request.POST.get('unarchive_reason', '').strip()
+    
+    if not reason:
+        messages.error(request, 'Unarchive reason is required.')
+        return redirect('archive_center')
+    
+    try:
+        # Perform the unarchive
+        unarchived_counts = unarchive_fiscal_year(
+            fiscal_year=fiscal_year,
+            unarchived_by=request.user,
+            reason=reason
+        )
+        
+        messages.success(
+            request,
+            f'Fiscal year {fiscal_year} has been restored successfully. '
+            f'Restored: {unarchived_counts["approved_budgets"]} budget(s), '
+            f'{unarchived_counts["budget_allocations"]} allocation(s), '
+            f'{unarchived_counts["department_pres"]} PRE(s), '
+            f'{unarchived_counts["purchase_requests"]} PR(s), '
+            f'{unarchived_counts["activity_designs"]} AD(s).'
+        )
+        
+    except ValueError as e:
+        messages.error(request, str(e))
+    except Exception as e:
+        messages.error(request, f'Error unarchiving fiscal year: {str(e)}')
+    
+    return redirect('archive_center')
+
+
+@role_required('admin', login_url='/admin/')
+def archive_statistics_ajax(request):
+    """
+    Get archive statistics (AJAX endpoint)
+    """
+    from apps.budgets.services import get_archive_statistics
+    
+    stats = get_archive_statistics()
+    
+    return JsonResponse({
+        'success': True,
+        'statistics': stats
+    })

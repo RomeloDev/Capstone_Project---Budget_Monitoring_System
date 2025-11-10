@@ -73,6 +73,27 @@ class User(AbstractBaseUser, PermissionsMixin):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Archive fields (for soft-delete of user accounts)
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_users'
+    )
+    archive_reason = models.TextField(blank=True)
+    archive_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('FISCAL_YEAR', 'Fiscal Year Archive'),
+            ('MANUAL', 'Manual Archive/Delete'),
+        ],
+        default='MANUAL',  # User archives are typically manual
+        blank=True
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = "email"

@@ -7,6 +7,7 @@ from django.utils import timezone
 import uuid
 import os
 from django.conf import settings
+from .managers import ArchiveManager
 
 def approved_budget_upload_path(instance, filename):
     """
@@ -61,18 +62,44 @@ class ApprovedBudget(models.Model):
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     remaining_budget = models.DecimalField(max_digits=15, decimal_places=2)
     description = models.TextField(blank=True)
-    
+
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
-    
+
+    # Archive fields
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_approved_budgets'
+    )
+    archive_reason = models.TextField(blank=True)
+    ARCHIVE_TYPE_CHOICES = [
+        ('FISCAL_YEAR', 'Fiscal Year Archive'),
+        ('MANUAL', 'Manual Archive/Delete'),
+    ]
+    archive_type = models.CharField(
+        max_length=20,
+        choices=ARCHIVE_TYPE_CHOICES,
+        default='FISCAL_YEAR',
+        blank=True
+    )
+
+    # Managers
+    objects = ArchiveManager()  # Default: excludes archived
+    all_objects = models.Manager()  # Fallback: includes everything
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Approved Budget"
         verbose_name_plural = "Approved Budgets"
         unique_together = ['fiscal_year']
-    
+
     def __str__(self):
         return f"{self.title} ({self.fiscal_year}) - ₱{self.amount:,.2f}"
     
@@ -161,21 +188,43 @@ class BudgetAllocation(models.Model):
     end_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='budget_allocations')
     allocated_amount = models.DecimalField(max_digits=15, decimal_places=2)
     remaining_balance = models.DecimalField(max_digits=15, decimal_places=2)
-    
+
     # Track different types of requests
     pre_amount_used = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
     pr_amount_used = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
     ad_amount_used = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    
+
     allocated_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
-    
+
+    # Archive fields
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_budget_allocations'
+    )
+    archive_reason = models.TextField(blank=True)
+    archive_type = models.CharField(
+        max_length=20,
+        choices=ApprovedBudget.ARCHIVE_TYPE_CHOICES,
+        default='FISCAL_YEAR',
+        blank=True
+    )
+
+    # Managers
+    objects = ArchiveManager()  # Default: excludes archived
+    all_objects = models.Manager()  # Fallback: includes everything
+
     class Meta:
         unique_together = ['approved_budget', 'end_user']
         ordering = ['department', 'end_user']
         verbose_name = "Budget Allocation"
         verbose_name_plural = "Budget Allocations"
-    
+
     def __str__(self):
         return f"{self.department} - {self.end_user.get_full_name()} (₱{self.allocated_amount:,.2f})"
     
@@ -295,11 +344,36 @@ class DepartmentPRE(models.Model):
         help_text="Admin who uploaded the approved documents"
     )
     
+    # Archive fields
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_department_pres'
+    )
+    archive_reason = models.TextField(blank=True)
+    archive_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('FISCAL_YEAR', 'Fiscal Year Archive'),
+            ('MANUAL', 'Manual Archive/Delete'),
+        ],
+        default='FISCAL_YEAR',
+        blank=True
+    )
+
+    # Managers
+    objects = ArchiveManager()  # Default: excludes archived
+    all_objects = models.Manager()  # Fallback: includes everything
+
     # Helper methods
     def can_upload_approved_docs(self):
         """Check if admin can upload approved documents"""
         return self.status == 'Partially Approved'
-    
+
     def approve_with_documents(self, admin_user):
         """Final approval after document upload"""
         was_already_approved = self.status == 'Approved'
@@ -529,12 +603,37 @@ class PurchaseRequest(models.Model):
         help_text="Admin notes when uploading signed copy"
     )
     rejection_reason = models.TextField(blank=True)
-    
+
+    # Archive fields
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_purchase_requests'
+    )
+    archive_reason = models.TextField(blank=True)
+    archive_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('FISCAL_YEAR', 'Fiscal Year Archive'),
+            ('MANUAL', 'Manual Archive/Delete'),
+        ],
+        default='FISCAL_YEAR',
+        blank=True
+    )
+
+    # Managers
+    objects = ArchiveManager()  # Default: excludes archived
+    all_objects = models.Manager()  # Fallback: includes everything
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Purchase Request"
         verbose_name_plural = "Purchase Requests"
-    
+
     def __str__(self):
         return f"PR-{self.pr_number} - {self.department} (₱{self.total_amount:,.2f})"
     
@@ -692,6 +791,31 @@ class ActivityDesign(models.Model):
     submitted_at = models.DateTimeField(null=True, blank=True)
     partially_approved_at = models.DateTimeField(null=True, blank=True)
     final_approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Archive fields
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_activity_designs'
+    )
+    archive_reason = models.TextField(blank=True)
+    archive_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('FISCAL_YEAR', 'Fiscal Year Archive'),
+            ('MANUAL', 'Manual Archive/Delete'),
+        ],
+        default='FISCAL_YEAR',
+        blank=True
+    )
+
+    # Managers
+    objects = ArchiveManager()  # Default: excludes archived
+    all_objects = models.Manager()  # Fallback: includes everything
 
     class Meta:
         ordering = ['-created_at']
