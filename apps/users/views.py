@@ -123,12 +123,14 @@ def password_reset_request(request):
                 # Send reset email
                 send_password_reset_email(user, request)
 
-                # Log audit trail
-                log_audit_trail(
-                    request=request,
+                # Log audit trail manually (user is not logged in, so can't use request.user)
+                from apps.admin_panel.models import AuditTrail
+                AuditTrail.objects.create(
+                    user=user,  # Use the actual user object, not request.user
                     action='PASSWORD_RESET_REQUEST',
                     model_name='User',
                     detail=f'Password reset requested for {user.username}',
+                    ip_address=request.META.get('REMOTE_ADDR')
                 )
 
                 logger.info(f"Password reset requested for user: {user.username} ({user.email})")
@@ -190,12 +192,14 @@ def password_reset_confirm(request, uidb64, token):
                 # Save new password
                 form.save()
 
-                # Log audit trail
-                log_audit_trail(
-                    request=request,
+                # Log audit trail manually (user is not logged in during password reset)
+                from apps.admin_panel.models import AuditTrail
+                AuditTrail.objects.create(
+                    user=user,  # Use the actual user object, not request.user
                     action='PASSWORD_RESET_COMPLETE',
                     model_name='User',
                     detail=f'Password successfully reset for {user.username}',
+                    ip_address=request.META.get('REMOTE_ADDR')
                 )
 
                 logger.info(f"Password successfully reset for user: {user.username}")
