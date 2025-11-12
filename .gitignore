@@ -1,206 +1,201 @@
-# # BISU Balilihan Budget Monitoring System - .gitignore
+# BISU Balilihan Budget Monitoring System - .gitignore
 
-# # Python
-# *.py[cod]
-# *$py.class
-# *.so
-# .Python
-# __pycache__/
-# *.pyc
-# *.pyo
-# *.pyd
-# .pytest_cache/
-# .coverage
-# htmlcov/
-# *.cover
-# .hypothesis/
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
 
-# # Virtual Environment
-# env/
-# venv/
-# ENV/
-# env.bak/
-# venv.bak/
-# .venv/
+# Virtual Environment
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
 
-# # Django
-# *.log
-# local_settings.py
-# db.sqlite3
-# db.sqlite3-journal
-# /media
-# /staticfiles
-# /static_root
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
 
-# # Environment Variables
+# Environment Variables (IMPORTANT: Keep .env private!)
 .env
-# .env.local
-# .env.*.local
-# *.env
+.env.local
+.env.*.local
 
-# # IDE
-# .vscode/
-# .idea/
-# *.swp
-# *.swo
-# *~
-# .DS_Store
-# .vs/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.vs/
 
-# # Tailwind CSS
-# node_modules/
-# theme/static_src/node_modules/
-# package-lock.json
-# yarn.lock
+# Tailwind CSS
+node_modules/
+theme/static_src/node_modules/
+package-lock.json
+yarn.lock
 
-# # Compiled CSS
-# theme/static/css/dist/styles.css
+# Compiled CSS
+theme/static/css/dist/styles.css
 
-# # Database
-# *.db
-# *.sqlite
-# *.sqlite3
-# *.sql
-# *.dump
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
 
-# # File Uploads
-# media/
-# uploads/
-# pre_uploads/
-# pre_pdfs/
-# pre_scanned/
-# pr_uploads/
-# ad_uploads/
-# ad_pdfs/
-# supporting_documents/
+# File Uploads (Keep media files locally, but don't commit to git)
+media/
+uploads/
+pre_uploads/
+pre_pdfs/
+pre_scanned/
+pr_uploads/
+ad_uploads/
+ad_pdfs/
+supporting_documents/
 
-# # Reports & Exports
-# exports/
-# reports/
-# downloads/
+# Reports & Exports
+exports/
+reports/
+downloads/
 
-# # Test Coverage
-# .coverage
-# coverage.xml
-# *.cover
-# .hypothesis/
-# .pytest_cache/
-# nosetests.xml
-# test-results/
+# Test Coverage
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+nosetests.xml
+test-results/
 
-# # Logs
-# logs/
-# *.log
-# pip-log.txt
-# pip-delete-this-directory.txt
+# Logs (IMPORTANT: Don't commit log files)
+logs/
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
 
-# # Backup files
-# *.bak
-# *.backup
-# *.old
-# *~
+# Backup files
+*.bak
+*.backup
+*.old
 
-# # OS
-# Thumbs.db
-# .DS_Store
-# .DS_Store?
-# ._*
-# .Spotlight-V100
-# .Trashes
-# ehthumbs.db
-# Desktop.ini
+# OS
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
 
-# # Temporary files
-# *.tmp
-# *.temp
-# tmp/
-# temp/
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
 
-# # Documentation builds
-# docs/_build/
-# site/
+# Documentation builds
+docs/_build/
+site/
 
-# # Excel/Office temporary files
-# ~$*.xlsx
-# ~$*.docx
-# ~$*.pptx
+# Excel/Office temporary files
+~$*.xlsx
+~$*.docx
+~$*.pptx
 
-# # Compiled translations
-# *.mo
-# *.pot
+# Compiled translations
+*.mo
+*.pot
 
-# # PyBuilder
-# target/
+# PyBuilder
+target/
 
-# # Jupyter Notebook
-# .ipynb_checkpoints
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# # IPython
-# profile_default/
-# ipython_config.py
+# IPython
+profile_default/
+ipython_config.py
 
-# # Celery
-# celerybeat-schedule
-# celerybeat.pid
+# Celery
+celerybeat-schedule
+celerybeat.pid
 
-# # SageMath parsed files
-# *.sage.py
+# SageMath parsed files
+*.sage.py
 
-# # Environments
-# .spyderproject
-# .spyproject
-# .ropeproject
+# Environments
+.spyderproject
+.spyproject
+.ropeproject
 
-# # mkdocs documentation
-# /site
+# mkdocs documentation
+/site
 
-# # mypy
-# .mypy_cache/
-# .dmypy.json
-# dmypy.json
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# # Pyre type checker
-# .pyre/
+# Pyre type checker
+.pyre/
 
-# # pytype static type analyzer
-# .pytype/
+# pytype static type analyzer
+.pytype/
 
-# # Cython debug symbols
-# cython_debug/
+# Cython debug symbols
+cython_debug/
 
-# # Project specific
-# test_dashboard.py
-# debug.log
-# error.log
+# Project specific
+test_dashboard.py
+debug.log
+error.log
 
-# # Migration conflicts (keep migrations but ignore conflicts)
-# **/migrations/*.pyc
-# **/migrations/__pycache__/
+# Migration conflicts (keep migrations but ignore compiled files)
+**/migrations/*.pyc
+**/migrations/__pycache__/
 
-# # Security
-# secrets/
-# *.key
-# *.pem
-# *.cer
-# *.crt
-# *.p12
-# credentials.json
+# Security (IMPORTANT: Never commit sensitive files!)
+secrets/
+*.key
+*.pem
+*.cer
+*.crt
+*.p12
+credentials.json
 
-# # Compiled static assets
-# staticfiles/
-# static_cdn/
-# public/
+# Compiled static assets
+staticfiles/
+static_cdn/
+public/
 
-# # Cache
-# .cache/
-# *.cache
+# Cache
+.cache/
+*.cache
 
-# # Build artifacts
-# build/
-# dist/
-# *.egg-info/
+# Build artifacts
+build/
+dist/
+*.egg-info/
 
-# # Local configuration
-# local_config.py
-# development_settings.py
-# production_settings.py
+# Local configuration
+local_config.py
+development_settings.py
+production_settings.py
