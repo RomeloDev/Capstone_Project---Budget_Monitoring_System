@@ -51,7 +51,7 @@
 
             <!-- Forgot Password -->
             <p class="text-white text-center mt-4 text-sm">
-                <a href="#" class="underline">Forgot Password?</a>
+                <a href="{% url 'password_reset_request' %}?next=user" class="underline hover:text-blue-200 transition">Forgot Password?</a>
             </p>
         </form>
     </div>
