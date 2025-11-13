@@ -71,23 +71,28 @@ This system provides:
 - **Document Review**: Review and approve/reject PRE, PR, and AD submissions
 - **User Management**: Manage end users and approving officers
 - **Audit Trail**: Complete history of all system actions
-- **Report Generation**: Export comprehensive budget reports
+- **Report Generation**: Export comprehensive budget reports in Excel and CSV formats
+- **Advanced Reporting**: Detailed budget reports with quarterly breakdowns and utilization analysis
 
 #### For End Users (Department Heads)
 - **Budget Overview**: View allocated budget and current utilization
 - **PRE Submission**: Submit Program of Receipts and Expenditures via Excel upload
+- **Supporting Documents**: Upload and manage supporting documents for PRE submissions
 - **Purchase Requests**: Create and submit procurement requests
 - **Activity Designs**: Submit activity/event budget proposals
 - **Real-time Tracking**: Monitor approval status and budget consumption
 - **Quarterly Analysis**: View budget breakdown by quarter
 - **Document History**: Access all submitted documents
+- **CSV Export**: Export budget reports and PRE details to CSV format
 
 #### For Approving Officers
 - **Approval Dashboard**: Centralized view of pending requests
-- **Document Review**: Review PRE, PR, and AD documents with details
+- **Document Review**: Review PRE, PR, and AD documents with complete details and supporting documents
 - **Partial Approval**: Approve specific line items while rejecting others
 - **Scanned Document Upload**: Upload signed/approved documents
+- **Supporting Documents Review**: View and download all supporting documents attached to submissions
 - **Notification System**: Alerts for new submissions
+- **Approval History**: Track all approval actions and decisions
 
 ### 📊 Document Types
 
@@ -96,6 +101,8 @@ This system provides:
    - Quarterly budget breakdown
    - Line item categorization
    - Automatic validation against allocated budget
+   - Supporting documents upload (PDFs, images, etc.)
+   - Document version tracking
 
 2. **PR (Purchase Request)**
    - Procurement item requests
@@ -113,10 +120,13 @@ This system provides:
 
 - Role-based access control (RBAC)
 - Password encryption
+- Password reset with email verification
+- Secure token-based password recovery
 - Session management
-- Audit logging
+- Audit logging with user tracking
 - CSRF protection
 - File upload validation
+- Environment-based configuration security
 
 ---
 
@@ -270,6 +280,15 @@ DATABASE_PASSWORD=your_password
 DATABASE_HOST=localhost
 DATABASE_PORT=5432  # 3306 for MySQL
 ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Email Configuration (for password reset)
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
+DEFAULT_FROM_EMAIL=noreply@bisubalilihan.edu.ph
 ```
 
 #### 6. Update Settings
@@ -371,6 +390,18 @@ After installation, perform these setup tasks:
 
 ## Usage
 
+### For All Users
+
+#### Password Reset
+1. Click **Forgot Password?** on the login page
+2. Enter your registered email address
+3. Check your email for the password reset link
+4. Click the link and enter your new password
+5. Confirm the new password
+6. Login with your new credentials
+
+**Note**: Password reset links expire after 1 hour for security purposes.
+
 ### For End Users
 
 #### Accessing the Dashboard
@@ -385,8 +416,16 @@ After installation, perform these setup tasks:
 1. Navigate to **Submit PRE**
 2. Upload Excel file following the template
 3. Select budget allocation
-4. Submit for review
-5. Track status in dashboard
+4. Upload supporting documents (optional but recommended)
+5. Submit for review
+6. Track status in dashboard
+
+#### Managing Supporting Documents
+1. Navigate to PRE details page
+2. Click **Upload Supporting Document**
+3. Select file (PDF, images, or documents)
+4. Add document description
+5. Upload and view all attached documents
 
 #### Creating a Purchase Request
 1. Navigate to **Create PR**
@@ -406,12 +445,15 @@ After installation, perform these setup tasks:
 #### Reviewing Documents
 1. Login and view **Pending Approvals**
 2. Click on document to review
-3. View details and uploaded files
-4. Options:
+3. View details, line items, and all supporting documents
+4. Download and review supporting documents
+5. Review options:
    - **Approve**: Approve entire document
    - **Partial Approve**: Select specific line items
    - **Reject**: Reject with remarks
-5. Upload scanned signed document
+6. Add approval comments if needed
+7. Upload scanned signed document
+8. Submit approval decision
 
 ### For Administrators
 
@@ -435,7 +477,12 @@ After installation, perform these setup tasks:
    - Budget Overview
    - PRE Details
    - Quarterly Analysis
-3. Export to Excel/PDF
+   - Budget Utilization Reports
+3. Choose export format:
+   - Excel (.xlsx)
+   - CSV (.csv)
+   - PDF (coming soon)
+4. Download and view reports
 
 ---
 
@@ -461,13 +508,18 @@ After installation, perform these setup tasks:
   - Generate department reports
 
 ### 3. Approving Officer
-- **Access Level**: Document review
+- **Access Level**: Document review and approval
 - **Permissions**:
-  - Review submitted documents
-  - Approve/reject/partially approve
-  - Upload signed documents
-  - View approval history
-  - Receive notifications
+  - Review submitted documents (PRE, PR, AD)
+  - View and download supporting documents
+  - Approve/reject/partially approve submissions
+  - Upload signed and scanned documents
+  - Add approval remarks and comments
+  - View complete approval history
+  - Track document workflow status
+  - Receive notifications for new submissions
+  - Access detailed budget breakdowns
+  - Export approval reports
 
 ---
 
@@ -479,6 +531,7 @@ After installation, perform these setup tasks:
 - `ApprovedBudget`: System-wide approved budgets
 - `BudgetAllocation`: Department budget allocations
 - `DepartmentPRE`: PRE documents with line items
+- `DepartmentPRESupportingDocument`: Supporting documents for PRE submissions
 - `PurchaseRequest`: Procurement requests
 - `ActivityDesign`: Activity/event proposals
 - `RequestApproval`: Approval workflow tracking
@@ -565,6 +618,17 @@ class User(AbstractUser):
 - line_items: ManyToMany(PRELineItem)
 ```
 
+#### DepartmentPRESupportingDocument
+```python
+- id: AutoField
+- pre: ForeignKey(DepartmentPRE)
+- document_file: FileField
+- document_name: CharField
+- uploaded_at: DateTimeField
+- uploaded_by: ForeignKey(User)
+- description: TextField
+```
+
 #### PurchaseRequest
 ```python
 - id: UUIDField
@@ -596,6 +660,8 @@ class User(AbstractUser):
 ### Authentication
 - `POST /login/` - User login
 - `GET /logout/` - User logout
+- `POST /password-reset/` - Request password reset
+- `POST /password-reset-confirm/<uidb64>/<token>/` - Confirm password reset
 
 ### End User Routes
 - `GET /dashboard/` - User dashboard
@@ -616,7 +682,8 @@ class User(AbstractUser):
 - `GET /reports/budget-overview/` - Budget overview report
 - `GET /reports/pre-details/` - PRE details report
 - `GET /reports/export/excel/` - Export to Excel
-- `GET /reports/export/pdf/` - Export to PDF
+- `GET /reports/export/csv/` - Export to CSV
+- `GET /reports/export/pdf/` - Export to PDF (coming soon)
 
 ---
 
@@ -690,9 +757,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Project Status
 
-**Current Version**: 1.0.0
+**Current Version**: 1.2.0
 **Status**: Active Development
-**Last Updated**: November 2025
+**Last Updated**: January 2025
+
+### Recent Updates (v1.2.0)
+- Password reset functionality with email verification
+- Supporting documents for PRE submissions
+- CSV export for budget reports
+- Enhanced approving officer workflow
+- Improved audit trail with user tracking
+- UI/UX improvements across the system
 
 ### Roadmap
 
@@ -701,8 +776,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [x] Purchase request module
 - [x] Activity design module
 - [x] Admin dashboard analytics
-- [x] Report generation (Excel/PDF)
-- [ ] Email notifications
+- [x] Report generation (Excel/CSV)
+- [x] Password reset with email verification
+- [x] Supporting documents for PRE
+- [x] CSV export functionality
+- [x] Enhanced budget reports with quarterly analysis
+- [x] Audit trail with user tracking
+- [x] Approving officer workflow enhancements
+- [ ] PDF export for reports
+- [ ] Email notifications for approvals
 - [ ] Mobile responsive optimization
 - [ ] API for external integrations
 - [ ] Advanced analytics and forecasting
@@ -735,6 +817,25 @@ Solution: Ensure the user has the correct role assigned in the admin panel.
 **Issue: Excel upload fails**
 ```
 Solution: Verify the Excel file follows the PRE template format. Check file permissions.
+```
+
+**Issue: Password reset email not received**
+```
+Solution:
+1. Check your email configuration in .env file
+2. Verify EMAIL_HOST_USER and EMAIL_HOST_PASSWORD are correct
+3. For Gmail, use an App Password instead of your regular password
+4. Check spam/junk folder
+5. Ensure the user's email is correctly registered in the system
+```
+
+**Issue: Supporting documents not uploading**
+```
+Solution:
+1. Check file size limits (max 10MB recommended)
+2. Verify file format is allowed (PDF, images, documents)
+3. Check MEDIA_ROOT and MEDIA_URL settings
+4. Ensure proper folder permissions
 ```
 
 ---

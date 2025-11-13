@@ -2301,18 +2301,54 @@ def download_pre_template(request):
     
 @role_required('end_user', login_url='/')
 def view_pre_detail(request, pre_id):
-    """View PRE details (placeholder for now)"""
+    """View detailed PRE information with line items and budget tracking"""
+    from django.db.models import Sum
+
     pre = get_object_or_404(
-        NewDepartmentPRE.objects.select_related('budget_allocation',
-            'budget_allocation__approved_budget'),
+        NewDepartmentPRE.objects.select_related(
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'submitted_by'
+        ).prefetch_related(
+            'line_items__category',
+            'line_items__subcategory',
+            'supporting_documents'
+        ),
         id=pre_id,
         submitted_by=request.user
     )
-    
+
+    # Calculate totals by category
+    category_totals = pre.line_items.values(
+        'category__name', 'category__category_type'
+    ).annotate(
+        total=Sum('q1_amount') + Sum('q2_amount') + Sum('q3_amount') + Sum('q4_amount')
+    ).order_by('category__sort_order')
+
+    # Calculate budget tracking breakdown for each line item
+    line_items_with_breakdown = []
+    for item in pre.line_items.all():
+        item_data = {
+            'item': item,
+            'quarters': []
+        }
+
+        for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+            breakdown = item.get_quarter_breakdown(quarter)
+            item_data['quarters'].append(breakdown)
+
+        line_items_with_breakdown.append(item_data)
+
+    # Get supporting documents
+    supporting_documents = pre.supporting_documents.all().order_by('-uploaded_at')
+
     context = {
         'pre': pre,
+        'category_totals': category_totals,
+        'line_items_with_breakdown': line_items_with_breakdown,
+        'supporting_documents': supporting_documents,
     }
-    
+
     return render(request, 'end_user_app/view_pre_detail.html', context)
 
 # @role_required('end_user', login_url='/')
@@ -6021,5 +6057,554 @@ def export_budget_pdf(request):
         ]))
         story.append(t)
 
+    elif report_type == 'pre_details':
+        # Use landscape orientation for wider table
+        from reportlab.lib.pagesizes import landscape
+
+        # Recreate doc with landscape orientation
+        doc = SimpleDocTemplate(response, pagesize=landscape(A4))
+        story = []
+
+        story.append(Paragraph('PRE BUDGET DETAILS REPORT', title_style))
+        story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
+        story.append(Spacer(1, 20))
+
+        # Get all approved PREs
+        approved_pres = NewDepartmentPRE.objects.filter(
+            budget_allocation__in=budget_allocations,
+            status__in=['Approved', 'Partially Approved']
+        ).prefetch_related('line_items__category', 'line_items__subcategory').order_by('-created_at')
+
+        if not approved_pres.exists():
+            story.append(Paragraph('No approved PREs found.', styles['Normal']))
+        else:
+            for pre in approved_pres:
+                # PRE Header
+                story.append(Paragraph(f'PRE: {pre.department} - FY {pre.fiscal_year}', subtitle_style))
+                story.append(Spacer(1, 10))
+
+                # Create table headers - simplified for readability
+                pre_data = [['Line Item', 'Category',
+                            'Q1 Bdgt', 'Q1 Used', 'Q1 Avail',
+                            'Q2 Bdgt', 'Q2 Used', 'Q2 Avail',
+                            'Q3 Bdgt', 'Q3 Used', 'Q3 Avail',
+                            'Q4 Bdgt', 'Q4 Used', 'Q4 Avail',
+                            'Total']]
+
+                # Add line items
+                for line_item in pre.line_items.all():
+                    category_name = (line_item.category.name if line_item.category else 'Other')[:12]
+
+                    row_data = [
+                        line_item.item_name[:18],  # Truncate long names
+                        category_name
+                    ]
+
+                    total_budget = 0
+
+                    # Add quarterly data
+                    for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+                        q_amount = line_item.get_quarter_amount(quarter)
+                        q_consumed = line_item.get_quarter_consumed(quarter)
+                        q_available = line_item.get_quarter_available(quarter)
+
+                        row_data.extend([
+                            f'₱{q_amount:,.0f}',
+                            f'₱{q_consumed:,.0f}',
+                            f'₱{q_available:,.0f}'
+                        ])
+
+                        total_budget += q_amount
+
+                    row_data.append(f'₱{total_budget:,.0f}')
+                    pre_data.append(row_data)
+
+                # Create table with adjusted column widths for landscape
+                col_widths = [1.2*inch, 0.7*inch] + [0.45*inch] * 12 + [0.6*inch]
+
+                t = Table(pre_data, colWidths=col_widths)
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (1, -1), 'LEFT'),
+                    ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),  # Numbers right-aligned
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 7),
+                    ('FONTSIZE', (0, 1), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('TOPPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                story.append(t)
+                story.append(Spacer(1, 20))
+
     doc.build(story)
+    return response
+
+
+@role_required('end_user', login_url='/')
+def export_budget_csv(request):
+    """
+    Export budget data to CSV format
+    Supports different report types with filtering
+    """
+    import csv
+    from .utils.report_helpers import (
+        get_budget_data,
+        get_quarterly_data,
+        get_category_data,
+        get_transaction_data,
+        format_currency
+    )
+
+    report_type = request.GET.get('type', 'summary')
+    year_filter = request.GET.get('year')
+    quarter = request.GET.get('quarter', 'Q1')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    # Create CSV response
+    response = HttpResponse(content_type='text/csv')
+    filename = f'Budget_Report_{report_type}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+
+    if report_type == 'summary':
+        # Budget Summary Report
+        data = get_budget_data(request.user, year_filter)
+
+        # Header
+        writer.writerow(['BUDGET SUMMARY REPORT'])
+        writer.writerow([f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'])
+        if year_filter and year_filter != 'all':
+            writer.writerow([f'Year: {year_filter}'])
+        writer.writerow([])  # Blank row
+
+        # Summary section
+        writer.writerow(['BUDGET SUMMARY'])
+        writer.writerow(['Metric', 'Amount'])
+        writer.writerow(['Total Allocated', data['totals']['allocated']])
+        writer.writerow(['Total Used', data['totals']['total_used']])
+        writer.writerow(['Total Remaining', data['totals']['remaining']])
+        writer.writerow([])  # Blank row
+
+        # Budget allocations
+        writer.writerow(['BUDGET ALLOCATIONS'])
+        writer.writerow(['Fiscal Year', 'Allocated', 'PR Used', 'AD Used', 'Total Used', 'Remaining'])
+
+        for ba in data['budget_allocations']:
+            writer.writerow([
+                ba.approved_budget.fiscal_year,
+                ba.allocated_amount,
+                ba.pr_amount_used,
+                ba.ad_amount_used,
+                ba.get_total_used(),
+                ba.remaining_balance
+            ])
+
+        writer.writerow([])  # Blank row
+
+        # PRE summary
+        writer.writerow(['PRE SUMMARY'])
+        writer.writerow(['Department', 'Fiscal Year', 'Line Items', 'Total Amount', 'Status'])
+
+        for pre in data['pres']:
+            writer.writerow([
+                pre.department,
+                pre.fiscal_year,
+                pre.line_items.count(),
+                pre.total_amount,
+                pre.status
+            ])
+
+    elif report_type == 'pre_details':
+        # PRE Details Report
+        data = get_budget_data(request.user, year_filter)
+
+        # Header
+        writer.writerow(['PRE BUDGET DETAILS REPORT'])
+        writer.writerow([f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'])
+        if year_filter and year_filter != 'all':
+            writer.writerow([f'Year: {year_filter}'])
+        writer.writerow([])
+
+        approved_pres = data['pres'].filter(status__in=['Approved', 'Partially Approved'])
+
+        for pre in approved_pres:
+            # PRE header
+            writer.writerow([f'PRE: {pre.department} - FY {pre.fiscal_year}'])
+            writer.writerow([])
+
+            # Column headers
+            writer.writerow([
+                'Line Item', 'Category',
+                'Q1 Budget', 'Q1 Used', 'Q1 Available',
+                'Q2 Budget', 'Q2 Used', 'Q2 Available',
+                'Q3 Budget', 'Q3 Used', 'Q3 Available',
+                'Q4 Budget', 'Q4 Used', 'Q4 Available',
+                'Total Budget', 'Total Consumed', 'Total Available'
+            ])
+
+            # Line items
+            for line_item in pre.line_items.all():
+                row = [
+                    line_item.item_name,
+                    line_item.category.name if line_item.category else 'Other'
+                ]
+
+                total_budget = 0
+                total_consumed = 0
+
+                for q in ['Q1', 'Q2', 'Q3', 'Q4']:
+                    q_amount = line_item.get_quarter_amount(q)
+                    q_consumed = line_item.get_quarter_consumed(q)
+                    q_available = line_item.get_quarter_available(q)
+
+                    row.extend([q_amount, q_consumed, q_available])
+                    total_budget += q_amount
+                    total_consumed += q_consumed
+
+                row.extend([total_budget, total_consumed, total_budget - total_consumed])
+                writer.writerow(row)
+
+            writer.writerow([])  # Blank row between PREs
+
+    elif report_type == 'quarterly':
+        # Quarterly Report
+        data = get_quarterly_data(request.user, quarter, year_filter)
+
+        # Header
+        writer.writerow([f'{quarter} QUARTERLY BUDGET REPORT'])
+        writer.writerow([f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'])
+        if year_filter and year_filter != 'all':
+            writer.writerow([f'Year: {year_filter}'])
+        writer.writerow([])
+
+        # Quarter summary
+        writer.writerow([f'{quarter} SUMMARY'])
+        writer.writerow(['Metric', 'Amount'])
+        writer.writerow([f'{quarter} Allocated', data['quarter_totals']['allocated']])
+        writer.writerow([f'{quarter} Consumed', data['quarter_totals']['consumed']])
+        writer.writerow([f'{quarter} Remaining', data['quarter_totals']['remaining']])
+        writer.writerow([])
+
+        # Line items for this quarter
+        writer.writerow([f'{quarter} LINE ITEMS'])
+        writer.writerow(['Line Item', 'Category', 'PRE Department', 'Allocated', 'Consumed', 'Remaining'])
+
+        approved_pres = data['pres'].filter(status__in=['Approved', 'Partially Approved'])
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                q_amount = line_item.get_quarter_amount(quarter)
+                q_consumed = line_item.get_quarter_consumed(quarter)
+
+                if q_amount > 0 or q_consumed > 0:
+                    writer.writerow([
+                        line_item.item_name,
+                        line_item.category.name if line_item.category else 'Other',
+                        pre.department,
+                        q_amount,
+                        q_consumed,
+                        q_amount - q_consumed
+                    ])
+
+    elif report_type == 'category':
+        # Category Report
+        data = get_category_data(request.user, year_filter)
+
+        # Header
+        writer.writerow(['CATEGORY-WISE BUDGET REPORT'])
+        writer.writerow([f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'])
+        if year_filter and year_filter != 'all':
+            writer.writerow([f'Year: {year_filter}'])
+        writer.writerow([])
+
+        # Category summary
+        writer.writerow(['CATEGORY SUMMARY'])
+        writer.writerow(['Category', 'Allocated', 'Consumed', 'Remaining', 'Utilization %', 'Item Count'])
+
+        for category_name, cat_data in sorted(data['categories'].items()):
+            writer.writerow([
+                category_name,
+                cat_data['total'],
+                cat_data['consumed'],
+                cat_data['remaining'],
+                f"{cat_data['utilization']:.1f}%",
+                len(cat_data['items'])
+            ])
+
+        writer.writerow([])
+
+        # Detailed breakdown per category
+        for category_name, cat_data in sorted(data['categories'].items()):
+            writer.writerow([f'CATEGORY: {category_name}'])
+            writer.writerow(['Item Name', 'Allocated', 'Consumed', 'Remaining', 'Utilization %'])
+
+            for item in cat_data['items']:
+                utilization = (item['consumed'] / item['allocated'] * 100) if item['allocated'] > 0 else 0
+                writer.writerow([
+                    item['name'],
+                    item['allocated'],
+                    item['consumed'],
+                    item['remaining'],
+                    f"{utilization:.1f}%"
+                ])
+
+            writer.writerow([])  # Blank row between categories
+
+    elif report_type == 'transaction':
+        # Transaction Report
+        data = get_transaction_data(request.user, year_filter, date_from, date_to)
+
+        # Header
+        writer.writerow(['TRANSACTION REPORT'])
+        writer.writerow([f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'])
+        if year_filter and year_filter != 'all':
+            writer.writerow([f'Year: {year_filter}'])
+        if date_from:
+            writer.writerow([f'From: {date_from}'])
+        if date_to:
+            writer.writerow([f'To: {date_to}'])
+        writer.writerow([])
+
+        # Transactions
+        writer.writerow(['Date', 'Type', 'Number', 'Line Item/Description', 'Quarter', 'Amount', 'Status'])
+
+        total_amount = 0
+
+        for transaction in data['transactions']:
+            writer.writerow([
+                transaction['date'].strftime('%Y-%m-%d') if transaction['date'] else 'N/A',
+                transaction['type'],
+                transaction['number'],
+                transaction['line_item'],
+                transaction['quarter'],
+                transaction['amount'],
+                transaction['status']
+            ])
+            total_amount += transaction['amount']
+
+        # Total row
+        writer.writerow([])
+        writer.writerow(['', '', '', '', 'TOTAL:', total_amount, ''])
+
+    return response
+
+
+@role_required('end_user', login_url='/')
+def export_budget_json(request):
+    """
+    Export budget data to JSON format
+    Supports different report types with filtering
+    Machine-readable format for API integration and data processing
+    """
+    from django.http import JsonResponse
+    from decimal import Decimal
+    from .utils.report_helpers import (
+        get_budget_data,
+        get_quarterly_data,
+        get_category_data,
+        get_transaction_data
+    )
+
+    report_type = request.GET.get('type', 'summary')
+    year_filter = request.GET.get('year')
+    quarter = request.GET.get('quarter', 'Q1')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    if report_type == 'summary':
+        # Budget Summary Report
+        data = get_budget_data(request.user, year_filter)
+
+        json_data = {
+            'report_type': 'summary',
+            'generated_at': timezone.now().isoformat(),
+            'year': year_filter or 'all',
+            'summary': {
+                'total_allocated': float(data['totals']['allocated']),
+                'total_used': float(data['totals']['total_used']),
+                'remaining': float(data['totals']['remaining']),
+                'pr_used': float(data['totals']['pr_used']),
+                'ad_used': float(data['totals']['ad_used'])
+            },
+            'budget_allocations': [
+                {
+                    'fiscal_year': ba.approved_budget.fiscal_year,
+                    'allocated': float(ba.allocated_amount),
+                    'pr_used': float(ba.pr_amount_used),
+                    'ad_used': float(ba.ad_amount_used),
+                    'total_used': float(ba.get_total_used()),
+                    'remaining': float(ba.remaining_balance)
+                }
+                for ba in data['budget_allocations']
+            ],
+            'pres': [
+                {
+                    'department': pre.department,
+                    'fiscal_year': pre.fiscal_year,
+                    'line_item_count': pre.line_items.count(),
+                    'total_amount': float(pre.total_amount),
+                    'status': pre.status
+                }
+                for pre in data['pres']
+            ]
+        }
+
+    elif report_type == 'pre_details':
+        # PRE Details Report
+        data = get_budget_data(request.user, year_filter)
+        approved_pres = data['pres'].filter(status__in=['Approved', 'Partially Approved'])
+
+        json_data = {
+            'report_type': 'pre_details',
+            'generated_at': timezone.now().isoformat(),
+            'year': year_filter or 'all',
+            'pres': [
+                {
+                    'department': pre.department,
+                    'fiscal_year': pre.fiscal_year,
+                    'line_items': [
+                        {
+                            'item_name': li.item_name,
+                            'category': li.category.name if li.category else 'Other',
+                            'quarterly_breakdown': {
+                                'Q1': {
+                                    'budget': float(li.get_quarter_amount('Q1')),
+                                    'used': float(li.get_quarter_consumed('Q1')),
+                                    'available': float(li.get_quarter_available('Q1'))
+                                },
+                                'Q2': {
+                                    'budget': float(li.get_quarter_amount('Q2')),
+                                    'used': float(li.get_quarter_consumed('Q2')),
+                                    'available': float(li.get_quarter_available('Q2'))
+                                },
+                                'Q3': {
+                                    'budget': float(li.get_quarter_amount('Q3')),
+                                    'used': float(li.get_quarter_consumed('Q3')),
+                                    'available': float(li.get_quarter_available('Q3'))
+                                },
+                                'Q4': {
+                                    'budget': float(li.get_quarter_amount('Q4')),
+                                    'used': float(li.get_quarter_consumed('Q4')),
+                                    'available': float(li.get_quarter_available('Q4'))
+                                }
+                            },
+                            'totals': {
+                                'budget': float(li.get_total()),
+                                'consumed': float(sum(li.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4'])),
+                                'available': float(li.get_total() - sum(li.get_quarter_consumed(q) for q in ['Q1', 'Q2', 'Q3', 'Q4']))
+                            }
+                        }
+                        for li in pre.line_items.all()
+                    ]
+                }
+                for pre in approved_pres
+            ]
+        }
+
+    elif report_type == 'quarterly':
+        # Quarterly Report
+        data = get_quarterly_data(request.user, quarter, year_filter)
+
+        json_data = {
+            'report_type': 'quarterly',
+            'generated_at': timezone.now().isoformat(),
+            'year': year_filter or 'all',
+            'quarter': quarter,
+            'summary': {
+                'allocated': float(data['quarter_totals']['allocated']),
+                'consumed': float(data['quarter_totals']['consumed']),
+                'remaining': float(data['quarter_totals']['remaining'])
+            },
+            'line_items': []
+        }
+
+        approved_pres = data['pres'].filter(status__in=['Approved', 'Partially Approved'])
+
+        for pre in approved_pres:
+            for line_item in pre.line_items.all():
+                q_amount = line_item.get_quarter_amount(quarter)
+                q_consumed = line_item.get_quarter_consumed(quarter)
+
+                if q_amount > 0 or q_consumed > 0:
+                    json_data['line_items'].append({
+                        'item_name': line_item.item_name,
+                        'category': line_item.category.name if line_item.category else 'Other',
+                        'department': pre.department,
+                        'allocated': float(q_amount),
+                        'consumed': float(q_consumed),
+                        'remaining': float(q_amount - q_consumed)
+                    })
+
+    elif report_type == 'category':
+        # Category Report
+        data = get_category_data(request.user, year_filter)
+
+        json_data = {
+            'report_type': 'category',
+            'generated_at': timezone.now().isoformat(),
+            'year': year_filter or 'all',
+            'categories': {}
+        }
+
+        for category_name, cat_data in sorted(data['categories'].items()):
+            json_data['categories'][category_name] = {
+                'summary': {
+                    'total': float(cat_data['total']),
+                    'consumed': float(cat_data['consumed']),
+                    'remaining': float(cat_data['remaining']),
+                    'utilization_percent': float(cat_data['utilization']),
+                    'item_count': len(cat_data['items'])
+                },
+                'items': [
+                    {
+                        'name': item['name'],
+                        'allocated': float(item['allocated']),
+                        'consumed': float(item['consumed']),
+                        'remaining': float(item['remaining']),
+                        'utilization_percent': float((item['consumed'] / item['allocated'] * 100) if item['allocated'] > 0 else 0)
+                    }
+                    for item in cat_data['items']
+                ]
+            }
+
+    elif report_type == 'transaction':
+        # Transaction Report
+        data = get_transaction_data(request.user, year_filter, date_from, date_to)
+
+        json_data = {
+            'report_type': 'transaction',
+            'generated_at': timezone.now().isoformat(),
+            'year': year_filter or 'all',
+            'filters': {
+                'date_from': date_from,
+                'date_to': date_to
+            },
+            'transactions': [
+                {
+                    'date': t['date'].isoformat() if t['date'] else None,
+                    'type': t['type'],
+                    'number': t['number'],
+                    'line_item': t['line_item'],
+                    'quarter': t['quarter'],
+                    'amount': float(t['amount']),
+                    'status': t['status']
+                }
+                for t in data['transactions']
+            ],
+            'summary': {
+                'total_transactions': len(data['transactions']),
+                'total_amount': float(sum(t['amount'] for t in data['transactions']))
+            }
+        }
+
+    # Create JSON response with proper filename
+    filename = f'Budget_Report_{report_type}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.json'
+    response = JsonResponse(json_data)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response

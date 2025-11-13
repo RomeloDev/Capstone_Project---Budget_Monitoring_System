@@ -3542,7 +3542,8 @@ def admin_pre_detail(request, pre_id):
         ).prefetch_related(
             'line_items__category',
             'line_items__subcategory',
-            'receipts'
+            'receipts',
+            'supporting_documents'  # Fetch supporting documents
         ),
         id=pre_id
     )
@@ -3575,11 +3576,15 @@ def admin_pre_detail(request, pre_id):
 
         line_items_with_breakdown.append(item_data)
 
+    # Get supporting documents
+    supporting_documents = pre.supporting_documents.all().order_by('-uploaded_at')
+
     context = {
         'pre': pre,
         'approval_history': approval_history,
         'category_totals': category_totals,
         'line_items_with_breakdown': line_items_with_breakdown,
+        'supporting_documents': supporting_documents,
     }
 
     return render(request, 'admin_panel/pre_detail.html', context)

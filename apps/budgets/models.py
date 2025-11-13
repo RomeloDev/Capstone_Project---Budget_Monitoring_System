@@ -1417,6 +1417,66 @@ class PurchaseRequestSupportingDocument(models.Model):
         return f"{self.file_name} for PR {self.purchase_request.pr_number}"
 
 
+class DepartmentPRESupportingDocument(models.Model):
+    """Supporting documents for Department PRE submissions"""
+    department_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.CASCADE,
+        related_name='supporting_documents',
+        help_text='Link to PRE submission'
+    )
+    document = models.FileField(
+        upload_to='pre_supporting_docs/%Y/%m/',
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'docx', 'doc', 'xlsx', 'xls', 'jpg', 'jpeg', 'png']
+        )],
+        help_text='Supporting document file (PDF, Word, Excel, Images)'
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField(help_text='File size in bytes', editable=False)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text='User who uploaded this document'
+    )
+    description = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text='Optional description of the document'
+    )
+
+    class Meta:
+        db_table = 'department_pre_supporting_documents'
+        ordering = ['-uploaded_at']
+        verbose_name = 'PRE Supporting Document'
+        verbose_name_plural = 'PRE Supporting Documents'
+
+    def __str__(self):
+        return f"{self.file_name} for PRE {str(self.department_pre.id)[:8]}"
+
+    def get_file_extension(self):
+        """Get file extension in lowercase"""
+        return self.file_name.split('.')[-1].lower() if '.' in self.file_name else ''
+
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size = self.file_size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate file size before saving"""
+        if self.document and not self.file_size:
+            self.file_size = self.document.size
+        super().save(*args, **kwargs)
+
+
 class ADDraft(models.Model):
     """Draft storage for Activity Design uploads before submission"""
     user = models.OneToOneField(
