@@ -23,10 +23,12 @@ class AuditTrail(models.Model):
         ('LOGOUT', 'Logged Out'),
         ('APPROVE', 'Approved'),
         ('REJECT', 'Rejected'),
+        ('PASSWORD_RESET_REQUEST', 'Password Reset Requested'),
+        ('PASSWORD_RESET_COMPLETE', 'Password Reset Completed'),
     )
 
     user = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True)
-    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
     model_name = models.CharField(max_length=100)  # Which model was affected
     record_id = models.CharField(max_length=100, null=True)  # ID of the affected record
     detail = models.TextField()  # Description of what happened
