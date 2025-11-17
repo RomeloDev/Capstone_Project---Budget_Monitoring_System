@@ -81,4 +81,9 @@ urlpatterns = [
     path('archive/fiscal-year/<str:fiscal_year>/archive/', views.archive_fiscal_year_view, name='archive_fiscal_year'),
     path('archive/fiscal-year/<str:fiscal_year>/unarchive/', views.unarchive_fiscal_year_view, name='unarchive_fiscal_year'),
     path('archive/statistics/', views.archive_statistics_ajax, name='archive_statistics_ajax'),
+
+    # Budget Savings Management
+    path('savings/', views.savings_overview, name='savings_overview'),
+    path('savings/create-snapshot/', views.create_savings_snapshot, name='create_savings_snapshot'),
+    path('savings/export-excel/', views.export_savings_excel, name='export_savings_excel'),
 ]

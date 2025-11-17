@@ -1587,3 +1587,140 @@ class ActivityDesignSupportingDocument(models.Model):
             return f"{size / 1024:.2f} KB"
         else:
             return f"{size / (1024 * 1024):.2f} MB"
+
+
+class BudgetSavings(models.Model):
+    """
+    Snapshot of budget savings at end of fiscal period.
+    Captures unused/unspent budget amounts by department.
+    """
+
+    budget_allocation = models.ForeignKey(
+        BudgetAllocation,
+        on_delete=models.CASCADE,
+        related_name='savings_snapshots',
+        help_text='Link to the budget allocation'
+    )
+
+    # Snapshot data - copied from allocation at time of snapshot
+    fiscal_year = models.CharField(max_length=10, help_text='Fiscal year of the savings')
+    department = models.CharField(max_length=255, help_text='Department name')
+    allocated_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text='Total amount allocated to department'
+    )
+    pr_used = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Amount used by Purchase Requests'
+    )
+    ad_used = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Amount used by Activity Designs'
+    )
+    total_used = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text='Total amount used (PR + AD)'
+    )
+    savings_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text='Savings amount (Allocated - Used)'
+    )
+
+    # Metadata
+    snapshot_date = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When this snapshot was created'
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_savings_snapshots',
+        help_text='Admin who created this snapshot'
+    )
+    quarter = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text='Q1, Q2, Q3, Q4, or Full Year'
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text='Optional notes about this savings snapshot'
+    )
+
+    # Archive fields
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='archived_budget_savings'
+    )
+    archive_reason = models.TextField(blank=True)
+
+    # Managers
+    objects = ArchiveManager()  # Default: excludes archived
+    all_objects = models.Manager()  # Fallback: includes everything
+
+    class Meta:
+        ordering = ['-snapshot_date']
+        verbose_name = "Budget Savings"
+        verbose_name_plural = "Budget Savings"
+        indexes = [
+            models.Index(fields=['fiscal_year', 'department']),
+            models.Index(fields=['-snapshot_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.department} {self.fiscal_year} - Savings: ₱{self.savings_amount:,.2f}"
+
+    @property
+    def utilization_rate(self):
+        """Calculate budget utilization percentage"""
+        if self.allocated_amount > 0:
+            return (self.total_used / self.allocated_amount) * 100
+        return Decimal('0.00')
+
+    @property
+    def savings_rate(self):
+        """Calculate savings percentage"""
+        if self.allocated_amount > 0:
+            return (self.savings_amount / self.allocated_amount) * 100
+        return Decimal('0.00')
+
+    def get_quarterly_breakdown(self):
+        """
+        Get quarterly breakdown of savings from the associated PRE line items.
+        Returns dict with Q1-Q4 allocated, used, and available amounts.
+        """
+        if not self.budget_allocation:
+            return None
+
+        # Get all PREs for this allocation
+        pres = self.budget_allocation.pres.filter(status='Approved')
+
+        quarterly_data = {
+            'Q1': {'allocated': Decimal('0.00'), 'consumed': Decimal('0.00'), 'available': Decimal('0.00')},
+            'Q2': {'allocated': Decimal('0.00'), 'consumed': Decimal('0.00'), 'available': Decimal('0.00')},
+            'Q3': {'allocated': Decimal('0.00'), 'consumed': Decimal('0.00'), 'available': Decimal('0.00')},
+            'Q4': {'allocated': Decimal('0.00'), 'consumed': Decimal('0.00'), 'available': Decimal('0.00')},
+        }
+
+        for pre in pres:
+            for line_item in pre.line_items.all():
+                for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+                    quarterly_data[quarter]['allocated'] += line_item.get_quarter_amount(quarter)
+                    quarterly_data[quarter]['consumed'] += line_item.get_quarter_consumed(quarter)
+                    quarterly_data[quarter]['available'] += line_item.get_quarter_available(quarter)
+
+        return quarterly_data

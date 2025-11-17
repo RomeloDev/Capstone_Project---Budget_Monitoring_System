@@ -5232,10 +5232,299 @@ def archive_statistics_ajax(request):
     Get archive statistics (AJAX endpoint)
     """
     from apps.budgets.services import get_archive_statistics
-    
+
     stats = get_archive_statistics()
-    
+
     return JsonResponse({
         'success': True,
         'statistics': stats
     })
+
+
+# ============================================================================
+# BUDGET SAVINGS VIEWS
+# ============================================================================
+
+@role_required('admin', login_url='/admin/')
+def savings_overview(request):
+    """
+    Display budget savings overview across all departments.
+    Shows real-time calculations of allocated vs used amounts.
+    """
+    from apps.budgets.models import BudgetSavings
+
+    # Get filters
+    fiscal_year_filter = request.GET.get('fiscal_year', '')
+    department_filter = request.GET.get('department', '')
+
+    # Get all active budget allocations
+    allocations = NewBudgetAllocation.objects.filter(
+        is_active=True,
+        is_archived=False
+    ).select_related('approved_budget', 'end_user')
+
+    # Apply filters
+    if fiscal_year_filter:
+        allocations = allocations.filter(approved_budget__fiscal_year=fiscal_year_filter)
+    if department_filter:
+        allocations = allocations.filter(department__icontains=department_filter)
+
+    # Calculate savings for each allocation
+    savings_data = []
+    total_allocated = Decimal('0.00')
+    total_pr_used = Decimal('0.00')
+    total_ad_used = Decimal('0.00')
+    total_used = Decimal('0.00')
+    total_savings = Decimal('0.00')
+
+    for allocation in allocations:
+        pr_used = allocation.pr_amount_used
+        ad_used = allocation.ad_amount_used
+        used = pr_used + ad_used
+        savings = allocation.remaining_balance
+
+        savings_data.append({
+            'id': allocation.id,
+            'department': allocation.department,
+            'fiscal_year': allocation.approved_budget.fiscal_year,
+            'end_user': allocation.end_user.get_full_name() if allocation.end_user else 'N/A',
+            'allocated': allocation.allocated_amount,
+            'pr_used': pr_used,
+            'ad_used': ad_used,
+            'total_used': used,
+            'savings': savings,
+            'utilization': (used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+        })
+
+        total_allocated += allocation.allocated_amount
+        total_pr_used += pr_used
+        total_ad_used += ad_used
+        total_used += used
+        total_savings += savings
+
+    # Get available fiscal years for filter
+    fiscal_years = NewApprovedBudget.objects.filter(
+        is_archived=False
+    ).values_list('fiscal_year', flat=True).distinct().order_by('-fiscal_year')
+
+    # Get existing savings snapshots
+    snapshots = BudgetSavings.objects.all()[:10]  # Last 10 snapshots
+
+    context = {
+        'savings_data': savings_data,
+        'total_allocated': total_allocated,
+        'total_pr_used': total_pr_used,
+        'total_ad_used': total_ad_used,
+        'total_used': total_used,
+        'total_savings': total_savings,
+        'total_utilization': (total_used / total_allocated * 100) if total_allocated > 0 else 0,
+        'fiscal_years': fiscal_years,
+        'fiscal_year_filter': fiscal_year_filter,
+        'department_filter': department_filter,
+        'snapshots': snapshots,
+    }
+
+    return render(request, 'admin_panel/savings_overview.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+def create_savings_snapshot(request):
+    """
+    Create a snapshot of current budget savings.
+    This captures the current state of all budget allocations.
+    """
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('savings_overview')
+
+    from apps.budgets.models import BudgetSavings
+
+    fiscal_year = request.POST.get('fiscal_year')
+    quarter = request.POST.get('quarter', 'Full Year')
+    notes = request.POST.get('notes', '')
+
+    if not fiscal_year:
+        messages.error(request, 'Please select a fiscal year.')
+        return redirect('savings_overview')
+
+    try:
+        with transaction.atomic():
+            # Get all active allocations for the fiscal year
+            allocations = NewBudgetAllocation.objects.filter(
+                is_active=True,
+                is_archived=False,
+                approved_budget__fiscal_year=fiscal_year
+            ).select_related('approved_budget', 'end_user')
+
+            if not allocations.exists():
+                messages.warning(request, f'No active budget allocations found for fiscal year {fiscal_year}.')
+                return redirect('savings_overview')
+
+            snapshots_created = 0
+
+            for allocation in allocations:
+                pr_used = allocation.pr_amount_used
+                ad_used = allocation.ad_amount_used
+                total_used = pr_used + ad_used
+                savings = allocation.remaining_balance
+
+                # Create snapshot (always create new, don't update)
+                snapshot = BudgetSavings.objects.create(
+                    budget_allocation=allocation,
+                    fiscal_year=fiscal_year,
+                    department=allocation.department,
+                    allocated_amount=allocation.allocated_amount,
+                    pr_used=pr_used,
+                    ad_used=ad_used,
+                    total_used=total_used,
+                    savings_amount=savings,
+                    created_by=request.user,
+                    quarter=quarter,
+                    notes=notes,
+                )
+                snapshots_created += 1
+
+            # Log audit trail
+            log_audit_trail(
+                request,
+                action='CREATE',
+                model_name='BudgetSavings',
+                record_id=fiscal_year,
+                detail=f'Created {snapshots_created} savings snapshots for fiscal year {fiscal_year} ({quarter})'
+            )
+
+            messages.success(
+                request,
+                f'Successfully created {snapshots_created} savings snapshot(s) for fiscal year {fiscal_year}.'
+            )
+
+    except Exception as e:
+        messages.error(request, f'Error creating savings snapshot: {str(e)}')
+
+    return redirect('savings_overview')
+
+
+@role_required('admin', login_url='/admin/')
+def export_savings_excel(request):
+    """
+    Export budget savings to Excel format.
+    """
+    fiscal_year = request.GET.get('fiscal_year', '')
+
+    # Get allocations
+    allocations = NewBudgetAllocation.objects.filter(
+        is_active=True,
+        is_archived=False
+    ).select_related('approved_budget', 'end_user')
+
+    if fiscal_year:
+        allocations = allocations.filter(approved_budget__fiscal_year=fiscal_year)
+
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f'Budget Savings {fiscal_year}'
+
+    # Styles
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF', size=11)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    # Headers
+    headers = [
+        'Department',
+        'Fiscal Year',
+        'Allocated Amount',
+        'PR Used',
+        'AD Used',
+        'Total Used',
+        'Savings',
+        'Utilization %'
+    ]
+
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+    # Data
+    row_num = 2
+    total_allocated = Decimal('0.00')
+    total_pr_used = Decimal('0.00')
+    total_ad_used = Decimal('0.00')
+    total_used = Decimal('0.00')
+    total_savings = Decimal('0.00')
+
+    for allocation in allocations:
+        pr_used = allocation.pr_amount_used
+        ad_used = allocation.ad_amount_used
+        used = pr_used + ad_used
+        savings = allocation.remaining_balance
+        utilization = (used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+
+        ws.cell(row=row_num, column=1, value=allocation.department)
+        ws.cell(row=row_num, column=2, value=allocation.approved_budget.fiscal_year)
+        ws.cell(row=row_num, column=3, value=float(allocation.allocated_amount))
+        ws.cell(row=row_num, column=4, value=float(pr_used))
+        ws.cell(row=row_num, column=5, value=float(ad_used))
+        ws.cell(row=row_num, column=6, value=float(used))
+        ws.cell(row=row_num, column=7, value=float(savings))
+        ws.cell(row=row_num, column=8, value=f"{utilization:.1f}%")
+
+        # Apply borders
+        for col in range(1, 9):
+            ws.cell(row=row_num, column=col).border = border
+
+        # Number formatting
+        for col in range(3, 8):
+            ws.cell(row=row_num, column=col).number_format = '₱#,##0.00'
+
+        total_allocated += allocation.allocated_amount
+        total_pr_used += pr_used
+        total_ad_used += ad_used
+        total_used += used
+        total_savings += savings
+        row_num += 1
+
+    # Totals row
+    ws.cell(row=row_num, column=1, value='TOTAL')
+    ws.cell(row=row_num, column=1).font = Font(bold=True)
+    ws.cell(row=row_num, column=3, value=float(total_allocated))
+    ws.cell(row=row_num, column=4, value=float(total_pr_used))
+    ws.cell(row=row_num, column=5, value=float(total_ad_used))
+    ws.cell(row=row_num, column=6, value=float(total_used))
+    ws.cell(row=row_num, column=7, value=float(total_savings))
+    total_util = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+    ws.cell(row=row_num, column=8, value=f"{total_util:.1f}%")
+
+    for col in range(1, 9):
+        ws.cell(row=row_num, column=col).border = border
+        ws.cell(row=row_num, column=col).font = Font(bold=True)
+
+    for col in range(3, 8):
+        ws.cell(row=row_num, column=col).number_format = '₱#,##0.00'
+
+    # Adjust column widths
+    ws.column_dimensions['A'].width = 30
+    ws.column_dimensions['B'].width = 15
+    for col in ['C', 'D', 'E', 'F', 'G']:
+        ws.column_dimensions[col].width = 18
+    ws.column_dimensions['H'].width = 15
+
+    # Create response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f'Budget_Savings_{fiscal_year}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response

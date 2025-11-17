@@ -1,0 +1,209 @@
+DJANGO BUDGET MONITORING SYSTEM - PROJECT STRUCTURE
+
+PROJECT: BISU Balilihan Budget Monitoring System
+Framework: Django 5.1.6, Python 3.12.3
+Database: PostgreSQL/MySQL
+Code: 15,135+ lines of Python (models, views)
+
+ROOT STRUCTURE:
+bb_budget_monitoring_system/
+  - bb_budget_monitoring_system/ (Django config)
+  - apps/ (5 applications)
+  - templates/ (60+ HTML files)
+  - static/ (CSS, JS, assets)
+  - media/ (user uploads)
+  - logs/ (application logs)
+
+5 DJANGO APPS:
+
+1. USERS (Auth & User Management)
+   - 123 lines models, 231 lines views
+   - Custom User model with role fields
+   - Authentication, registration, password reset
+   - 5 views, 7 templates
+   
+2. ADMIN_PANEL (Admin Dashboard)
+   - 78 lines models, 5241 lines views
+   - 60+ views for budget, user, and document management
+   - AuditTrail model for logging
+   - 25+ templates for admin interface
+   
+3. END_USER_APP (Department Portal)
+   - 529 lines models, 6609 lines views
+   - 70+ views for budget and document management
+   - AJAX helpers for form interactions
+   - 25+ templates for end user interface
+   - Export to Excel, PDF, CSV, JSON
+   
+4. APPROVING_OFFICER_APP (Officer Dashboard)
+   - 730 lines views
+   - 20+ views for document review and approval
+   - 10+ templates for officer interface
+   
+5. BUDGETS (Consolidated Budget Models)
+   - 1588 lines models (30+ models total)
+   - 3 lines views (logic in models and signals)
+   - Core budget and document models
+   - File management and archive functionality
+
+KEY BUDGET MODELS:
+
+Core Budget Hierarchy:
+- ApprovedBudget (fiscal year budget)
+  - BudgetAllocation (department allocation)
+    - DepartmentPRE (receipts & expenditures plan)
+      - PRELineItem (individual budget lines, Q1-Q4)
+      - PRECategory, PRESubCategory (categorization)
+    - PurchaseRequest (procurement requests)
+      - PurchaseRequestItem (individual items)
+      - PurchaseRequestAllocation (link to PRE)
+    - ActivityDesign (activity/event budgets)
+      - ActivityDesignAllocation (link to PRE)
+
+Supporting Documents:
+- SupportingDocument (for ApprovedBudget)
+- DepartmentPRESupportingDocument (for PRE)
+- PurchaseRequestSupportingDocument (for PR)
+- ActivityDesignSupportingDocument (for AD)
+- PRDraft, ADDraft (storage before submission)
+- PRDraftSupportingDocument, ADDraftSupportingDocument
+
+Audit & Workflow:
+- AuditTrail (comprehensive logging)
+- RequestApproval (approval tracking)
+- SystemNotification (user notifications)
+
+Realignment:
+- Budget_Realignment (traditional realignment)
+- PREBudgetRealignment (PRE-based realignment)
+
+BUDGET TRACKING:
+
+BudgetAllocation fields track:
+- pre_amount_used: total in approved PREs
+- pr_amount_used: total in approved PurchaseRequests
+- ad_amount_used: total in approved ActivityDesigns
+- remaining_balance: allocated_amount - (pr + ad used)
+
+PRELineItem tracks quarterly consumption:
+- q1_amount, q2_amount, q3_amount, q4_amount
+- get_quarter_consumed(): Sum of PR + AD allocations
+- get_quarter_available(): amount - consumed
+
+DOCUMENT WORKFLOWS:
+
+All documents follow standard progression:
+Draft → Pending → Partially Approved → Approved
+                ↘ Rejected ↗
+
+Three approval levels:
+1. End user submits document
+2. Approving Officer reviews and approves/rejects
+3. Admin uploads signed copy and finalizes
+
+EXPORT CAPABILITIES:
+
+- Excel (.xlsx) with formatting
+- PDF for printing
+- CSV for spreadsheets  
+- JSON for integrations
+- Supports filtering and year selection
+
+SECURITY FEATURES:
+
+- Role-based access (End User, Officer, Admin)
+- Password encryption and reset with email tokens
+- CSRF protection
+- File upload validation
+- Audit trail with IP tracking
+- Soft-delete archive functionality
+- Secure session management
+
+VIEWS BY APP:
+
+Users: 7 views
+  - login, signup, password reset (request, confirm, complete)
+
+Admin Panel: 60+ views
+  - Dashboard, user management, budget allocation
+  - PR/AD/PRE review and approval
+  - Document downloads
+  - Audit trail, realignment, exports
+
+End User: 70+ views
+  - Dashboard, budget overview
+  - PR/AD/PRE creation and submission
+  - Budget analysis (quarterly, transactions)
+  - Reports and exports
+  - AJAX helpers for forms
+
+Approving Officer: 20+ views
+  - Dashboard, document review
+  - PR/AD/PRE approval/rejection
+  - Realignment processing
+
+TEMPLATES: 60+ total
+
+Admin Panel: 25+ (dashboard, PRE, PR, AD, audit, budget)
+End User: 25+ (dashboard, budget, PRE, PR, AD, reports)
+Approving Officer: 10+ (dashboard, review pages)
+Users: 7 (login, signup, password reset)
+Budgets: 1 (archive banner)
+
+URL PATTERNS: 100+
+
+/ - End user login
+/admin/ - Admin login
+/admin/dashboard/ - Admin dashboard
+/admin/client_accounts/ - User management
+/admin/budget_allocation/ - Budget allocation
+/admin/departments-pr-request/ - PR list
+/admin/pre/ - PRE list
+/admin/ad/ - Activity design list
+/end_user/dashboard/ - End user dashboard
+/end_user/view_budget/ - Budget overview
+/end_user/pr-ad-request/ - PR/AD management
+/end_user/department_pre_page/ - PRE management
+/end_user/budget/overview/ - Budget overview
+/end_user/budget/reports/ - Budget reports
+/approving_officer/dashboard/ - Officer dashboard
+/approving_officer/pre/ - PRE list
+/approving_officer/department_request/ - PR list
+
+DATABASE TABLES: 40+
+
+Main tables with indices on is_archived and is_active fields
+Unique constraints on critical fields
+Relationships via ForeignKey and OneToOneField
+
+ARCHIVE FUNCTIONALITY:
+
+Soft-delete with:
+- is_archived field
+- archived_at timestamp
+- archived_by user reference
+- archive_reason text
+- archive_type (Fiscal Year or Manual)
+
+AUDIT TRAIL:
+
+Logs all actions:
+- CREATE, UPDATE, DELETE
+- LOGIN, LOGOUT
+- APPROVE, REJECT
+- PASSWORD_RESET_REQUEST, PASSWORD_RESET_COMPLETE
+- With user, IP, timestamp, details
+
+KEY TECHNICAL FEATURES:
+
+1. Consolidated budget models in single app for maintainability
+2. Complex quarterly budget tracking with consumed/available
+3. Supporting documents for all document types
+4. Partial approval support (some items approved, some rejected)
+5. Multi-file upload support with path organization
+6. Draft storage before submission
+7. Automatic file format detection
+8. Role-based view access control
+9. Email-based password reset
+10. Comprehensive reporting and export
+
