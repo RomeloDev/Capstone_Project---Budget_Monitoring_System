@@ -59,8 +59,8 @@ class ApprovedBudget(models.Model):
     """Stores approved budgets for specific fiscal years"""
     title = models.CharField(max_length=255)
     fiscal_year = models.CharField(max_length=10)
-    amount = models.DecimalField(max_digits=15, decimal_places=2)
-    remaining_budget = models.DecimalField(max_digits=15, decimal_places=2)
+    amount = models.DecimalField(max_digits=15, decimal_places=6)
+    remaining_budget = models.DecimalField(max_digits=15, decimal_places=6)
     description = models.TextField(blank=True)
 
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
@@ -186,13 +186,13 @@ class BudgetAllocation(models.Model):
     approved_budget = models.ForeignKey('ApprovedBudget', on_delete=models.CASCADE, related_name='allocations')
     department = models.CharField(max_length=255)
     end_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='budget_allocations')
-    allocated_amount = models.DecimalField(max_digits=15, decimal_places=2)
-    remaining_balance = models.DecimalField(max_digits=15, decimal_places=2)
+    allocated_amount = models.DecimalField(max_digits=15, decimal_places=6)
+    remaining_balance = models.DecimalField(max_digits=15, decimal_places=6)
 
     # Track different types of requests
-    pre_amount_used = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    pr_amount_used = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    ad_amount_used = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    pre_amount_used = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    pr_amount_used = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    ad_amount_used = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
 
     allocated_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
@@ -279,7 +279,7 @@ class DepartmentPRE(models.Model):
     # Validation
     is_valid = models.BooleanField(default=False)
     validation_errors = models.JSONField(default=dict, blank=True)
-    total_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    total_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
     
     # Workflow files
     partially_approved_pdf = models.FileField(
@@ -522,7 +522,7 @@ class PurchaseRequest(models.Model):
     purpose = models.TextField()
     total_amount = models.DecimalField(
         max_digits=15,
-        decimal_places=2,
+        decimal_places=6,
         default=Decimal('0.00')
     )
     
@@ -734,7 +734,7 @@ class ActivityDesign(models.Model):
     activity_title = models.CharField(max_length=255, blank=True)
     activity_description = models.TextField(blank=True)
     purpose = models.TextField(blank=True, help_text="Purpose/justification for this activity")
-    total_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    total_amount = models.DecimalField(max_digits=15, decimal_places=6)
 
     # File uploads
     uploaded_document = models.FileField(
@@ -932,10 +932,10 @@ class PRELineItem(models.Model):
     description = models.TextField(blank=True)
     
     # Quarterly amounts
-    q1_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    q2_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    q3_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    q4_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    q1_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    q2_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    q3_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    q4_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
     
     # Additional fields
     is_procurable = models.BooleanField(default=False)
@@ -1084,10 +1084,10 @@ class PREReceipt(models.Model):
     receipt_type = models.CharField(max_length=100)
     
     # Quarterly amounts
-    q1_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    q2_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    q3_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
-    q4_amount = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    q1_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    q2_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    q3_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
+    q4_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
     
     def get_total(self):
         return (self.q1_amount or 0) + (self.q2_amount or 0) + (self.q3_amount or 0) + (self.q4_amount or 0)
@@ -1126,7 +1126,7 @@ class PurchaseRequestAllocation(models.Model):
     
     allocated_amount = models.DecimalField(
         max_digits=15,
-        decimal_places=2,
+        decimal_places=6,
         default=Decimal('0.00'),
         help_text='Amount allocated from this line item'
     )
@@ -1190,7 +1190,7 @@ class ActivityDesignAllocation(models.Model):
     
     allocated_amount = models.DecimalField(
         max_digits=15,
-        decimal_places=2,
+        decimal_places=6,
         default=Decimal('0.00'),
         help_text='Amount allocated from this line item'
     )

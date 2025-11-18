@@ -448,14 +448,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="flex items-center space-x-2">
                     <span class="text-gray-500">₱</span>
-                    <input type="number"
-                           step="0.01"
-                           min="0"
-                           max="${item.available}"
+                    <input type="text"
                            placeholder="0.00"
                            data-value="${value}"
+                           data-max="${item.available}"
                            class="line-item-amount w-32 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                            required>
+                    <input type="hidden" class="line-item-amount-raw" data-value="${value}" value="0">
                 </div>
             `;
             itemsDiv.appendChild(div);
@@ -464,17 +463,30 @@ document.addEventListener('DOMContentLoaded', function() {
         // Attach event listeners to amount inputs
         document.querySelectorAll('.line-item-amount').forEach(input => {
             input.addEventListener('input', function() {
+                // Format the display value
+                formatCurrency(this);
+
+                // Get raw value
                 const value = this.dataset.value;
-                const amount = parseFloat(this.value) || 0;
+                const rawValue = getCurrencyValue(this);
+                const amount = parseFloat(rawValue) || 0;
+
+                // Update hidden input
+                const hiddenInput = document.querySelector(`.line-item-amount-raw[data-value="${value}"]`);
+                if (hiddenInput) {
+                    hiddenInput.value = rawValue;
+                }
+
                 const item = selectedLineItems.get(value);
 
                 if (item) {
                     item.amount = amount;
 
                     // Validate against available
-                    if (amount > item.data.available) {
-                        this.setCustomValidity(`Amount exceeds available (₱${item.data.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
-                    } else if (amount <= 0) {
+                    const maxAmount = parseFloat(this.dataset.max);
+                    if (amount > maxAmount) {
+                        this.setCustomValidity(`Amount exceeds available (₱${maxAmount.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
+                    } else if (amount <= 0 && rawValue !== '') {
                         this.setCustomValidity('Amount must be greater than zero');
                     } else {
                         this.setCustomValidity('');
@@ -610,6 +622,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// Currency formatting functions for amount input fields
+function formatCurrency(input) {
+    let value = input.value.replace(/,/g, '');
+
+    // Handle decimal point
+    const parts = value.split('.');
+    let integerPart = parts[0].replace(/\D/g, '');
+    let decimalPart = parts.length > 1 ? parts[1].replace(/\D/g, '').slice(0, 6) : '';
+
+    // Format integer part with commas
+    if (integerPart) {
+        integerPart = parseInt(integerPart, 10).toLocaleString('en-US');
+    }
+
+    // Combine parts
+    let formattedValue = integerPart;
+    if (parts.length > 1) {
+        formattedValue += '.' + decimalPart;
+    }
+
+    input.value = formattedValue;
+}
+
+function getCurrencyValue(input) {
+    return input.value.replace(/,/g, '');
+}
 
 // Global functions (accessible from onclick)
 function removeADDocument() {

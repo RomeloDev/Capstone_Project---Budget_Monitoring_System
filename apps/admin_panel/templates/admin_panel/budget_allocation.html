@@ -355,14 +355,13 @@
                     <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">
                         Allocation Amount (₱) <span class="text-red-500">*</span>
                     </label>
-                    <input type="number" 
-                           name="amount" 
-                           id="amount" 
-                           step="0.01"
-                           min="0"
+                    <input type="text"
+                           name="amount"
+                           id="amount"
                            required
                            placeholder="Enter amount to allocate"
                            class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <input type="hidden" name="amount_raw" id="amount_raw">
                 </div>
 
                 <!-- Action Buttons -->
@@ -609,14 +608,13 @@
                     <label for="edit_amount" class="block text-sm font-medium text-gray-700 mb-1">
                         New Allocation Amount (₱) <span class="text-red-500">*</span>
                     </label>
-                    <input type="number" 
-                           name="amount" 
-                           id="edit_amount" 
-                           step="0.01"
-                           min="0"
+                    <input type="text"
+                           name="amount"
+                           id="edit_amount"
                            required
                            placeholder="Enter new amount"
                            class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <input type="hidden" name="amount_raw" id="edit_amount_raw">
                     <p class="text-xs text-gray-500 mt-1">New amount must be greater than or equal to amount already used</p>
                 </div>
 
@@ -1059,26 +1057,16 @@ function editAllocation(allocationId) {
     const budgetAvailable = allocation.allocated_amount + (allocation.approved_budget.total_amount - allocation.allocated_amount);
     document.getElementById('edit_budget_available').textContent = `₱${budgetAvailable.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     
-    // Set current amount as default
-    document.getElementById('edit_amount').value = allocation.allocated_amount;
-    document.getElementById('edit_amount').min = amountUsed;
+    // Set current amount as default with formatting
+    const formattedAmount = allocation.allocated_amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('edit_amount').value = formattedAmount;
+    document.getElementById('edit_amount_raw').value = allocation.allocated_amount;
     
-    // Add validation on amount input
-    const amountInput = document.getElementById('edit_amount');
-    const warningDiv = document.getElementById('edit_warning');
-    
-    amountInput.addEventListener('input', function() {
-        const newAmount = parseFloat(this.value) || 0;
-        warningDiv.classList.add('hidden');
-        
-        if (newAmount < amountUsed) {
-            warningDiv.classList.remove('hidden');
-            warningDiv.querySelector('p').textContent = `Amount cannot be less than already used amount (₱${amountUsed.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
-        } else if (newAmount > budgetAvailable) {
-            warningDiv.classList.remove('hidden');
-            warningDiv.querySelector('p').textContent = `Amount exceeds available budget (₱${budgetAvailable.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
-        }
-    });
+    // Store validation values for later use
+    window.editAllocationValidation = {
+        amountUsed: amountUsed,
+        budgetAvailable: budgetAvailable
+    };
     
     // Open modal
     document.getElementById('editAllocationModal').classList.remove('hidden');
@@ -1136,6 +1124,138 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && !filterModal.classList.contains('hidden')) {
         closeFilterModalFunc();
     }
+});
+
+// Currency formatting functions for amount input fields
+function formatCurrency(input) {
+    let value = input.value.replace(/,/g, '');
+
+    // Handle decimal point
+    const parts = value.split('.');
+    let integerPart = parts[0].replace(/\D/g, '');
+    let decimalPart = parts.length > 1 ? parts[1].replace(/\D/g, '').slice(0, 2) : '';
+
+    // Format integer part with commas
+    if (integerPart) {
+        integerPart = parseInt(integerPart, 10).toLocaleString('en-US');
+    }
+
+    // Combine parts
+    let formattedValue = integerPart;
+    if (parts.length > 1) {
+        formattedValue += '.' + decimalPart;
+    }
+
+    input.value = formattedValue;
+}
+
+function getCurrencyValue(input) {
+    return input.value.replace(/,/g, '');
+}
+
+// Initialize currency formatting for Allocate Budget Modal amount field
+const amountInput = document.getElementById('amount');
+const amountRawInput = document.getElementById('amount_raw');
+
+amountInput.addEventListener('input', function(e) {
+    formatCurrency(this);
+    amountRawInput.value = getCurrencyValue(this);
+});
+
+amountInput.addEventListener('keydown', function(e) {
+    const key = e.key;
+    const value = this.value;
+
+    // Allow: backspace, delete, tab, escape, enter
+    if ([8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
+        // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+        (e.keyCode === 65 && e.ctrlKey === true) ||
+        (e.keyCode === 67 && e.ctrlKey === true) ||
+        (e.keyCode === 86 && e.ctrlKey === true) ||
+        (e.keyCode === 88 && e.ctrlKey === true) ||
+        // Allow: home, end, left, right
+        (e.keyCode >= 35 && e.keyCode <= 39)) {
+        return;
+    }
+
+    // Allow only numbers and one decimal point
+    if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) &&
+        (e.keyCode < 96 || e.keyCode > 105) &&
+        e.keyCode !== 110 && e.keyCode !== 190) {
+        e.preventDefault();
+    }
+
+    // Allow only one decimal point
+    if ((e.keyCode === 110 || e.keyCode === 190) && value.indexOf('.') !== -1) {
+        e.preventDefault();
+    }
+});
+
+// Initialize currency formatting for Edit Budget Allocation Modal amount field
+const editAmountInput = document.getElementById('edit_amount');
+const editAmountRawInput = document.getElementById('edit_amount_raw');
+
+editAmountInput.addEventListener('input', function(e) {
+    formatCurrency(this);
+    editAmountRawInput.value = getCurrencyValue(this);
+
+    // Perform validation if validation values are set
+    if (window.editAllocationValidation) {
+        const warningDiv = document.getElementById('edit_warning');
+        const newAmount = parseFloat(getCurrencyValue(this)) || 0;
+        const amountUsed = window.editAllocationValidation.amountUsed;
+        const budgetAvailable = window.editAllocationValidation.budgetAvailable;
+
+        warningDiv.classList.add('hidden');
+
+        if (newAmount < amountUsed) {
+            warningDiv.classList.remove('hidden');
+            warningDiv.querySelector('p').textContent = `Amount cannot be less than already used amount (₱${amountUsed.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+        } else if (newAmount > budgetAvailable) {
+            warningDiv.classList.remove('hidden');
+            warningDiv.querySelector('p').textContent = `Amount exceeds available budget (₱${budgetAvailable.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+        }
+    }
+});
+
+editAmountInput.addEventListener('keydown', function(e) {
+    const key = e.key;
+    const value = this.value;
+
+    // Allow: backspace, delete, tab, escape, enter
+    if ([8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
+        // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+        (e.keyCode === 65 && e.ctrlKey === true) ||
+        (e.keyCode === 67 && e.ctrlKey === true) ||
+        (e.keyCode === 86 && e.ctrlKey === true) ||
+        (e.keyCode === 88 && e.ctrlKey === true) ||
+        // Allow: home, end, left, right
+        (e.keyCode >= 35 && e.keyCode <= 39)) {
+        return;
+    }
+
+    // Allow only numbers and one decimal point
+    if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) &&
+        (e.keyCode < 96 || e.keyCode > 105) &&
+        e.keyCode !== 110 && e.keyCode !== 190) {
+        e.preventDefault();
+    }
+
+    // Allow only one decimal point
+    if ((e.keyCode === 110 || e.keyCode === 190) && value.indexOf('.') !== -1) {
+        e.preventDefault();
+    }
+});
+
+// Update form submission to use raw values
+document.querySelector('#allocateBudgetModal form').addEventListener('submit', function(e) {
+    const rawValue = getCurrencyValue(amountInput);
+    amountInput.value = rawValue;
+});
+
+document.querySelector('#editAllocationModal form').addEventListener('submit', function(e) {
+    const rawValue = getCurrencyValue(editAmountInput);
+    editAmountInput.value = rawValue;
 });
 </script>
 

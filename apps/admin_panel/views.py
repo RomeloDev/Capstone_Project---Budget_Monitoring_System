@@ -1812,17 +1812,22 @@ def institutional_funds(request):
                 if amount <= 0:
                     messages.error(request, "Amount must be greater than zero.")
                     return redirect("institutional_funds")
-                
+
+                # Calculate allocated amount BEFORE updating budget.amount
+                old_amount = budget.amount
+                old_remaining = budget.remaining_budget
+                allocated_amount = old_amount - old_remaining
+
                 # Update budget fields
                 budget.title = title
                 budget.fiscal_year = fiscal_year  # Now updating fiscal year
                 budget.amount = amount
                 budget.description = description
-                
-                # Recalculate remaining budget if amount changed
-                old_allocated = budget.amount - budget.remaining_budget
-                budget.remaining_budget = amount - old_allocated
-                
+
+                # Recalculate remaining budget based on new amount
+                # Formula: new_remaining = new_amount - allocated_amount
+                budget.remaining_budget = amount - allocated_amount
+
                 budget.save()
                 
                 # Remove documents marked for deletion
@@ -3792,35 +3797,51 @@ def admin_reject_pre_with_reason(request, pre_id):
     """
     Advanced reject with reason (AJAX endpoint for modal)
     """
+    import time
+    start_time = time.time()
+
     if not request.user.is_staff:
         return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
-    
+
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
-    
-    pre = get_object_or_404(NewDepartmentPRE, id=pre_id)
-    
+
+    t1 = time.time()
+    # Optimize: only fetch necessary fields for rejection
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related('submitted_by').only(
+            'id', 'status', 'rejection_reason', 'submitted_by__id', 'submitted_by__email'
+        ),
+        id=pre_id
+    )
+    print(f"⏱️ Fetch PRE: {(time.time() - t1)*1000:.2f}ms")
+
     if pre.status != 'Pending':
         return JsonResponse({
-            'success': False, 
+            'success': False,
             'error': f'This PRE cannot be rejected. Current status: {pre.status}'
         }, status=400)
-    
+
     # Get reason from request
     reason = request.POST.get('reason', '').strip()
-    
+
     if not reason:
         return JsonResponse({
-            'success': False, 
+            'success': False,
             'error': 'Rejection reason is required'
         }, status=400)
-    
+
     # Update PRE
+    t2 = time.time()
     pre.status = 'Rejected'
     pre.rejection_reason = reason
+    # Set old status manually to avoid signal query
+    pre._old_status = 'Pending'
     pre.save()
-    
+    print(f"⏱️ Save PRE: {(time.time() - t2)*1000:.2f}ms")
+
     # Create approval record
+    t3 = time.time()
     RequestApproval.objects.create(
         content_type='pre',
         object_id=pre.id,
@@ -3828,16 +3849,14 @@ def admin_reject_pre_with_reason(request, pre_id):
         approval_level='rejected',
         comments=reason
     )
-    
-    # Create notification
-    SystemNotification.objects.create(
-        recipient=pre.submitted_by,
-        title='PRE Rejected',
-        message=f'Your PRE for {pre.department} has been rejected. Reason: {reason}',
-        content_type='pre',
-        object_id=pre.id
-    )
-    
+    print(f"⏱️ Create Approval: {(time.time() - t3)*1000:.2f}ms")
+
+    # Note: Notification is created by signal (apps/budgets/signals.py:notify_pre_status_change)
+    # Removed duplicate notification creation to improve performance
+
+    total_time = (time.time() - start_time) * 1000
+    print(f"⏱️ TOTAL REJECTION TIME: {total_time:.2f}ms")
+
     return JsonResponse({
         'success': True,
         'message': f'PRE {str(pre.id)[:8]} rejected',

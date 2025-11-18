@@ -28,7 +28,7 @@ from io import BytesIO
 import shutil
 import xlwings as xw
 import tempfile
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation, DepartmentPRESupportingDocument
 from .utils.pre_parser import parse_pre_excel
 from django.core.files.storage import default_storage
 from django.utils import timezone
@@ -464,7 +464,7 @@ def calculate_line_item_consumed(line_item):
         total=Coalesce(
             Sum('allocated_amount'),
             Decimal('0.00'),
-            output_field=DecimalField(max_digits=15, decimal_places=2)
+            output_field=DecimalField(max_digits=15, decimal_places=6)
         )
     )['total']
 
@@ -477,7 +477,7 @@ def calculate_line_item_consumed(line_item):
         total=Coalesce(
             Sum('allocated_amount'),
             Decimal('0.00'),
-            output_field=DecimalField(max_digits=15, decimal_places=2)
+            output_field=DecimalField(max_digits=15, decimal_places=6)
         )
     )['total']
 
@@ -951,7 +951,7 @@ def purchase_request_upload(request):
             
             # Validate amount
             try:
-                total_amount = Decimal(str(total_amount)).quantize(Decimal('0.01'))
+                total_amount = Decimal(str(total_amount)).quantize(Decimal('0.000001'))
                 if total_amount <= 0:
                     messages.error(request, "Amount must be greater than zero.")
                     return redirect('purchase_request_upload')
@@ -1793,33 +1793,44 @@ def department_pre_form(request, pk:int):
 def department_pre_page(request):
     """Main PRE page showing budget allocations and submitted PREs"""
     user = request.user
-    
-    # Get budget allocations for current user
+
+    # Get IDs of budget allocations that have active (non-rejected) PREs
+    # This ensures only allocations without PRE or with rejected PRE are shown
+    allocations_with_active_pre = NewDepartmentPRE.objects.filter(
+        submitted_by=user
+    ).exclude(
+        status='Rejected'  # Excluded: allows rejected PREs to reappear for re-upload
+    ).values_list('budget_allocation_id', flat=True)
+
+    # Get budget allocations excluding those with active PREs
+    # Only show allocations that are available for PRE upload
     budget_allocations = NewBudgetAllocation.objects.filter(
         end_user=user,
         is_active=True
+    ).exclude(
+        id__in=allocations_with_active_pre  # Hide allocations with Pending/Approved/Partially Approved PREs
     ).select_related('approved_budget').order_by('-allocated_at')
-    
+
     has_budget = budget_allocations.exists()
-    
+
     # Get submitted PREs
     pres = NewDepartmentPRE.objects.filter(
         submitted_by=user
     ).order_by('-created_at')
-    
+
     # NEW: Count partially approved PREs with PDF
     partially_approved_count = pres.filter(
         status='Partially Approved',
         partially_approved_pdf__isnull=False
     ).count()
-    
+
     context = {
         'has_budget': has_budget,
         'budget_allocations': budget_allocations,
         'pres': pres,
         'partially_approved_count': partially_approved_count,  # NEW
     }
-    
+
     return render(request, 'end_user_app/department_pre_page.html', context)
 
 @role_required('end_user', login_url='/')
@@ -1832,12 +1843,15 @@ def upload_pre(request, allocation_id):
     )
     
     # Check if PRE already exists for this allocation
+    # Only block if PRE exists and is NOT rejected (allow re-upload for rejected PREs)
     existing_pre = NewDepartmentPRE.objects.filter(
         budget_allocation=allocation
+    ).exclude(
+        status='Rejected'  # Allow re-upload if previous PRE was rejected
     ).first()
-    
+
     if existing_pre:
-        messages.warning(request, 
+        messages.warning(request,
             f"PRE already exists for this allocation. "
             f"Status: {existing_pre.status}")
         return redirect('department_pre_page')
@@ -2203,50 +2217,45 @@ def preview_pre(request):
                     
                     if line_items_created == 0:
                         raise Exception("No line items were created from the PRE data")
-                    
-                    # 4. Mark draft as submitted
+
+                    # 4. Copy supporting documents from draft to PRE
+                    supporting_docs_count = 0
+                    for draft_doc in draft.supporting_documents.all():
+                        try:
+                            # Read the draft document
+                            draft_doc.document.open('rb')
+                            file_content = draft_doc.document.read()
+                            draft_doc.document.close()
+
+                            # Create new supporting document for PRE
+                            pre_doc = DepartmentPRESupportingDocument.objects.create(
+                                department_pre=pre,
+                                file_name=draft_doc.file_name,
+                                file_size=draft_doc.file_size,
+                                uploaded_by=request.user,
+                                description=getattr(draft_doc, 'description', '')
+                            )
+
+                            # Save the file to permanent storage
+                            from django.core.files.base import ContentFile
+                            pre_doc.document.save(
+                                draft_doc.file_name,
+                                ContentFile(file_content),
+                                save=True
+                            )
+                            supporting_docs_count += 1
+
+                        except Exception as doc_error:
+                            # Log error but don't fail entire submission
+                            print(f"⚠️ Error copying supporting document {draft_doc.file_name}: {doc_error}")
+
+                    # 5. Mark draft as submitted
                     draft.is_submitted = True
                     draft.save()
                 
-                # Move PRE file from temp to permanent location
-                # temp_file_path = upload_data['temp_file_path']
-                # if default_storage.exists(temp_file_path):
-                #     # Read temp file
-                #     with default_storage.open(temp_file_path, 'rb') as temp_file:
-                #         # Save to PRE's uploaded_excel_file field
-                #         from django.core.files.base import ContentFile
-                #         pre.uploaded_excel_file.save(
-                #             upload_data['pre_filename'],
-                #             ContentFile(temp_file.read()),
-                #             save=True
-                #         )
-                #     # Delete temp file
-                #     default_storage.delete(temp_file_path)
-                
-                # Save supporting documents
-                temp_doc_paths = request.session.get('temp_doc_paths', [])
-                for idx, temp_path in enumerate(temp_doc_paths):
-                    if default_storage.exists(temp_path):
-                        with default_storage.open(temp_path, 'rb') as temp_doc:
-                            # Create SupportingDocument instance
-                            # Note: You'll need to create this model or adjust based on your structure
-                            from django.core.files.base import ContentFile
-                            doc_info = supporting_docs_info[idx]
-                            
-                            # Save document (adjust this based on your model structure)
-                            # For now, we'll assume you want to store it related to the PRE
-                            
-                        default_storage.delete(temp_path)
-                
-                # Clear session
-                request.session.pop('pre_upload_data', None)
-                request.session.pop('supporting_docs_info', None)
-                request.session.pop('temp_doc_paths', None)
-                request.session.pop('pre_upload_data', None)
-                
-                messages.success(request, 
+                messages.success(request,
                     f"PRE submitted successfully! Total amount: ₱{grand_total:,.2f}. "
-                    f"Status: Pending Review")
+                    f"Supporting documents: {supporting_docs_count}. Status: Pending Review")
                 
                 # Log audit trail
                 log_audit_trail(
@@ -2254,7 +2263,7 @@ def preview_pre(request):
                     action='CREATE',
                     model_name='DepartmentPRE',
                     record_id=pre.id,
-                    detail=f'Created PRE with {line_items_created} line items, Total: ₱{grand_total:,.2f}'
+                    detail=f'Created PRE with {line_items_created} line items, {supporting_docs_count} supporting documents, Total: ₱{grand_total:,.2f}'
                 )
                 
                 draft.delete()  # Remove draft after submission

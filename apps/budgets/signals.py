@@ -8,10 +8,11 @@ from decimal import Decimal
 # Track old status before save to detect status changes
 @receiver(pre_save, sender=DepartmentPRE)
 def track_pre_old_status(sender, instance, **kwargs):
-    """Track old status before save"""
+    """Track old status before save - optimized to fetch only status field"""
     if instance.pk:
         try:
-            old_instance = sender.objects.get(pk=instance.pk)
+            # Optimized: only fetch 'status' field instead of entire object
+            old_instance = sender.objects.only('status').get(pk=instance.pk)
             instance._old_status = old_instance.status
         except sender.DoesNotExist:
             instance._old_status = None
@@ -20,10 +21,11 @@ def track_pre_old_status(sender, instance, **kwargs):
 
 @receiver(pre_save, sender=PurchaseRequest)
 def track_pr_old_status(sender, instance, **kwargs):
-    """Track old status before save"""
+    """Track old status before save - optimized to fetch only status field"""
     if instance.pk:
         try:
-            old_instance = sender.objects.get(pk=instance.pk)
+            # Optimized: only fetch 'status' field instead of entire object
+            old_instance = sender.objects.only('status').get(pk=instance.pk)
             instance._old_status = old_instance.status
         except sender.DoesNotExist:
             instance._old_status = None
@@ -32,10 +34,11 @@ def track_pr_old_status(sender, instance, **kwargs):
 
 @receiver(pre_save, sender=ActivityDesign)
 def track_ad_old_status(sender, instance, **kwargs):
-    """Track old status before save"""
+    """Track old status before save - optimized to fetch only status field"""
     if instance.pk:
         try:
-            old_instance = sender.objects.get(pk=instance.pk)
+            # Optimized: only fetch 'status' field instead of entire object
+            old_instance = sender.objects.only('status').get(pk=instance.pk)
             instance._old_status = old_instance.status
         except sender.DoesNotExist:
             instance._old_status = None

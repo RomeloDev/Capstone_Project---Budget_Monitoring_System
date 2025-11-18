@@ -181,12 +181,11 @@
                     </label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₱</span>
-                        <input type="text" name="total_amount" id="total_amount" 
-                            pattern="^\d+(\.\d{1,2})?$"
-                            inputmode="decimal"
+                        <input type="text" id="total_amount_display"
                             class="w-full pl-8 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                             placeholder="0.00"
                             required>
+                        <input type="hidden" name="total_amount" id="total_amount_raw">
                     </div>
                     <p class="mt-1 text-sm text-gray-500">Enter the total amount for this purchase request</p>
                 </div>
@@ -481,72 +480,75 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Validate amount against selected line item
-    const totalAmountInput = document.getElementById('total_amount');
+    // Currency formatting for total amount input
+    const totalAmountDisplay = document.getElementById('total_amount_display');
+    const totalAmountRaw = document.getElementById('total_amount_raw');
 
-    // ✅ Format input on blur to ensure 2 decimal places
-    totalAmountInput.addEventListener('blur', function() {
-        let value = this.value.trim();
-        
-        // Remove any non-numeric characters except decimal point
-        value = value.replace(/[^\d.]/g, '');
-        
-        // Parse and format
-        if (value) {
-            const numValue = parseFloat(value);
-            if (!isNaN(numValue) && numValue >= 0) {
-                this.value = numValue.toFixed(2);
-            }
-        }
-    });
+    totalAmountDisplay.addEventListener('input', function() {
+        // Format the display value
+        formatCurrency(this);
 
-    // ✅ Validate on input
-    totalAmountInput.addEventListener('input', function() {
-        const value = this.value;
-        
-        // Check pattern
-        const pattern = /^\d+(\.\d{0,2})?$/;
-        if (value && !pattern.test(value)) {
-            this.setCustomValidity('Please enter a valid amount (e.g., 700 or 700.50)');
-        } else {
-            this.setCustomValidity('');
-        }
-        
+        // Get raw value
+        const rawValue = getCurrencyValue(this);
+        const amount = parseFloat(rawValue) || 0;
+
+        // Update hidden input
+        totalAmountRaw.value = rawValue;
+
         // Validate against selected line item
         const selectedOption = sourceOfFundSelect.options[sourceOfFundSelect.selectedIndex];
         if (selectedOption && selectedOption.dataset.available) {
             const available = parseFloat(selectedOption.dataset.available);
-            const amount = parseFloat(this.value);
-            
+
             if (amount > available) {
                 this.setCustomValidity(`Amount exceeds available budget (₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
+            } else if (amount <= 0 && rawValue !== '') {
+                this.setCustomValidity('Amount must be greater than zero');
+            } else {
+                this.setCustomValidity('');
             }
+        } else if (amount <= 0 && rawValue !== '') {
+            this.setCustomValidity('Amount must be greater than zero');
+        } else {
+            this.setCustomValidity('');
         }
     });
-    
+
     sourceOfFundSelect.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
         if (selectedOption && selectedOption.dataset.available) {
             const available = parseFloat(selectedOption.dataset.available);
-            totalAmountInput.max = available;
-            totalAmountInput.placeholder = `Max: ₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-        }
-    });
-    
-    totalAmountInput.addEventListener('input', function() {
-        const selectedOption = sourceOfFundSelect.options[sourceOfFundSelect.selectedIndex];
-        if (selectedOption && selectedOption.dataset.available) {
-            const available = parseFloat(selectedOption.dataset.available);
-            const amount = Math.round(parseFloat(totalAmountInput.value) * 100) / 100;
-            
-            if (amount > available) {
-                this.setCustomValidity(`Amount exceeds available budget (₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
-            } else {
-                this.setCustomValidity('');
-            }
+            totalAmountDisplay.placeholder = `Max: ₱${available.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
         }
     });
 });
+
+// Currency formatting functions for amount input fields
+function formatCurrency(input) {
+    let value = input.value.replace(/,/g, '');
+
+    // Handle decimal point
+    const parts = value.split('.');
+    let integerPart = parts[0].replace(/\D/g, '');
+    let decimalPart = parts.length > 1 ? parts[1].replace(/\D/g, '').slice(0, 6) : '';
+
+    // Format integer part with commas
+    if (integerPart) {
+        integerPart = parseInt(integerPart, 10).toLocaleString('en-US');
+    }
+
+    // Combine parts
+    let formattedValue = integerPart;
+    if (parts.length > 1) {
+        formattedValue += '.' + decimalPart;
+    }
+
+    input.value = formattedValue;
+}
+
+function getCurrencyValue(input) {
+    return input.value.replace(/,/g, '');
+}
 
 // ✅ Global functions (accessible from onclick)
 function removePRDocument() {
