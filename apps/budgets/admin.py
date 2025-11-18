@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ApprovedBudget, SupportingDocument, DepartmentPRE, BudgetAllocation, PRECategory, PRELineItem, PREReceipt, PRESubCategory, SystemNotification, RequestApproval, PurchaseRequest, PurchaseRequestAllocation, PurchaseRequestItem, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation, ActivityDesignSupportingDocument, DepartmentPRESupportingDocument, BudgetSavings
+from .models import ApprovedBudget, SupportingDocument, DepartmentPRE, BudgetAllocation, PRECategory, PRELineItem, PREReceipt, PRESubCategory, SystemNotification, RequestApproval, PurchaseRequest, PurchaseRequestAllocation, PurchaseRequestItem, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation, ActivityDesignSupportingDocument, DepartmentPRESupportingDocument, BudgetSavings, PRELineItemSavings
 
 # Register your models here.
 admin.site.register(ApprovedBudget)
@@ -93,3 +93,60 @@ class BudgetSavingsAdmin(admin.ModelAdmin):
         """Display utilization rate"""
         return f"{obj.utilization_rate:.1f}%"
     get_utilization.short_description = 'Utilization'
+
+
+@admin.register(PRELineItemSavings)
+class PRELineItemSavingsAdmin(admin.ModelAdmin):
+    list_display = [
+        'item_name',
+        'category',
+        'subcategory',
+        'get_total_surplus',
+        'is_significant',
+        'is_procurable',
+        'get_budget_snapshot',
+        'created_at'
+    ]
+    list_filter = ['category', 'is_significant', 'is_procurable', 'created_at']
+    search_fields = ['item_name', 'category', 'subcategory']
+    readonly_fields = ['created_at']
+    date_hierarchy = 'created_at'
+    ordering = ['-total_surplus', 'category', 'item_name']
+
+    fieldsets = (
+        ('Line Item Information', {
+            'fields': ('budget_savings', 'pre_line_item', 'category', 'subcategory', 'item_name')
+        }),
+        ('Quarter 1 Breakdown', {
+            'fields': ('q1_allocated', 'q1_consumed', 'q1_surplus')
+        }),
+        ('Quarter 2 Breakdown', {
+            'fields': ('q2_allocated', 'q2_consumed', 'q2_surplus')
+        }),
+        ('Quarter 3 Breakdown', {
+            'fields': ('q3_allocated', 'q3_consumed', 'q3_surplus')
+        }),
+        ('Quarter 4 Breakdown', {
+            'fields': ('q4_allocated', 'q4_consumed', 'q4_surplus')
+        }),
+        ('Totals', {
+            'fields': ('total_allocated', 'total_consumed', 'total_surplus')
+        }),
+        ('Flags', {
+            'fields': ('is_procurable', 'is_significant')
+        }),
+        ('Metadata', {
+            'fields': ('created_at',)
+        }),
+    )
+
+    def get_total_surplus(self, obj):
+        """Display total surplus with currency"""
+        return f"₱{obj.total_surplus:,.2f}"
+    get_total_surplus.short_description = 'Total Surplus'
+    get_total_surplus.admin_order_field = 'total_surplus'
+
+    def get_budget_snapshot(self, obj):
+        """Display budget snapshot info"""
+        return f"{obj.budget_savings.department} ({obj.budget_savings.fiscal_year})"
+    get_budget_snapshot.short_description = 'Budget Snapshot'

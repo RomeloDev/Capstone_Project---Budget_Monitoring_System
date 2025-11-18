@@ -86,4 +86,5 @@ urlpatterns = [
     path('savings/', views.savings_overview, name='savings_overview'),
     path('savings/create-snapshot/', views.create_savings_snapshot, name='create_savings_snapshot'),
     path('savings/export-excel/', views.export_savings_excel, name='export_savings_excel'),
+    path('savings/<int:snapshot_id>/line-items/', views.line_item_savings_detail, name='line_item_savings_detail'),
 ]

@@ -1724,3 +1724,201 @@ class BudgetSavings(models.Model):
                     quarterly_data[quarter]['available'] += line_item.get_quarter_available(quarter)
 
         return quarterly_data
+
+
+class PRELineItemSavings(models.Model):
+    """
+    Track savings at the PRE line item level for granular analysis.
+    Captures unused budget from specific line items and quarters.
+    This is an optional enhancement to BudgetSavings for detailed tracking.
+    """
+
+    # Links to parent savings snapshot and original line item
+    budget_savings = models.ForeignKey(
+        BudgetSavings,
+        on_delete=models.CASCADE,
+        related_name='line_item_breakdowns',
+        help_text='Parent savings snapshot'
+    )
+    pre_line_item = models.ForeignKey(
+        PRELineItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='savings_records',
+        help_text='Original PRE line item (may be null if deleted)'
+    )
+
+    # Line item details (snapshot at time of creation)
+    category = models.CharField(
+        max_length=255,
+        help_text='Budget category (Personnel/MOOE/Capital)'
+    )
+    subcategory = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Budget subcategory if applicable'
+    )
+    item_name = models.CharField(
+        max_length=255,
+        help_text='Name of the budget line item'
+    )
+
+    # Q1 Breakdown
+    q1_allocated = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q1 allocated amount'
+    )
+    q1_consumed = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q1 consumed amount (PR + AD)'
+    )
+    q1_surplus = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q1 unused/surplus amount'
+    )
+
+    # Q2 Breakdown
+    q2_allocated = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q2 allocated amount'
+    )
+    q2_consumed = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q2 consumed amount (PR + AD)'
+    )
+    q2_surplus = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q2 unused/surplus amount'
+    )
+
+    # Q3 Breakdown
+    q3_allocated = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q3 allocated amount'
+    )
+    q3_consumed = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q3 consumed amount (PR + AD)'
+    )
+    q3_surplus = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q3 unused/surplus amount'
+    )
+
+    # Q4 Breakdown
+    q4_allocated = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q4 allocated amount'
+    )
+    q4_consumed = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q4 consumed amount (PR + AD)'
+    )
+    q4_surplus = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Q4 unused/surplus amount'
+    )
+
+    # Totals
+    total_allocated = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Total allocated across all quarters'
+    )
+    total_consumed = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Total consumed across all quarters'
+    )
+    total_surplus = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Total unused/surplus across all quarters'
+    )
+
+    # Additional metadata
+    is_procurable = models.BooleanField(
+        default=False,
+        help_text='Whether this item requires procurement'
+    )
+    is_significant = models.BooleanField(
+        default=False,
+        help_text='True if surplus exceeds threshold (e.g., >₱5,000)'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When this line item savings record was created'
+    )
+
+    class Meta:
+        ordering = ['-total_surplus', 'category', 'item_name']
+        verbose_name = "PRE Line Item Savings"
+        verbose_name_plural = "PRE Line Item Savings"
+        indexes = [
+            models.Index(fields=['budget_savings', 'category']),
+            models.Index(fields=['-total_surplus']),
+            models.Index(fields=['is_significant']),
+        ]
+
+    def __str__(self):
+        return f"{self.item_name} - Surplus: ₱{self.total_surplus:,.2f}"
+
+    @property
+    def utilization_rate(self):
+        """Calculate utilization percentage"""
+        if self.total_allocated > 0:
+            return (self.total_consumed / self.total_allocated) * 100
+        return Decimal('0.00')
+
+    @property
+    def surplus_rate(self):
+        """Calculate surplus percentage"""
+        if self.total_allocated > 0:
+            return (self.total_surplus / self.total_allocated) * 100
+        return Decimal('0.00')
+
+    def get_quarter_data(self, quarter):
+        """Get data for a specific quarter"""
+        quarter_map = {
+            'Q1': (self.q1_allocated, self.q1_consumed, self.q1_surplus),
+            'Q2': (self.q2_allocated, self.q2_consumed, self.q2_surplus),
+            'Q3': (self.q3_allocated, self.q3_consumed, self.q3_surplus),
+            'Q4': (self.q4_allocated, self.q4_consumed, self.q4_surplus),
+        }
+        allocated, consumed, surplus = quarter_map.get(quarter, (0, 0, 0))
+        return {
+            'allocated': allocated,
+            'consumed': consumed,
+            'surplus': surplus,
+            'utilization': (consumed / allocated * 100) if allocated > 0 else 0
+        }

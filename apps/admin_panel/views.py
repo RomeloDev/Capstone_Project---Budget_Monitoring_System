@@ -5337,11 +5337,17 @@ def create_savings_snapshot(request):
         messages.error(request, 'Invalid request method.')
         return redirect('savings_overview')
 
-    from apps.budgets.models import BudgetSavings
+    from apps.budgets.models import BudgetSavings, PRELineItemSavings
+    import logging
+    logger = logging.getLogger(__name__)
 
     fiscal_year = request.POST.get('fiscal_year')
     quarter = request.POST.get('quarter', 'Full Year')
     notes = request.POST.get('notes', '')
+
+    # Feature flag - can be disabled if issues arise
+    ENABLE_LINE_ITEM_SAVINGS = True  # Set to False to disable line item tracking
+    SURPLUS_THRESHOLD = Decimal('5000.00')  # Threshold for "significant" surplus
 
     if not fiscal_year:
         messages.error(request, 'Please select a fiscal year.')
@@ -5361,6 +5367,7 @@ def create_savings_snapshot(request):
                 return redirect('savings_overview')
 
             snapshots_created = 0
+            line_items_created = 0
 
             for allocation in allocations:
                 pr_used = allocation.pr_amount_used
@@ -5368,7 +5375,7 @@ def create_savings_snapshot(request):
                 total_used = pr_used + ad_used
                 savings = allocation.remaining_balance
 
-                # Create snapshot (always create new, don't update)
+                # STEP 1: Create main BudgetSavings snapshot (EXISTING - SAFE)
                 snapshot = BudgetSavings.objects.create(
                     budget_allocation=allocation,
                     fiscal_year=fiscal_year,
@@ -5384,21 +5391,88 @@ def create_savings_snapshot(request):
                 )
                 snapshots_created += 1
 
+                # STEP 2: Create line item breakdown (NEW - OPTIONAL)
+                if ENABLE_LINE_ITEM_SAVINGS:
+                    try:
+                        # Get all approved PREs for this allocation
+                        pres = allocation.pres.filter(status='Approved')
+
+                        for pre in pres:
+                            for line_item in pre.line_items.all():
+                                # Calculate quarterly breakdown
+                                q1_data = line_item.get_quarter_breakdown('Q1')
+                                q2_data = line_item.get_quarter_breakdown('Q2')
+                                q3_data = line_item.get_quarter_breakdown('Q3')
+                                q4_data = line_item.get_quarter_breakdown('Q4')
+
+                                total_surplus = (
+                                    q1_data['available'] +
+                                    q2_data['available'] +
+                                    q3_data['available'] +
+                                    q4_data['available']
+                                )
+
+                                # Only save line items with surplus
+                                if total_surplus > 0:
+                                    PRELineItemSavings.objects.create(
+                                        budget_savings=snapshot,
+                                        pre_line_item=line_item,
+                                        category=line_item.category.name if line_item.category else 'Uncategorized',
+                                        subcategory=line_item.subcategory.name if line_item.subcategory else '',
+                                        item_name=line_item.item_name,
+                                        # Q1
+                                        q1_allocated=q1_data['original'],
+                                        q1_consumed=q1_data['total_consumed'],
+                                        q1_surplus=q1_data['available'],
+                                        # Q2
+                                        q2_allocated=q2_data['original'],
+                                        q2_consumed=q2_data['total_consumed'],
+                                        q2_surplus=q2_data['available'],
+                                        # Q3
+                                        q3_allocated=q3_data['original'],
+                                        q3_consumed=q3_data['total_consumed'],
+                                        q3_surplus=q3_data['available'],
+                                        # Q4
+                                        q4_allocated=q4_data['original'],
+                                        q4_consumed=q4_data['total_consumed'],
+                                        q4_surplus=q4_data['available'],
+                                        # Totals
+                                        total_allocated=line_item.get_total(),
+                                        total_consumed=q1_data['total_consumed'] + q2_data['total_consumed'] + q3_data['total_consumed'] + q4_data['total_consumed'],
+                                        total_surplus=total_surplus,
+                                        is_procurable=line_item.is_procurable,
+                                        is_significant=total_surplus >= SURPLUS_THRESHOLD,
+                                    )
+                                    line_items_created += 1
+
+                    except Exception as line_item_error:
+                        # Log error but don't fail the main snapshot
+                        logger.warning(
+                            f"Line item savings creation failed for allocation {allocation.id}: {line_item_error}"
+                        )
+                        # Main snapshot still succeeds - this is the safety mechanism
+
             # Log audit trail
+            detail_msg = f'Created {snapshots_created} savings snapshots for fiscal year {fiscal_year} ({quarter})'
+            if ENABLE_LINE_ITEM_SAVINGS and line_items_created > 0:
+                detail_msg += f' with {line_items_created} line item breakdowns'
+
             log_audit_trail(
                 request,
                 action='CREATE',
                 model_name='BudgetSavings',
                 record_id=fiscal_year,
-                detail=f'Created {snapshots_created} savings snapshots for fiscal year {fiscal_year} ({quarter})'
+                detail=detail_msg
             )
 
-            messages.success(
-                request,
-                f'Successfully created {snapshots_created} savings snapshot(s) for fiscal year {fiscal_year}.'
-            )
+            success_msg = f'Successfully created {snapshots_created} savings snapshot(s) for fiscal year {fiscal_year}.'
+            if ENABLE_LINE_ITEM_SAVINGS and line_items_created > 0:
+                success_msg += f' Captured {line_items_created} line items with surplus.'
+
+            messages.success(request, success_msg)
 
     except Exception as e:
+        logger.error(f'Error creating savings snapshot: {str(e)}')
         messages.error(request, f'Error creating savings snapshot: {str(e)}')
 
     return redirect('savings_overview')
@@ -5528,3 +5602,61 @@ def export_savings_excel(request):
 
     wb.save(response)
     return response
+
+
+@role_required('admin', login_url='/admin/')
+def line_item_savings_detail(request, snapshot_id):
+    """
+    Display detailed line item breakdown for a specific savings snapshot.
+    Shows which PRE line items have unused/surplus budget.
+    """
+    from apps.budgets.models import BudgetSavings, PRELineItemSavings
+    from django.db.models import Sum, Count
+
+    # Get the savings snapshot
+    snapshot = get_object_or_404(BudgetSavings, id=snapshot_id)
+
+    # Get filter parameters
+    category_filter = request.GET.get('category', 'all')
+    show_significant_only = request.GET.get('significant', '') == 'true'
+
+    # Get line items for this snapshot
+    line_items = snapshot.line_item_breakdowns.all()
+
+    # Apply filters
+    if category_filter != 'all':
+        line_items = line_items.filter(category=category_filter)
+
+    if show_significant_only:
+        line_items = line_items.filter(is_significant=True)
+
+    # Get category breakdown
+    category_summary = snapshot.line_item_breakdowns.values('category').annotate(
+        total_surplus=Sum('total_surplus'),
+        item_count=Count('id')
+    ).order_by('-total_surplus')
+
+    # Get all unique categories for filter
+    all_categories = snapshot.line_item_breakdowns.values_list('category', flat=True).distinct()
+
+    # Calculate totals
+    total_line_items = line_items.count()
+    total_surplus_all = snapshot.line_item_breakdowns.aggregate(
+        total=Sum('total_surplus')
+    )['total'] or Decimal('0.00')
+
+    significant_count = snapshot.line_item_breakdowns.filter(is_significant=True).count()
+
+    context = {
+        'snapshot': snapshot,
+        'line_items': line_items,
+        'category_summary': category_summary,
+        'all_categories': all_categories,
+        'category_filter': category_filter,
+        'show_significant_only': show_significant_only,
+        'total_line_items': total_line_items,
+        'total_surplus_all': total_surplus_all,
+        'significant_count': significant_count,
+    }
+
+    return render(request, 'admin_panel/line_item_savings_detail.html', context)
