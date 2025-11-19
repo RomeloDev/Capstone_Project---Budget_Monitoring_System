@@ -4461,6 +4461,12 @@ def budget_overview(request):
     recent_activity.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
     recent_activity = recent_activity[:10]  # Keep only top 10
 
+    # Get recent budget changes (last 10 transactions)
+    from apps.budgets.models import BudgetTransactionLog
+    recent_budget_changes = BudgetTransactionLog.objects.filter(
+        allocation__in=budget_allocations
+    ).select_related('allocation').order_by('-created_at')[:10]
+
     context = {
         'total_allocated': total_allocated,
         'total_used': total_used,
@@ -4474,6 +4480,7 @@ def budget_overview(request):
         'ad_count': ad_count,
         'quarterly_spending': quarterly_spending,
         'recent_activity': recent_activity,
+        'recent_budget_changes': recent_budget_changes,
         'available_years': available_years,
         'selected_year': selected_year,
         'current_year': current_year,
@@ -6617,3 +6624,55 @@ def export_budget_json(request):
     response = JsonResponse(json_data)
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+@role_required('end_user', login_url='/')
+def budget_history(request):
+    """
+    Budget History Page
+    Shows complete history of all budget balance changes with filters
+    """
+    from apps.budgets.models import BudgetTransactionLog
+    from django.db.models.functions import ExtractYear
+    from datetime import datetime
+    from django.core.paginator import Paginator
+
+    # Get user's allocations
+    budget_allocations = NewBudgetAllocation.objects.filter(
+        end_user=request.user,
+        is_active=True
+    )
+
+    # Get all budget transaction logs for user's allocations
+    budget_logs = BudgetTransactionLog.objects.filter(
+        allocation__in=budget_allocations
+    ).select_related('allocation', 'created_by').order_by('-created_at')
+
+    # Filter by transaction type
+    transaction_type = request.GET.get('transaction_type')
+    if transaction_type:
+        budget_logs = budget_logs.filter(transaction_type=transaction_type)
+
+    # Filter by date range
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date and end_date:
+        budget_logs = budget_logs.filter(
+            created_at__date__range=[start_date, end_date]
+        )
+
+    # Pagination
+    paginator = Paginator(budget_logs, 20)  # 20 records per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'transaction_types': BudgetTransactionLog.TRANSACTION_TYPES,
+        'transaction_type': transaction_type,
+        'start_date': start_date,
+        'end_date': end_date,
+        'total_count': budget_logs.count(),
+    }
+
+    return render(request, 'end_user_app/budget_history.html', context)

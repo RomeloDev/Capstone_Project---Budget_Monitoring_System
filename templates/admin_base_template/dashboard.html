@@ -11,171 +11,222 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
   <body class="bg-gray-100 text-gray-900 font-sans">
-    <div class="flex min-h-screen">
-      
+    <div x-data="{
+      sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
+      toggleSidebar() {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
+      }
+    }" class="flex min-h-screen">
+
       <!-- Sidebar -->
-      <aside class="w-64 bg-white border-r fixed h-screen z-20 flex flex-col">
-        <div class="px-7 py-2 border-b">
-          <div class="flex flex-col items-center mt-2 mb-2">
-            <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" class="h-[50px] me-3 sm:h-[50px]" alt="Flowbite Logo" />
-            <span class="self-center text-sm font-semibold whitespace-nowrap text-black mt-1">BISU Balilihan</span>
-            <span class="text-center text-lg font-bold whitespace-nowrap text-purple-800 px-3">Budget Monitoring System</span>
+      <aside
+        :class="sidebarCollapsed ? 'w-16' : 'w-64'"
+        class="bg-white border-r fixed h-screen z-20 flex flex-col transition-all duration-300">
+        <!-- Logo Section -->
+        <div class="border-b relative">
+          <!-- Expanded Logo -->
+          <div x-show="!sidebarCollapsed" x-transition class="px-7 py-2">
+            <div class="flex flex-col items-center mt-2 mb-2">
+              <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" class="h-[50px]" alt="BISU Logo" />
+              <span class="self-center text-sm font-semibold whitespace-nowrap text-black mt-1">BISU Balilihan</span>
+              <span class="text-center text-lg font-bold whitespace-nowrap text-purple-800 px-3">Budget Monitoring System</span>
+            </div>
           </div>
-          {% comment %} <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Welcome,</h2>
-          <p class="text-lg font-bold text-gray-800">{{ user.department }}</p> {% endcomment %}
+
+          <!-- Collapsed Logo -->
+          <div x-show="sidebarCollapsed" x-transition class="py-4 flex justify-center">
+            <img src="https://bisu.edu.ph/wp-content/themes/gwt-wordpress-gwt-wordpress-26.0.0/images/bisu-logo2.png" class="h-[40px]" alt="BISU Logo" />
+          </div>
+
+          <!-- Toggle Button -->
+          <button
+            @click="toggleSidebar()"
+            class="absolute -right-3 top-1/2 -translate-y-1/2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors z-30">
+            <i class="fa-solid fa-angles-left text-xs transition-transform duration-300"
+               :class="sidebarCollapsed && 'rotate-180'"></i>
+          </button>
         </div>
         <nav class="flex-1 overflow-y-auto mt-2 px-3">
-          <h3 class="font-semibold text-[16px] px-3 py-3">Navigation</h3>
+          <h3 x-show="!sidebarCollapsed" x-transition class="font-semibold text-[16px] px-3 py-3">Navigation</h3>
           <ul class="space-y-1 text-sm">
-            
+
             <li>
-              <a href="{% url 'admin_dashboard' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'admin_dashboard' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'admin_dashboard' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-chart-pie w-5 text-center"></i>
-                <span>Dashboard</span>
+                <span x-show="!sidebarCollapsed" x-transition>Dashboard</span>
+                <!-- Tooltip for collapsed state -->
+                <div x-show="sidebarCollapsed"
+                     class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                  Dashboard
+                </div>
               </a>
             </li>
             
             <li>
-              <a href="{% url 'client_accounts' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'client_accounts' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'client_accounts' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-users w-5 text-center"></i>
-                <span>Users</span>
+                <span x-show="!sidebarCollapsed" x-transition>Users</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Users</div>
               </a>
             </li>
 
             <li>
-              <a href="{% url 'audit_trail' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'audit_trail' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'audit_trail' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i>
-                <span>Audit Trail</span>
+                <span x-show="!sidebarCollapsed" x-transition>Audit Trail</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Audit Trail</div>
               </a>
             </li>
 
             <li>
-              <a href="{% url 'institutional_funds' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'institutional_funds' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'institutional_funds' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-building-columns w-5 text-center"></i>
-                <span>Approved Budget</span>
+                <span x-show="!sidebarCollapsed" x-transition>Approved Budget</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Approved Budget</div>
               </a>
             </li>
 
             <li>
-              <a href="{% url 'budget_allocation' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'budget_allocation' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'budget_allocation' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-hand-holding-dollar w-5 text-center"></i>
-                <span>Budget Allocation</span>
+                <span x-show="!sidebarCollapsed" x-transition>Budget Allocation</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Budget Allocation</div>
               </a>
             </li>
 
             <li>
-              <a href="{% url 'department_pr_request' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'department_pr_request' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'department_pr_request' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-cart-shopping w-5 text-center"></i>
-                <span>Department's Purchase Request</span>
+                <span x-show="!sidebarCollapsed" x-transition>Department's Purchase Request</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Department's Purchase Request</div>
               </a>
             </li>
 
             <li>
-              <a href="{% url 'department_activity_design' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'department_activity_design' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'department_activity_design' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-tasks w-5 text-center"></i>
-                <span>Department's Activity Design</span>
+                <span x-show="!sidebarCollapsed" x-transition>Department's Activity Design</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Department's Activity Design</div>
               </a>
             </li>
 
             <li>
-              <a href="{% url 'admin_pre_list' %}" 
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+              <a href="{% url 'admin_pre_list' %}"
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'admin_pre_list' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-file-invoice w-5 text-center"></i>
-                <span>PRE Request</span>
+                <span x-show="!sidebarCollapsed" x-transition>PRE Request</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">PRE Request</div>
               </a>
             </li>
 
             <li>
               <a href="{% url 'pre_budget_realignment_admin' %}"
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'pre_budget_realignment_admin' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-retweet w-5 text-center"></i>
-                <span>Re-Alignment Request</span>
+                <span x-show="!sidebarCollapsed" x-transition>Re-Alignment Request</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Re-Alignment Request</div>
               </a>
             </li>
 
             <li>
               <a href="{% url 'archive_center' %}"
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'archive_center' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-box-archive w-5 text-center"></i>
-                <span>Archive Center</span>
+                <span x-show="!sidebarCollapsed" x-transition>Archive Center</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Archive Center</div>
               </a>
             </li>
 
             <li>
               <a href="{% url 'savings_overview' %}"
-                 class="flex items-center gap-2 px-3 py-2 rounded-md
+                 class="flex items-center gap-2 px-3 py-2 rounded-md relative group
                  {% if request.resolver_match.url_name == 'savings_overview' %}
                    bg-blue-600 text-white font-medium
                  {% else %}
                    text-gray-700 hover:bg-blue-600 hover:text-white
-                 {% endif %}">
+                 {% endif %}"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-piggy-bank w-5 text-center"></i>
-                <span>Budget Savings</span>
+                <span x-show="!sidebarCollapsed" x-transition>Budget Savings</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Budget Savings</div>
               </a>
             </li>
 
             <li class="pt-6 border-t mt-6">
               <a href="{% url 'admin_logout' %}"
-                 class="flex items-center gap-2 px-3 py-2 rounded-md text-red-600 hover:bg-red-600 hover:text-white">
+                 class="flex items-center gap-2 px-3 py-2 rounded-md text-red-600 hover:bg-red-600 hover:text-white relative group"
+                 :class="sidebarCollapsed && 'justify-center'">
                 <i class="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i>
-                <span>Logout</span>
+                <span x-show="!sidebarCollapsed" x-transition>Logout</span>
+                <div x-show="sidebarCollapsed" class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">Logout</div>
               </a>
             </li>
 
@@ -184,7 +235,9 @@
       </aside>
 
       <!-- Main Content -->
-      <div class="ml-64 flex flex-col w-full">
+      <div
+        :class="sidebarCollapsed ? 'ml-16' : 'ml-64'"
+        class="flex flex-col w-full transition-all duration-300">
         <!-- Topbar -->
         <header class="bg-white border-b px-6 py-4 sticky top-0 z-10 shadow-sm">
           <h1 class="text-xl font-semibold">Admin Panel</h1>

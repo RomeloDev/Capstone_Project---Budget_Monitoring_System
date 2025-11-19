@@ -692,6 +692,75 @@ class PurchaseRequest(models.Model):
 
         return errors
 
+    def validate_quarterly_limits(self):
+        """
+        Validate that PR allocations don't exceed quarterly budgets in PRE line items.
+        This prevents front-loading spending in early quarters.
+        """
+        errors = []
+
+        # Get all allocations for this PR
+        allocations = self.allocations.all()
+
+        if not allocations.exists():
+            errors.append("PR has no allocations to validate")
+            return errors
+
+        # Group allocations by PRE line item and quarter
+        quarter_usage = {}
+
+        for allocation in allocations:
+            line_item = allocation.pre_line_item
+            quarter = allocation.quarter
+
+            if not line_item or not quarter:
+                continue
+
+            key = (line_item.id, quarter)
+
+            if key not in quarter_usage:
+                quarter_usage[key] = {
+                    'line_item': line_item,
+                    'quarter': quarter,
+                    'pr_amount': Decimal('0.00')
+                }
+
+            quarter_usage[key]['pr_amount'] += allocation.allocated_amount
+
+        # Validate each quarter's usage
+        for key, data in quarter_usage.items():
+            line_item = data['line_item']
+            quarter = data['quarter']
+            pr_amount = data['pr_amount']
+
+            # Get the budgeted amount for this quarter
+            quarter_budget = line_item.get_quarter_amount(quarter)
+
+            # Get currently consumed amount for this quarter (including other PRs and ADs)
+            quarter_consumed = line_item.get_quarter_consumed(quarter)
+
+            # If this PR is already approved, subtract its current contribution
+            if self.status == 'Approved':
+                # Find this PR's current allocation for this quarter
+                current_allocation = allocations.filter(
+                    pre_line_item=line_item,
+                    quarter=quarter
+                ).aggregate(total=Sum('allocated_amount'))['total'] or Decimal('0.00')
+                quarter_consumed -= current_allocation
+
+            # Calculate what would be consumed after adding this PR
+            new_quarter_consumed = quarter_consumed + pr_amount
+
+            # Check if it exceeds the quarterly budget
+            if new_quarter_consumed > quarter_budget:
+                available = quarter_budget - quarter_consumed
+                errors.append(
+                    f"PR allocation of ₱{pr_amount:,.2f} to {quarter} exceeds available quarterly budget for '{line_item.category}'. "
+                    f"Quarter budget: ₱{quarter_budget:,.2f}, Already consumed: ₱{quarter_consumed:,.2f}, Available: ₱{available:,.2f}"
+                )
+
+        return errors
+
 
 class PurchaseRequestItem(models.Model):
     """Individual items in a Purchase Request (for form-based PR)"""
@@ -874,6 +943,75 @@ class ActivityDesign(models.Model):
                 f"AD amount (₱{self.total_amount:,.2f}) would exceed available budget. "
                 f"Available: ₱{available:,.2f}"
             )
+
+        return errors
+
+    def validate_quarterly_limits(self):
+        """
+        Validate that AD allocations don't exceed quarterly budgets in PRE line items.
+        This prevents front-loading spending in early quarters.
+        """
+        errors = []
+
+        # Get all allocations for this AD
+        allocations = self.allocations.all()
+
+        if not allocations.exists():
+            errors.append("AD has no allocations to validate")
+            return errors
+
+        # Group allocations by PRE line item and quarter
+        quarter_usage = {}
+
+        for allocation in allocations:
+            line_item = allocation.pre_line_item
+            quarter = allocation.quarter
+
+            if not line_item or not quarter:
+                continue
+
+            key = (line_item.id, quarter)
+
+            if key not in quarter_usage:
+                quarter_usage[key] = {
+                    'line_item': line_item,
+                    'quarter': quarter,
+                    'ad_amount': Decimal('0.00')
+                }
+
+            quarter_usage[key]['ad_amount'] += allocation.allocated_amount
+
+        # Validate each quarter's usage
+        for key, data in quarter_usage.items():
+            line_item = data['line_item']
+            quarter = data['quarter']
+            ad_amount = data['ad_amount']
+
+            # Get the budgeted amount for this quarter
+            quarter_budget = line_item.get_quarter_amount(quarter)
+
+            # Get currently consumed amount for this quarter (including other PRs and ADs)
+            quarter_consumed = line_item.get_quarter_consumed(quarter)
+
+            # If this AD is already approved, subtract its current contribution
+            if self.status == 'Approved':
+                # Find this AD's current allocation for this quarter
+                current_allocation = allocations.filter(
+                    pre_line_item=line_item,
+                    quarter=quarter
+                ).aggregate(total=Sum('allocated_amount'))['total'] or Decimal('0.00')
+                quarter_consumed -= current_allocation
+
+            # Calculate what would be consumed after adding this AD
+            new_quarter_consumed = quarter_consumed + ad_amount
+
+            # Check if it exceeds the quarterly budget
+            if new_quarter_consumed > quarter_budget:
+                available = quarter_budget - quarter_consumed
+                errors.append(
+                    f"AD allocation of ₱{ad_amount:,.2f} to {quarter} exceeds available quarterly budget for '{line_item.category}'. "
+                    f"Quarter budget: ₱{quarter_budget:,.2f}, Already consumed: ₱{quarter_consumed:,.2f}, Available: ₱{available:,.2f}"
+                )
 
         return errors
 
@@ -1922,3 +2060,118 @@ class PRELineItemSavings(models.Model):
             'surplus': surplus,
             'utilization': (consumed / allocated * 100) if allocated > 0 else 0
         }
+
+
+class BudgetTransactionLog(models.Model):
+    """
+    Tracks all budget balance changes for complete financial audit trail.
+    Records every transaction that affects a BudgetAllocation's balance.
+    """
+    TRANSACTION_TYPES = [
+        ('PRE_APPROVED', 'PRE Approved'),
+        ('PR_APPROVED', 'Purchase Request Approved'),
+        ('AD_APPROVED', 'Activity Design Approved'),
+        ('PRE_REJECTED', 'PRE Rejected'),
+        ('PR_REJECTED', 'Purchase Request Rejected'),
+        ('AD_REJECTED', 'Activity Design Rejected'),
+        ('ALLOCATION_CREATED', 'Allocation Created'),
+        ('ALLOCATION_MODIFIED', 'Allocation Modified'),
+        ('ALLOCATION_DELETED', 'Allocation Deleted'),
+        ('REALIGNMENT_APPROVED', 'Budget Realignment Approved'),
+    ]
+
+    # Core fields
+    allocation = models.ForeignKey(
+        'BudgetAllocation',
+        on_delete=models.CASCADE,
+        related_name='transaction_logs',
+        help_text="The budget allocation affected by this transaction"
+    )
+    transaction_type = models.CharField(
+        max_length=30,
+        choices=TRANSACTION_TYPES,
+        help_text="Type of transaction that caused the balance change"
+    )
+
+    # Amount tracking
+    amount_change = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Amount added (positive) or deducted (negative) from budget"
+    )
+    previous_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Balance before this transaction"
+    )
+    new_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Balance after this transaction"
+    )
+
+    # Related document tracking
+    related_document_type = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text="Type of related document (PRE, PR, AD, etc.)"
+    )
+    related_document_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="ID or number of the related document"
+    )
+
+    # User and timestamp
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who triggered this transaction"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this transaction occurred"
+    )
+
+    # Additional context
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes or context about this transaction"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Budget Transaction Log'
+        verbose_name_plural = 'Budget Transaction Logs'
+        indexes = [
+            models.Index(fields=['allocation', '-created_at']),
+            models.Index(fields=['transaction_type', '-created_at']),
+            models.Index(fields=['-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.transaction_type} - {self.allocation.end_user.department if self.allocation.end_user else 'N/A'} - ₱{self.amount_change:,.2f}"
+
+    @property
+    def is_increase(self):
+        """Check if this transaction increased the budget"""
+        return self.amount_change > 0
+
+    @property
+    def is_decrease(self):
+        """Check if this transaction decreased the budget"""
+        return self.amount_change < 0
+
+    @property
+    def formatted_amount(self):
+        """Return formatted amount with sign"""
+        if self.amount_change > 0:
+            return f"+₱{self.amount_change:,.2f}"
+        elif self.amount_change < 0:
+            return f"-₱{abs(self.amount_change):,.2f}"
+        else:
+            return "₱0.00"

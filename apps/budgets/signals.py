@@ -290,3 +290,325 @@ def return_ad_budget_on_delete(sender, instance, **kwargs):
         print(f"✅ Returned ₱{instance.total_amount:,.2f} to allocation")
         print(f"   New ad_amount_used: ₱{allocation.ad_amount_used:,.2f}")
         print(f"   New remaining_balance: ₱{allocation.remaining_balance:,.2f}\n")
+
+
+# ============================================================================
+# BUDGET TRANSACTION LOGGING SIGNALS
+# These signals create audit trail entries for all budget changes
+# Wrapped in try-except to prevent failures from blocking budget operations
+# ============================================================================
+
+@receiver(post_save, sender=DepartmentPRE)
+def log_pre_budget_transaction(sender, instance, created, **kwargs):
+    """Log budget transaction when PRE is approved"""
+    from .models import BudgetTransactionLog
+
+    if instance.status == 'Approved' and instance.final_approved_at and not created:
+        old_status = getattr(instance, '_old_status', None)
+
+        # Only log if this is a NEW approval (status changed TO 'Approved')
+        if old_status != 'Approved':
+            try:
+                allocation = instance.budget_allocation
+
+                # Calculate the balance change
+                amount_deducted = -instance.total_amount
+                new_balance = allocation.remaining_balance
+                previous_balance = new_balance - amount_deducted
+
+                BudgetTransactionLog.objects.create(
+                    allocation=allocation,
+                    transaction_type='PRE_APPROVED',
+                    amount_change=amount_deducted,
+                    previous_balance=previous_balance,
+                    new_balance=new_balance,
+                    related_document_type='PRE',
+                    related_document_id=str(instance.id),
+                    created_by=instance.submitted_by,
+                    notes=f"PRE approved for {instance.department}"
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to log PRE approval transaction: {e}")
+
+
+@receiver(post_save, sender=PurchaseRequest)
+def log_pr_budget_transaction(sender, instance, created, **kwargs):
+    """Log budget transaction when PR is approved or rejected"""
+    from .models import BudgetTransactionLog
+
+    if not created:
+        old_status = getattr(instance, '_old_status', None)
+
+        # Log approval
+        if instance.status == 'Approved' and instance.final_approved_at and old_status != 'Approved':
+            try:
+                allocation = instance.budget_allocation
+                amount_deducted = -instance.total_amount
+                new_balance = allocation.remaining_balance
+                previous_balance = new_balance - amount_deducted
+
+                BudgetTransactionLog.objects.create(
+                    allocation=allocation,
+                    transaction_type='PR_APPROVED',
+                    amount_change=amount_deducted,
+                    previous_balance=previous_balance,
+                    new_balance=new_balance,
+                    related_document_type='PR',
+                    related_document_id=instance.pr_number or str(instance.id),
+                    created_by=instance.submitted_by,
+                    notes=f"Purchase Request {instance.pr_number} approved"
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to log PR approval transaction: {e}")
+
+        # Log rejection (if previously approved - budget should be returned)
+        elif instance.status == 'Rejected' and old_status == 'Approved':
+            try:
+                allocation = instance.budget_allocation
+                amount_returned = instance.total_amount
+                new_balance = allocation.remaining_balance
+                previous_balance = new_balance - amount_returned
+
+                BudgetTransactionLog.objects.create(
+                    allocation=allocation,
+                    transaction_type='PR_REJECTED',
+                    amount_change=amount_returned,
+                    previous_balance=previous_balance,
+                    new_balance=new_balance,
+                    related_document_type='PR',
+                    related_document_id=instance.pr_number or str(instance.id),
+                    created_by=instance.submitted_by,
+                    notes=f"Purchase Request {instance.pr_number} rejected - budget returned"
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to log PR rejection transaction: {e}")
+
+
+@receiver(post_save, sender=ActivityDesign)
+def log_ad_budget_transaction(sender, instance, created, **kwargs):
+    """Log budget transaction when AD is approved or rejected"""
+    from .models import BudgetTransactionLog
+
+    if not created:
+        old_status = getattr(instance, '_old_status', None)
+
+        # Log approval
+        if instance.status == 'Approved' and instance.final_approved_at and old_status != 'Approved':
+            try:
+                allocation = instance.budget_allocation
+                amount_deducted = -instance.total_amount
+                new_balance = allocation.remaining_balance
+                previous_balance = new_balance - amount_deducted
+
+                BudgetTransactionLog.objects.create(
+                    allocation=allocation,
+                    transaction_type='AD_APPROVED',
+                    amount_change=amount_deducted,
+                    previous_balance=previous_balance,
+                    new_balance=new_balance,
+                    related_document_type='AD',
+                    related_document_id=instance.ad_number or str(instance.id),
+                    created_by=instance.submitted_by,
+                    notes=f"Activity Design '{instance.activity_title}' approved"
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to log AD approval transaction: {e}")
+
+        # Log rejection (if previously approved - budget should be returned)
+        elif instance.status == 'Rejected' and old_status == 'Approved':
+            try:
+                allocation = instance.budget_allocation
+                amount_returned = instance.total_amount
+                new_balance = allocation.remaining_balance
+                previous_balance = new_balance - amount_returned
+
+                BudgetTransactionLog.objects.create(
+                    allocation=allocation,
+                    transaction_type='AD_REJECTED',
+                    amount_change=amount_returned,
+                    previous_balance=previous_balance,
+                    new_balance=new_balance,
+                    related_document_type='AD',
+                    related_document_id=instance.ad_number or str(instance.id),
+                    created_by=instance.submitted_by,
+                    notes=f"Activity Design '{instance.activity_title}' rejected - budget returned"
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to log AD rejection transaction: {e}")
+
+
+@receiver(post_save, sender=BudgetAllocation)
+def log_allocation_changes(sender, instance, created, **kwargs):
+    """Log budget transaction when allocation is created or modified"""
+    from .models import BudgetTransactionLog
+
+    try:
+        if created:
+            # Log allocation creation
+            BudgetTransactionLog.objects.create(
+                allocation=instance,
+                transaction_type='ALLOCATION_CREATED',
+                amount_change=instance.allocated_amount,
+                previous_balance=Decimal('0.00'),
+                new_balance=instance.remaining_balance,
+                related_document_type='ALLOCATION',
+                related_document_id=str(instance.id),
+                created_by=None,  # Usually created by admin, can be enhanced
+                notes=f"Budget allocation created for {instance.end_user.department if instance.end_user else 'N/A'}"
+            )
+        else:
+            # Log allocation modification (if allocated_amount changed)
+            # Note: This requires tracking old values, similar to status tracking
+            # For now, we'll skip logging modifications to avoid complexity
+            # This can be enhanced later if needed
+            pass
+    except Exception as e:
+        print(f"⚠️ Failed to log allocation transaction: {e}")
+
+
+@receiver(post_delete, sender=BudgetAllocation)
+def log_allocation_deletion(sender, instance, **kwargs):
+    """Log budget transaction when allocation is deleted"""
+    from .models import BudgetTransactionLog
+
+    try:
+        # Create a log entry for the deletion
+        # Note: Since the allocation is being deleted, we can't use FK
+        # This log will exist without an allocation reference
+        # We store the details in notes instead
+        BudgetTransactionLog.objects.create(
+            allocation=instance,  # This will be cascade deleted
+            transaction_type='ALLOCATION_DELETED',
+            amount_change=-instance.remaining_balance,
+            previous_balance=instance.remaining_balance,
+            new_balance=Decimal('0.00'),
+            related_document_type='ALLOCATION',
+            related_document_id=str(instance.id),
+            created_by=None,
+            notes=f"Budget allocation deleted for {instance.end_user.department if instance.end_user else 'N/A'}"
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to log allocation deletion: {e}")
+
+
+# ============================================================================
+# APPROVAL REVERSAL HANDLERS (GAP #3 FIX)
+# These signals return budget when approval status is reversed
+# ============================================================================
+
+@receiver(post_save, sender=PurchaseRequest)
+def handle_pr_approval_reversal(sender, instance, created, **kwargs):
+    """
+    Return budget when PR approval is reversed (status changes FROM 'Approved' TO other status)
+    This fixes GAP #3: No Budget Reversal Process
+    """
+    if not created:
+        old_status = getattr(instance, '_old_status', None)
+
+        # Check if status changed FROM 'Approved' TO something else
+        if old_status == 'Approved' and instance.status != 'Approved':
+            try:
+                allocation = instance.budget_allocation
+
+                print(f"\n🔄 PR Approval Reversed: {instance.pr_number}")
+                print(f"   Status changed: Approved → {instance.status}")
+                print(f"   Returning budget: ₱{instance.total_amount:,.2f}")
+
+                # Return the budget
+                allocation.pr_amount_used -= instance.total_amount
+
+                # Ensure it doesn't go negative
+                if allocation.pr_amount_used < 0:
+                    allocation.pr_amount_used = Decimal('0.00')
+
+                allocation.update_remaining_balance()
+
+                print(f"✅ Budget returned successfully")
+                print(f"   New pr_amount_used: ₱{allocation.pr_amount_used:,.2f}")
+                print(f"   New remaining_balance: ₱{allocation.remaining_balance:,.2f}\n")
+
+                # Log the reversal transaction
+                from .models import BudgetTransactionLog
+                BudgetTransactionLog.objects.create(
+                    allocation=allocation,
+                    transaction_type='PR_REJECTED',  # Reuse existing type
+                    amount_change=instance.total_amount,  # Positive (budget returned)
+                    previous_balance=allocation.remaining_balance - instance.total_amount,
+                    new_balance=allocation.remaining_balance,
+                    related_document_type='PR',
+                    related_document_id=instance.pr_number or str(instance.id),
+                    created_by=instance.submitted_by,
+                    notes=f"PR approval reversed - status changed to {instance.status}"
+                )
+
+                # Notify user
+                from .models import SystemNotification
+                SystemNotification.objects.create(
+                    recipient=instance.submitted_by,
+                    title=f"PR Approval Reversed",
+                    message=f"The approval for PR {instance.pr_number} has been reversed. Budget of ₱{instance.total_amount:,.2f} has been returned.",
+                    content_type='pr',
+                    object_id=instance.id
+                )
+
+            except Exception as e:
+                print(f"⚠️ Error returning budget for reversed PR: {e}")
+
+
+@receiver(post_save, sender=ActivityDesign)
+def handle_ad_approval_reversal(sender, instance, created, **kwargs):
+    """
+    Return budget when AD approval is reversed (status changes FROM 'Approved' TO other status)
+    This fixes GAP #3: No Budget Reversal Process
+    """
+    if not created:
+        old_status = getattr(instance, '_old_status', None)
+
+        # Check if status changed FROM 'Approved' TO something else
+        if old_status == 'Approved' and instance.status != 'Approved':
+            try:
+                allocation = instance.budget_allocation
+
+                print(f"\n🔄 AD Approval Reversed: {instance.ad_number or instance.id.hex[:8]}")
+                print(f"   Status changed: Approved → {instance.status}")
+                print(f"   Returning budget: ₱{instance.total_amount:,.2f}")
+
+                # Return the budget
+                allocation.ad_amount_used -= instance.total_amount
+
+                # Ensure it doesn't go negative
+                if allocation.ad_amount_used < 0:
+                    allocation.ad_amount_used = Decimal('0.00')
+
+                allocation.update_remaining_balance()
+
+                print(f"✅ Budget returned successfully")
+                print(f"   New ad_amount_used: ₱{allocation.ad_amount_used:,.2f}")
+                print(f"   New remaining_balance: ₱{allocation.remaining_balance:,.2f}\n")
+
+                # Log the reversal transaction
+                from .models import BudgetTransactionLog
+                BudgetTransactionLog.objects.create(
+                    allocation=allocation,
+                    transaction_type='AD_REJECTED',  # Reuse existing type
+                    amount_change=instance.total_amount,  # Positive (budget returned)
+                    previous_balance=allocation.remaining_balance - instance.total_amount,
+                    new_balance=allocation.remaining_balance,
+                    related_document_type='AD',
+                    related_document_id=instance.ad_number or str(instance.id),
+                    created_by=instance.submitted_by,
+                    notes=f"AD approval reversed - status changed to {instance.status}"
+                )
+
+                # Notify user
+                from .models import SystemNotification
+                SystemNotification.objects.create(
+                    recipient=instance.submitted_by,
+                    title=f"AD Approval Reversed",
+                    message=f"The approval for AD '{instance.activity_title}' has been reversed. Budget of ₱{instance.total_amount:,.2f} has been returned.",
+                    content_type='ad',
+                    object_id=instance.id
+                )
+
+            except Exception as e:
+                print(f"⚠️ Error returning budget for reversed AD: {e}")

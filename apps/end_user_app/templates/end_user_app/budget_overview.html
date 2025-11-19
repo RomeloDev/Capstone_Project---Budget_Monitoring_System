@@ -245,6 +245,76 @@
         </div>
     </section>
 
+    <!-- Recent Budget Changes -->
+    <section class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800">Recent Budget Changes</h3>
+                <p class="text-sm text-gray-500 mt-1">Track how your budget balance has changed</p>
+            </div>
+            <a href="{% url 'budget_history' %}" class="text-sm text-blue-600 hover:text-blue-800 font-medium">View Full History →</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Change</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Previous Balance</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">New Balance</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Related Doc</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for change in recent_budget_changes %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ change.created_at|date:"M d, Y H:i" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if 'APPROVED' in change.transaction_type %}bg-green-100 text-green-800
+                                {% elif 'REJECTED' in change.transaction_type %}bg-red-100 text-red-800
+                                {% elif 'CREATED' in change.transaction_type %}bg-blue-100 text-blue-800
+                                {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ change.get_transaction_type_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium
+                            {% if change.is_decrease %}text-red-600{% elif change.is_increase %}text-green-600{% else %}text-gray-900{% endif %}">
+                            {{ change.formatted_amount }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                            ₱{{ change.previous_balance|floatformat:2|intcomma }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                            ₱{{ change.new_balance|floatformat:2|intcomma }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {% if change.related_document_id %}
+                                {{ change.related_document_type }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500 italic">No budget changes yet</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <p class="text-sm text-blue-800">
+                <strong>💡 Tip:</strong> Budget changes are automatically logged when PRE/PR/AD documents are approved or rejected.
+                Green amounts indicate budget increases, red amounts indicate decreases.
+            </p>
+        </div>
+    </section>
+
     <!-- Quick Actions -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <a href="{% url 'pre_budget_details' %}" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition flex items-center space-x-4">

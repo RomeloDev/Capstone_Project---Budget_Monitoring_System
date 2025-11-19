@@ -14,7 +14,8 @@ from apps.budgets.models import (
     PurchaseRequest as NewPurchaseRequest,
     ActivityDesign as NewActivityDesign,
     RequestApproval,
-    SystemNotification
+    SystemNotification,
+    BudgetTransactionLog
 )
 from django.contrib import messages
 from decimal import Decimal
@@ -543,11 +544,20 @@ def handle_departments_request(request, request_id):
 
         if action == 'approve':
             if purchase_request.status != 'Pending':
-                messages.warning(request, 
+                messages.warning(request,
                     f"PR {purchase_request.pr_number} cannot be approved. "
                     f"Current status: {purchase_request.status}")
                 return redirect('department_pr_request')
-            
+
+            # ✅ GAP #2 FIX: Validate quarterly budget limits
+            quarterly_errors = purchase_request.validate_quarterly_limits()
+            if quarterly_errors:
+                for error in quarterly_errors:
+                    messages.error(request, f"❌ Quarterly Budget Exceeded: {error}")
+                messages.warning(request,
+                    f"Cannot approve PR {purchase_request.pr_number} - it would exceed quarterly budget limits.")
+                return redirect('admin_preview_pr', pr_id=purchase_request.id)
+
             try:
                 # 1. Update status to Partially Approved
                 purchase_request.status = 'Partially Approved'
@@ -2436,39 +2446,84 @@ def admin_logout(request):
 
 @role_required('admin', login_url='/admin/')
 def audit_trail(request):
-    
-    # Get all audit records and users
-    audit_records = AuditTrail.objects.select_related('user').all()
-    departments = User.objects.all().values_list('department', flat=True).distinct()
-    
-    # Filter by department
-    department = request.GET.get('department')
-    if department:
-        audit_records = audit_records.filter(user__department=department)
-    
-    # Filter by action if specified
-    action_filter = request.GET.get('action')
-    if action_filter:
-        audit_records = audit_records.filter(action=action_filter)
-        
-    # Filter by date range if specified
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-    if start_date and end_date:
-        audit_records = audit_records.filter(
-            timestamp__date__range=[start_date, end_date]
-        )
-        
-    # Pagination
-    paginator = Paginator(audit_records, 15)  # 15 records per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'page_obj': page_obj,
-        'action_choices': AuditTrail.ACTION_CHOICES,
-        'departments': departments,
-    }
+    # Get the active tab (default to 'activity')
+    active_tab = request.GET.get('tab', 'activity')
+
+    if active_tab == 'budget':
+        # BUDGET CHANGES TAB
+        budget_logs = BudgetTransactionLog.objects.select_related(
+            'allocation__end_user', 'created_by'
+        ).all()
+
+        # Get filter options
+        departments = NewBudgetAllocation.objects.filter(
+            end_user__isnull=False
+        ).values_list('end_user__department', flat=True).distinct()
+
+        # Filter by department
+        department = request.GET.get('department')
+        if department:
+            budget_logs = budget_logs.filter(allocation__end_user__department=department)
+
+        # Filter by transaction type
+        transaction_type = request.GET.get('transaction_type')
+        if transaction_type:
+            budget_logs = budget_logs.filter(transaction_type=transaction_type)
+
+        # Filter by date range
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        if start_date and end_date:
+            budget_logs = budget_logs.filter(
+                created_at__date__range=[start_date, end_date]
+            )
+
+        # Pagination
+        paginator = Paginator(budget_logs, 15)
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+
+        context = {
+            'page_obj': page_obj,
+            'transaction_types': BudgetTransactionLog.TRANSACTION_TYPES,
+            'departments': departments,
+            'active_tab': 'budget',
+        }
+    else:
+        # USER ACTIVITY TAB (existing functionality)
+        audit_records = AuditTrail.objects.select_related('user').all()
+        departments = User.objects.all().values_list('department', flat=True).distinct()
+
+        # Filter by department
+        department = request.GET.get('department')
+        if department:
+            audit_records = audit_records.filter(user__department=department)
+
+        # Filter by action if specified
+        action_filter = request.GET.get('action')
+        if action_filter:
+            audit_records = audit_records.filter(action=action_filter)
+
+        # Filter by date range if specified
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        if start_date and end_date:
+            audit_records = audit_records.filter(
+                timestamp__date__range=[start_date, end_date]
+            )
+
+        # Pagination
+        paginator = Paginator(audit_records, 15)  # 15 records per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+
+        context = {
+            'page_obj': page_obj,
+            'action_choices': AuditTrail.ACTION_CHOICES,
+            'departments': departments,
+            'active_tab': 'activity',
+        }
+
     return render(request, 'admin_panel/audit_trail.html', context)
 
 @role_required('admin', login_url='/admin/')
@@ -2944,6 +2999,15 @@ def handle_activity_design_request(request, pk):
                     f"AD {activity_design.ad_number} cannot be approved. "
                     f"Current status: {activity_design.status}")
                 return redirect('departments_ad_request')
+
+            # ✅ GAP #2 FIX: Validate quarterly budget limits
+            quarterly_errors = activity_design.validate_quarterly_limits()
+            if quarterly_errors:
+                for error in quarterly_errors:
+                    messages.error(request, f"❌ Quarterly Budget Exceeded: {error}")
+                messages.warning(request,
+                    f"Cannot approve AD {activity_design.ad_number} - it would exceed quarterly budget limits.")
+                return redirect('admin_preview_ad', ad_id=activity_design.id)
 
             try:
                 # Get allocations info for detailed feedback

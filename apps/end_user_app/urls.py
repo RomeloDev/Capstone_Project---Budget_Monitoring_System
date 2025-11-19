@@ -42,6 +42,7 @@ urlpatterns = [
     path('budget/pre-details/', views.pre_budget_details, name='pre_budget_details'),
     path('budget/quarterly/', views.quarterly_analysis, name='quarterly_analysis'),
     path('budget/transactions/', views.transaction_history, name='transaction_history'),
+    path('budget/history/', views.budget_history, name='budget_history'),
     path('budget/reports/', views.budget_reports, name='budget_reports'),
     path('budget/export/excel/', views.export_budget_excel, name='export_budget_excel'),
     path('budget/export/pdf/', views.export_budget_pdf, name='export_budget_pdf'),

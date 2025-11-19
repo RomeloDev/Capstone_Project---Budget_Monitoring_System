@@ -160,46 +160,58 @@
                 </div>
             </header>
 
-            <div class="overflow-x-auto rounded-lg">
-                <table class="min-w-full text-sm text-left">
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="min-w-full text-sm text-left table-auto">
                     <thead class="bg-blue-600 font-semibold text-white">
                         <tr>
-                            <th class="py-2 px-4">ID</th>
-                            <th class="py-2 px-4">Approved Budget</th>
-                            <th class="py-2 px-4">Department</th>
-                            <th class="py-2 px-4">End User</th>
-                            <th class="py-2 px-4">Allocated Amount</th>
-                            <th class="py-2 px-4">Remaining Balance</th>
-                            <th class="py-2 px-4">PRE Used</th>
-                            <th class="py-2 px-4">PR Used</th>
-                            <th class="py-2 px-4">AD Used</th>
-                            <th class="py-2 px-4">Allocated At</th>
-                            <th class="py-2 px-4">Actions</th>
+                            <th class="py-3 px-2 whitespace-nowrap text-xs">Department / User</th>
+                            <th class="py-3 px-2 whitespace-nowrap text-right text-xs">Allocated</th>
+                            <th class="py-3 px-2 whitespace-nowrap text-right text-xs">Remaining</th>
+                            <th class="py-3 px-2 whitespace-nowrap text-xs">Budget Used</th>
+                            <th class="py-3 px-2 whitespace-nowrap text-xs">Date</th>
+                            <th class="py-3 px-2 whitespace-nowrap sticky right-0 bg-blue-600 text-xs">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="text-gray-700">
                         {% for allocation in allocations %}
-                        <tr class="hover:bg-gray-50">
-                            <td class="py-2 px-4 border-b">{{ allocation.id }}</td>
-                            <td class="py-2 px-4 border-b">
+                        <tr class="hover:bg-gray-50 border-b">
+                            <!-- Department / User (Combined) -->
+                            <td class="py-3 px-2">
                                 <div class="flex flex-col">
-                                    <span class="font-medium">{{ allocation.approved_budget.title }}</span>
-                                    <span class="text-xs text-gray-500">FY {{ allocation.approved_budget.fiscal_year }}</span>
+                                    <span class="font-semibold text-gray-900">{{ allocation.department }}</span>
+                                    <span class="text-xs text-gray-600">{{ allocation.end_user.get_full_name }}</span>
+                                    <span class="text-xs text-gray-400">FY {{ allocation.approved_budget.fiscal_year }}</span>
                                 </div>
                             </td>
-                            <td class="py-2 px-4 border-b">{{ allocation.department }}</td>
-                            <td class="py-2 px-4 border-b">{{ allocation.end_user.get_full_name }}</td>
-                            <td class="py-2 px-4 border-b">₱{{ allocation.allocated_amount|intcomma }}</td>
-                            <td class="py-2 px-4 border-b">
-                                <span class="{% if allocation.calculated_remaining <= 0 %}text-red-600{% else %}text-green-600{% endif %} font-medium">
-                                    ₱{{ allocation.calculated_remaining|intcomma }}
+
+                            <!-- Allocated Amount -->
+                            <td class="py-3 px-2 whitespace-nowrap text-right font-medium text-gray-900">
+                                ₱{{ allocation.allocated_amount|floatformat:0|intcomma }}
+                            </td>
+
+                            <!-- Remaining Balance -->
+                            <td class="py-3 px-2 whitespace-nowrap text-right">
+                                <span class="{% if allocation.calculated_remaining <= 0 %}text-red-600{% else %}text-green-600{% endif %} font-bold">
+                                    ₱{{ allocation.calculated_remaining|floatformat:0|intcomma }}
                                 </span>
                             </td>
-                            <td class="py-2 px-4 border-b">₱{{ allocation.pre_amount_used|intcomma }}</td>
-                            <td class="py-2 px-4 border-b">₱{{ allocation.pr_amount_used|intcomma }}</td>
-                            <td class="py-2 px-4 border-b">₱{{ allocation.ad_amount_used|intcomma }}</td>
-                            <td class="py-2 px-4 border-b">{{ allocation.allocated_at|date:"M d, Y g:i A" }}</td>
-                            <td class="py-2 px-4 border-b">
+
+                            <!-- Budget Used (Combined PRE/PR/AD) -->
+                            <td class="py-3 px-2">
+                                <div class="flex flex-col text-xs">
+                                    <span class="text-purple-600">PRE: ₱{{ allocation.pre_amount_used|floatformat:0|intcomma }}</span>
+                                    <span class="text-blue-600">PR: ₱{{ allocation.pr_amount_used|floatformat:0|intcomma }}</span>
+                                    <span class="text-green-600">AD: ₱{{ allocation.ad_amount_used|floatformat:0|intcomma }}</span>
+                                </div>
+                            </td>
+
+                            <!-- Allocated At -->
+                            <td class="py-3 px-2 whitespace-nowrap text-xs text-gray-600">
+                                {{ allocation.allocated_at|date:"M d, Y" }}
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="py-3 px-2 whitespace-nowrap sticky right-0 bg-white">
                                 <div class="flex gap-2">
                                     <!-- View Button -->
                                     <button onclick="viewAllocation({{ allocation.id }})" 

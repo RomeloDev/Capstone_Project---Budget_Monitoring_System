@@ -11,6 +11,166 @@
         <p class="text-sm text-blue-100 mt-1">A complete log of all system activities.</p>
     </header>
 <main class="flex-1 px-6 py-8 bg-gray-100 space-y-10">
+    <!-- Tabs Navigation -->
+    <section class="bg-white rounded-lg shadow-md">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex" aria-label="Tabs">
+                <a href="?tab=activity"
+                   class="{% if active_tab == 'activity' %}border-blue-500 text-blue-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm">
+                    User Activity
+                </a>
+                <a href="?tab=budget"
+                   class="{% if active_tab == 'budget' %}border-blue-500 text-blue-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm">
+                    Budget Changes
+                </a>
+            </nav>
+        </div>
+    </section>
+
+    {% if active_tab == 'budget' %}
+    <!-- BUDGET CHANGES TAB CONTENT -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Filter Budget Changes</h2>
+        <form class="mt-4 grid gap-4 md:grid-cols-4" method="get">
+            <input type="hidden" name="tab" value="budget">
+            <!-- Department -->
+            <div>
+                <label for="department" class="block text-sm font-medium text-gray-700 mb-1">Select Department</label>
+                <select id="department" name="department" class="w-full border border-gray-300 rounded px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <option value="">All Departments</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept }}" {% if request.GET.department == dept %}selected{% endif %}>{{ dept }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Transaction Type -->
+            <div>
+                <label for="transaction_type" class="block text-sm font-medium text-gray-700">Transaction Type</label>
+                <select name="transaction_type" id="transaction_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">All Types</option>
+                    {% for code, label in transaction_types %}
+                        <option value="{{ code }}" {% if request.GET.transaction_type == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Start Date -->
+            <div>
+                <label for="start_date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                <input type="date" name="start_date" id="start_date"
+                    value="{{ request.GET.start_date }}"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <!-- End Date -->
+            <div>
+                <label for="end_date" class="block text-sm font-medium text-gray-700">End Date</label>
+                <input type="date" name="end_date" id="end_date"
+                    value="{{ request.GET.end_date }}"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+                    Filter Results
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Budget Transaction Logs Table -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Budget Transaction History</h2>
+        <div class="mt-8 flex flex-col">
+            <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                    <div class="overflow-hidden shadow-md ring-2 ring-black ring-opacity-5 md:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-300">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date & Time</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Department</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Transaction Type</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Amount Change</th>
+                                    <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Previous Balance</th>
+                                    <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">New Balance</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Related Document</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-gray-50">
+                                {% for log in page_obj %}
+                                <tr>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
+                                        {{ log.created_at|date:"M d, Y H:i:s" }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
+                                        {{ log.allocation.end_user.department|default:"N/A" }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                        <span class="inline-flex shadow-sm ring-slate-900 rounded-full px-2 text-xs font-semibold leading-5
+                                            {% if 'APPROVED' in log.transaction_type %}bg-green-100 text-green-800
+                                            {% elif 'REJECTED' in log.transaction_type %}bg-red-100 text-red-800
+                                            {% elif 'CREATED' in log.transaction_type %}bg-blue-100 text-blue-800
+                                            {% elif 'DELETED' in log.transaction_type %}bg-gray-100 text-gray-800
+                                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                            {{ log.get_transaction_type_display }}
+                                        </span>
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm font-medium
+                                        {% if log.is_decrease %}text-red-600{% elif log.is_increase %}text-green-600{% else %}text-gray-900{% endif %}">
+                                        {{ log.formatted_amount }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-right text-gray-900">₱{{ log.previous_balance|floatformat:2 }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium text-gray-900">₱{{ log.new_balance|floatformat:2 }}</td>
+                                    <td class="px-3 py-4 text-sm text-gray-900">
+                                        {% if log.related_document_id %}
+                                            {{ log.related_document_type }}: {{ log.related_document_id }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="px-3 py-4 text-sm text-gray-900 text-center">No budget transactions found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Pagination for Budget Tab -->
+        {% if page_obj.has_other_pages %}
+        {% get_page_range page_obj as page_range %}
+        <div class="mt-4 flex items-center justify-between">
+            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-800">
+                        Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                        ({{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} records)
+                    </p>
+                </div>
+                <div>
+                    <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                        {% if page_obj.has_previous %}
+                            <a href="?tab=budget&page={{ page_obj.previous_page_number }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.transaction_type %}&transaction_type={{ request.GET.transaction_type }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}"
+                            class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-800 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50">Previous</a>
+                        {% endif %}
+                        <span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300">
+                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                        </span>
+                        {% if page_obj.has_next %}
+                            <a href="?tab=budget&page={{ page_obj.next_page_number }}{% if request.GET.department %}&department={{ request.GET.department }}{% endif %}{% if request.GET.transaction_type %}&transaction_type={{ request.GET.transaction_type }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}"
+                            class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-800 ring-1 ring-inset ring-gray-300 hover:bg-blue-600 hover:text-gray-50">Next</a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+    {% else %}
+    <!-- USER ACTIVITY TAB CONTENT (EXISTING) -->
     {% comment %} <header class="dashboard-header">
         <h1 class="text-3xl font-bold mb-2">Audit Trail</h1>
         <p class="text-gray-200">Manage and monitor end user and approving officer activity logs.</p>
@@ -273,6 +433,7 @@
     </div>
     </section> {% endcomment %}
     </section>
+    {% endif %}
 </main>
 </div>
 {% endblock main-content %}
