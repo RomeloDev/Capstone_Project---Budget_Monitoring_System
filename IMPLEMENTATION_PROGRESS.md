@@ -216,23 +216,59 @@ class DepartmentPREApprovedDocument(models.Model):
 
 ---
 
-## 📋 PENDING PHASES
+## ✅ PHASE 4B COMPLETE
 
-### Phase 4b: Admin Verification Workflow
-**Status:** PENDING
-**Target Files:**
-- Create: `apps/admin_panel/views.py` → `admin_verify_and_approve_pre()`
-- Update: `apps/admin_panel/templates/admin_panel/pre_detail.html`
+### Phase 4b: Admin Verification Workflow ✅
+**Status:** COMPLETE
+**Files Created:**
+- `apps/admin_panel/views.py` → `admin_verify_and_approve_pre()` (line 4094)
 
-**Tasks:**
-- [ ] Create verification view
-- [ ] Show uploaded signed documents
-- [ ] Add approve/reject actions
-- [ ] On approval: Create line item budgets, update budget allocation
-- [ ] On rejection: Reset to Partially Approved, delete uploaded docs
-- [ ] Send notifications
+**Files Modified:**
+- `apps/admin_panel/urls.py` (added verification route)
+- `apps/admin_panel/templates/admin_panel/pre_detail.html` (added verification section + modal)
+
+**Completed Tasks:**
+- ✅ Created verification view with approve/reject logic
+- ✅ Show uploaded signed documents with metadata
+- ✅ Added approve/reject action buttons
+- ✅ On approval: Creates LineItemBudget records automatically
+- ✅ On rejection: Resets to Partially Approved, deletes uploaded docs
+- ✅ Notifications sent via signals
+- ✅ Approval records created for audit trail
+
+**Features Implemented:**
+- Admin verification interface with document review
+- "Awaiting Admin Verification" status display
+- Document list with view links (filename, type, size, upload time)
+- Approve button with confirmation dialog
+- Reject modal with required reason field
+- Admin comments field (optional)
+- Automatic LineItemBudget creation on approval
+- Duplicate check before budget creation
+- Status transitions with validation
+- RequestApproval record creation (level='final' or 'verification_rejected')
+- Document deletion on rejection
+- User-friendly success/error messages
+
+**Approve Workflow:**
+1. Verify PRE status is 'Awaiting Admin Verification'
+2. Update status to 'Approved'
+3. Set admin_approved_at and admin_approved_by
+4. Create LineItemBudget for each PRE line item
+5. Create RequestApproval record (level='final')
+6. Notify end user via signal
+
+**Reject Workflow:**
+1. Update status to 'Partially Approved'
+2. Delete all signed_approved_documents
+3. Clear end_user_uploaded_at and awaiting_verification flag
+4. Set rejection_reason
+5. Create RequestApproval record (level='verification_rejected')
+6. Notify end user to re-upload
 
 ---
+
+## 📋 PENDING PHASES
 
 ### Phase 5: Budget Monitoring Updates
 **Status:** PENDING
@@ -283,11 +319,11 @@ class DepartmentPREApprovedDocument(models.Model):
 | Phase 3: Upload Workflow | ✅ Complete | 100% |
 | Phase 3b: Preview & Print | ✅ Complete | 100% |
 | Phase 4: End-User Upload | ✅ Complete | 100% |
-| Phase 4b: Admin Verification | ⏸️ Pending | 0% |
+| Phase 4b: Admin Verification | ✅ Complete | 100% |
 | Phase 5: Budget Monitoring | ⏸️ Pending | 0% |
 | Phase 6: Testing & Docs | ⏸️ Pending | 0% |
 
-**Overall Progress:** 62.5% (5/8 phases complete)
+**Overall Progress:** 75% (6/8 phases complete)
 
 ---
 
