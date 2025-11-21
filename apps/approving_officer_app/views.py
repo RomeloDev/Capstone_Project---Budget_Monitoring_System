@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign, PurchaseRequestAllocation, ActivityDesignAllocations, PRELineItemBudget, PREBudgetRealignment
+from apps.end_user_app.models import PurchaseRequest, DepartmentPRE, ActivityDesign, PurchaseRequestAllocation, ActivityDesignAllocations, PRELineItemBudget
+from apps.budgets.models import PREBudgetRealignment
 from apps.admin_panel.models import BudgetAllocation
 from django.contrib import messages
 from django.contrib.humanize.templatetags.humanize import intcomma

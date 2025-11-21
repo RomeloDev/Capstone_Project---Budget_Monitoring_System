@@ -239,40 +239,15 @@
                                 </div>
                                 {% endif %}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                <!-- View Details Button -->
-                                <button onclick="showDetails({{ request.id }})" 
-                                        class="text-blue-600 hover:text-blue-900 transition duration-200">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <a href="{% url 'pre_budget_realignment_detail' request.id %}"
+                                   class="inline-flex items-center px-3 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 transition duration-200">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
                                     View Details
-                                </button>
-
-                                {% if request.status == 'Pending' %}
-                                <!-- Approve/Reject Actions -->
-                                <form method="post" action="{% url 'handle_pre_realignment_admin_action' request.id %}" class="inline-block">
-                                    {% csrf_token %}
-                                    {% if request.can_be_approved %}
-                                    <button type="submit" name="action" value="partial_approve" 
-                                            onclick="return confirm('Are you sure you want to approve this realignment request?')"
-                                            class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition duration-200">
-                                        PartialApprove
-                                    </button>
-                                    {% else %}
-                                    <button type="button" disabled
-                                            class="bg-gray-400 text-white px-3 py-1 rounded text-xs cursor-not-allowed"
-                                            title="Insufficient funds in source category">
-                                        Cannot Approve
-                                    </button>
-                                    {% endif %}
-                                    
-                                    <button type="submit" name="action" value="reject" 
-                                            onclick="return confirm('Are you sure you want to reject this realignment request?')"
-                                            class="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition duration-200 ml-1">
-                                        Reject
-                                    </button>
-                                </form>
-                                {% else %}
-                                <span class="text-gray-500 text-xs">{{ request.get_status_display }}</span>
-                                {% endif %}
+                                </a>
                             </td>
                         </tr>
 

@@ -203,21 +203,21 @@ def convert_with_win32com(excel_path):
 
 
 def save_pdf_to_model(pre, pdf_content):
-    """Save PDF to model"""
+    """Save Excel-converted PDF to original_excel_pdf field"""
     try:
-        filename = f'PRE_{str(pre.id)[:8].upper()}_{timezone.now().strftime("%Y%m%d")}.pdf'
-        
-        pre.partially_approved_pdf.save(
+        filename = f'PRE_Original_{str(pre.id)[:8].upper()}_{timezone.now().strftime("%Y%m%d")}.pdf'
+
+        pre.original_excel_pdf.save(
             filename,
             ContentFile(pdf_content),
             save=True
         )
-        
-        print(f"✅ PDF saved to model: {pre.partially_approved_pdf.url}")
-        return pre.partially_approved_pdf.url
-        
+
+        print(f"✅ Original Excel PDF saved to model: {pre.original_excel_pdf.url}")
+        return pre.original_excel_pdf.url
+
     except Exception as e:
-        print(f"❌ Error saving PDF: {str(e)}")
+        print(f"❌ Error saving Excel PDF: {str(e)}")
         return None
 
 
@@ -235,25 +235,25 @@ def generate_pre_pdf_from_excel(pre):
 
 def enable_manual_pdf_upload(pre, uploaded_pdf_file):
     """
-    Fallback: Allow admin to manually convert and upload PDF
-    
+    Fallback: Allow admin to manually convert and upload Excel PDF
+
     Usage in admin view:
         if request.FILES.get('manual_pdf'):
             pdf_file = request.FILES['manual_pdf']
             enable_manual_pdf_upload(pre, pdf_file)
     """
     try:
-        filename = f'PRE_{str(pre.id)[:8].upper()}_Manual.pdf'
-        
-        pre.partially_approved_pdf.save(
+        filename = f'PRE_Original_{str(pre.id)[:8].upper()}_Manual.pdf'
+
+        pre.original_excel_pdf.save(
             filename,
             uploaded_pdf_file,
             save=True
         )
-        
-        print(f"✅ Manual PDF uploaded: {pre.partially_approved_pdf.url}")
-        return pre.partially_approved_pdf.url
-        
+
+        print(f"✅ Manual Excel PDF uploaded: {pre.original_excel_pdf.url}")
+        return pre.original_excel_pdf.url
+
     except Exception as e:
-        print(f"❌ Error uploading manual PDF: {str(e)}")
+        print(f"❌ Error uploading manual Excel PDF: {str(e)}")
         return None

@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.shortcuts import redirect, get_object_or_404
 from apps.admin_panel.models import BudgetAllocation
-from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, PREBudgetRealignment, PREDraft, PREDraftSupportingDocument, ActivityDesign as LegacyActivityDesign, ActivityDesignAllocations as LegacyActivityDesignAllocations
+from .models import PurchaseRequest, PurchaseRequestItems, Budget_Realignment, DepartmentPRE, Session, Signatory, CampusApproval, UniversityApproval, PRELineItemBudget, PurchaseRequestAllocation, PREDraft, PREDraftSupportingDocument, ActivityDesign as LegacyActivityDesign, ActivityDesignAllocations as LegacyActivityDesignAllocations
 from decimal import Decimal, InvalidOperation, InvalidOperation, DecimalException
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -28,7 +28,7 @@ from io import BytesIO
 import shutil
 import xlwings as xw
 import tempfile
-from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation, DepartmentPRESupportingDocument
+from apps.budgets.models import ApprovedBudget as NewApprovedBudget, BudgetAllocation as NewBudgetAllocation, DepartmentPRE as NewDepartmentPRE, PurchaseRequest as NewPurchaseRequest, PRELineItem, PurchaseRequestAllocation as NewPurchaseRequestAllocation, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation, DepartmentPRESupportingDocument, PREBudgetRealignment, BudgetRealignmentSupportingDocument
 from .utils.pre_parser import parse_pre_excel
 from django.core.files.storage import default_storage
 from django.utils import timezone
@@ -62,11 +62,23 @@ def user_dashboard(request):
     End User Dashboard - Overview & Summary Page
     Shows key metrics, recent activity, and quick links to detailed pages
     """
-    # Get user's budget allocations
+    from datetime import datetime
+
+    # Get current year and selected year from request
+    current_year = str(datetime.now().year)
+    selected_year = request.GET.get('year', current_year)
+
+    # Get user's budget allocations filtered by year
     budget_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True
     ).select_related('approved_budget')
+
+    # Filter by fiscal year if not 'all'
+    if selected_year != 'all':
+        budget_allocations = budget_allocations.filter(
+            approved_budget__fiscal_year=selected_year
+        )
 
     # Calculate totals
     total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
@@ -194,7 +206,17 @@ def user_dashboard(request):
             'utilization': quarter_utilization
         })
 
+    # Get available years for the year selector
+    available_years = NewBudgetAllocation.objects.filter(
+        end_user=request.user
+    ).values_list('approved_budget__fiscal_year', flat=True).distinct().order_by('-approved_budget__fiscal_year')
+
     context = {
+        # Year filter
+        'selected_year': selected_year,
+        'available_years': list(available_years),
+        'current_year': current_year,
+
         # Totals
         'total_allocated': total_allocated,
         'total_used': total_used,
@@ -1998,21 +2020,22 @@ def upload_pre(request, allocation_id):
     return render(request, 'end_user_app/upload_pre.html', context)
 
 
-def create_pre_line_items(pre, extracted_data):
+def create_pre_line_items(pre, extracted_data, custom_line_items=None):
     """
-    Create PRELineItem records from extracted data
-    
+    Create PRELineItem records from extracted data and custom items
+
     Args:
         pre: NewDepartmentPRE instance
         extracted_data: Dict with categories (receipts, personnel, mooe, capital)
-    
+        custom_line_items: List of custom line items added by user (optional)
+
     Returns:
         int: Number of line items created
     """
     from apps.budgets.models import PRELineItem, PRECategory, PRESubCategory
-    
+
     line_items_created = 0
-    
+
     # Category mapping
     category_mapping = {
         'receipts': ('PERSONNEL', 'Receipts'),  # Or create a separate category
@@ -2020,17 +2043,18 @@ def create_pre_line_items(pre, extracted_data):
         'mooe': ('MOOE', 'Maintenance and Other Operating Expenses'),
         'capital': ('CAPITAL', 'Capital Outlays'),
     }
-    
+
+    # Create line items from Excel data
     for section_key, items_list in extracted_data.items():
         if not items_list:
             continue
-        
+
         # Get or create category
         category_type, category_name = category_mapping.get(
-            section_key, 
+            section_key,
             ('MOOE', section_key.title())
         )
-        
+
         category, _ = PRECategory.objects.get_or_create(
             category_type=category_type,
             defaults={
@@ -2040,15 +2064,15 @@ def create_pre_line_items(pre, extracted_data):
                 'sort_order': {'receipts': 1, 'personnel': 2, 'mooe': 3, 'capital': 4}.get(section_key, 5)
             }
         )
-        
-        # Create line items
+
+        # Create line items from Excel
         for item_data in items_list:
             item_name = item_data.get('item_name', 'Unknown Item')
-            
+
             # Get subcategory from nested data (for MOOE and Capital)
             subcategory = None
             subcategory_name = item_data.get('category')  # MOOE/Capital have subcategories
-            
+
             if subcategory_name:
                 subcategory, _ = PRESubCategory.objects.get_or_create(
                     category=category,
@@ -2058,8 +2082,8 @@ def create_pre_line_items(pre, extracted_data):
                         'is_active': True,
                     }
                 )
-            
-            # Create line item
+
+            # Create line item with source_type='excel'
             PRELineItem.objects.create(
                 pre=pre,
                 category=category,
@@ -2069,10 +2093,43 @@ def create_pre_line_items(pre, extracted_data):
                 q2_amount=Decimal(str(item_data.get('q2', 0))),
                 q3_amount=Decimal(str(item_data.get('q3', 0))),
                 q4_amount=Decimal(str(item_data.get('q4', 0))),
+                source_type='excel',
             )
-            
+
             line_items_created += 1
-    
+
+    # Create custom line items
+    if custom_line_items:
+        for custom_item in custom_line_items:
+            try:
+                category = PRECategory.objects.get(id=custom_item['category_id'])
+
+                # Subcategory is optional
+                subcategory = None
+                subcategory_id = custom_item.get('subcategory_id')
+                if subcategory_id:
+                    try:
+                        subcategory = PRESubCategory.objects.get(id=subcategory_id)
+                    except PRESubCategory.DoesNotExist:
+                        print(f"⚠️ Subcategory {subcategory_id} not found for custom item '{custom_item['item_name']}'")
+
+                PRELineItem.objects.create(
+                    pre=pre,
+                    category=category,
+                    subcategory=subcategory,
+                    item_name=custom_item['item_name'],
+                    q1_amount=Decimal(str(custom_item.get('q1', 0))),
+                    q2_amount=Decimal(str(custom_item.get('q2', 0))),
+                    q3_amount=Decimal(str(custom_item.get('q3', 0))),
+                    q4_amount=Decimal(str(custom_item.get('q4', 0))),
+                    source_type='manual',
+                )
+
+                line_items_created += 1
+                print(f"✅ Created custom line item: {custom_item['item_name']}")
+            except Exception as e:
+                print(f"❌ Error creating custom line item '{custom_item.get('item_name', 'Unknown')}': {e}")
+
     print(f"✅ Created {line_items_created} PRELineItem records for PRE {pre.id}")
     return line_items_created
 
@@ -2115,13 +2172,24 @@ def preview_pre(request):
     personnel_total = calculate_section_totals(extracted_data.get('personnel', []))
     mooe_total = calculate_section_totals(extracted_data.get('mooe', []))
     capital_total = calculate_section_totals(extracted_data.get('capital', []))
-    
+
+    # Get custom line items from session
+    custom_line_items = upload_data.get('custom_line_items', [])
+    custom_total = sum(Decimal(str(item.get('total', 0))) for item in custom_line_items)
+
+    # Recalculate grand total including custom items
+    grand_total = Decimal(upload_data['grand_total'])
+
     # Get allocation
     allocation = get_object_or_404(
         NewBudgetAllocation.objects.select_related('approved_budget'),
         id=upload_data['allocation_id'],
         end_user=request.user
     )
+
+    # Get categories for the modal
+    from apps.budgets.models import PRECategory
+    categories = PRECategory.objects.all().order_by('sort_order', 'name')
     
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -2177,17 +2245,30 @@ def preview_pre(request):
                                 Decimal(str(item.get('q4', 0)))
                             )
                             recalculated_total += item_total
-                    
-                    # ✅ Use recalculated total
+
+                    # ✅ Add custom line items to total
+                    custom_items = upload_data.get('custom_line_items', [])
+                    custom_total = Decimal('0')
+                    for custom_item in custom_items:
+                        custom_item_total = (
+                            Decimal(str(custom_item.get('q1', 0))) +
+                            Decimal(str(custom_item.get('q2', 0))) +
+                            Decimal(str(custom_item.get('q3', 0))) +
+                            Decimal(str(custom_item.get('q4', 0)))
+                        )
+                        custom_total += custom_item_total
+
+                    # ✅ Final total = Excel items + Custom items
+                    final_total = recalculated_total + custom_total
+
                     print(f"📊 Session grand_total: ₱{grand_total:,.2f}")
-                    print(f"📊 Recalculated total: ₱{recalculated_total:,.2f}")
-                    
-                    if abs(grand_total - recalculated_total) > Decimal('0.01'):
-                        print(f"⚠️ Total mismatch! Using recalculated: ₱{recalculated_total:,.2f}")
-                        print(f"   Session: ₱{grand_total:,.2f}")
-                        print(f"   Using recalculated value.")
-                    
-                    final_total = recalculated_total
+                    print(f"📊 Excel items total: ₱{recalculated_total:,.2f}")
+                    print(f"📊 Custom items total: ₱{custom_total:,.2f}")
+                    print(f"📊 Final total: ₱{final_total:,.2f}")
+
+                    if abs(grand_total - final_total) > Decimal('0.01'):
+                        print(f"⚠️ Total mismatch! Session: ₱{grand_total:,.2f}, Calculated: ₱{final_total:,.2f}")
+                        print(f"   Using calculated value: ₱{final_total:,.2f}")
                     
                     # 1. Create DepartmentPRE record
                     pre = NewDepartmentPRE.objects.create(
@@ -2212,9 +2293,10 @@ def preview_pre(request):
                                 save=True
                             )
                     
-                    # 3. 🔥 CREATE LINE ITEMS FROM EXTRACTED DATA
-                    line_items_created = create_pre_line_items(pre, extracted_data)
-                    
+                    # 3. 🔥 CREATE LINE ITEMS FROM EXTRACTED DATA AND CUSTOM ITEMS
+                    custom_items = upload_data.get('custom_line_items', [])
+                    line_items_created = create_pre_line_items(pre, extracted_data, custom_items)
+
                     if line_items_created == 0:
                         raise Exception("No line items were created from the PRE data")
 
@@ -2288,9 +2370,150 @@ def preview_pre(request):
         'mooe_total': mooe_total,
         'capital_total': capital_total,
         'validation_warnings': validation_warnings,
+        'custom_line_items': custom_line_items,
+        'custom_total': custom_total,
+        'categories': categories,
     }
-    
+
     return render(request, 'end_user_app/preview_pre.html', context)
+
+
+@role_required('end_user', login_url='/')
+def get_subcategories(request, category_id):
+    """AJAX endpoint to get subcategories for a category"""
+    from apps.budgets.models import PRESubCategory
+
+    try:
+        subcategories = PRESubCategory.objects.filter(category_id=category_id).order_by('sort_order', 'name')
+        data = {
+            'subcategories': [
+                {'id': sub.id, 'name': sub.name}
+                for sub in subcategories
+            ]
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@role_required('end_user', login_url='/')
+def add_custom_line_item(request):
+    """Add a custom line item to the session during PRE upload preview"""
+    if request.method == 'POST':
+        from apps.budgets.models import PRECategory, PRESubCategory
+
+        # Get session data
+        pre_data = request.session.get('pre_upload_data')
+        if not pre_data:
+            messages.error(request, "No PRE upload in progress")
+            return redirect('department_pre_page')
+
+        # Validate and get form data
+        category_id = request.POST.get('category')
+        subcategory_id = request.POST.get('subcategory')
+        item_name = request.POST.get('item_name', '').strip()
+
+        if not item_name:
+            messages.error(request, "Line item name is required")
+            return redirect('preview_pre')
+
+        try:
+            category = PRECategory.objects.get(id=category_id)
+
+            # Subcategory is optional
+            subcategory = None
+            subcategory_name = None
+            if subcategory_id:
+                try:
+                    subcategory = PRESubCategory.objects.get(id=subcategory_id, category=category)
+                    subcategory_name = subcategory.name
+                except PRESubCategory.DoesNotExist:
+                    pass
+
+            q1 = Decimal(request.POST.get('q1_amount', '0') or '0')
+            q2 = Decimal(request.POST.get('q2_amount', '0') or '0')
+            q3 = Decimal(request.POST.get('q3_amount', '0') or '0')
+            q4 = Decimal(request.POST.get('q4_amount', '0') or '0')
+
+            # Validate at least one quarter has value
+            if q1 + q2 + q3 + q4 == 0:
+                messages.error(request, "At least one quarter must have a budget amount greater than zero")
+                return redirect('preview_pre')
+
+            # Initialize custom_line_items if not exists
+            if 'custom_line_items' not in pre_data:
+                pre_data['custom_line_items'] = []
+
+            # Add custom item to session
+            custom_item = {
+                'category_id': category.id,
+                'category_name': category.name,
+                'subcategory_id': subcategory.id if subcategory else None,
+                'subcategory_name': subcategory_name or 'N/A',
+                'item_name': item_name,
+                'q1': float(q1),
+                'q2': float(q2),
+                'q3': float(q3),
+                'q4': float(q4),
+                'total': float(q1 + q2 + q3 + q4),
+            }
+
+            pre_data['custom_line_items'].append(custom_item)
+
+            # Update grand total in session
+            current_grand_total = Decimal(pre_data.get('grand_total', '0'))
+            new_grand_total = current_grand_total + (q1 + q2 + q3 + q4)
+            pre_data['grand_total'] = str(new_grand_total)
+
+            request.session['pre_upload_data'] = pre_data
+            request.session.modified = True
+
+            messages.success(request, f"Custom line item '{item_name}' added successfully")
+
+        except PRECategory.DoesNotExist:
+            messages.error(request, "Invalid category selected")
+        except PRESubCategory.DoesNotExist:
+            messages.error(request, "Invalid subcategory selected")
+        except (ValueError, InvalidOperation) as e:
+            messages.error(request, "Invalid amount values. Please enter valid numbers.")
+        except Exception as e:
+            messages.error(request, f"Error adding custom item: {str(e)}")
+
+        return redirect('preview_pre')
+
+    return redirect('department_pre_page')
+
+
+@role_required('end_user', login_url='/')
+def remove_custom_line_item(request, index):
+    """Remove a custom line item from the session"""
+    if request.method == 'POST':
+        pre_data = request.session.get('pre_upload_data')
+
+        if not pre_data:
+            return JsonResponse({'success': False, 'error': 'No PRE upload in progress'}, status=400)
+
+        custom_items = pre_data.get('custom_line_items', [])
+
+        if 0 <= index < len(custom_items):
+            removed_item = custom_items.pop(index)
+
+            # Update grand total
+            current_grand_total = Decimal(pre_data.get('grand_total', '0'))
+            item_total = Decimal(str(removed_item['total']))
+            new_grand_total = current_grand_total - item_total
+            pre_data['grand_total'] = str(new_grand_total)
+
+            pre_data['custom_line_items'] = custom_items
+            request.session['pre_upload_data'] = pre_data
+            request.session.modified = True
+
+            messages.success(request, f"Custom line item '{removed_item['item_name']}' removed successfully")
+            return JsonResponse({'success': True})
+        else:
+            return JsonResponse({'success': False, 'error': 'Invalid index'}, status=400)
+
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
 
 
 @role_required('end_user', login_url='/')
@@ -2954,177 +3177,227 @@ def budget_details(request, budget_id):
      
 @role_required('end_user', login_url='/')
 def pre_budget_realignment(request):
-    """PRE-based budget realignment form"""
-    
-    # Get user's approved PREs
-    approved_pres = DepartmentPRE.objects.filter(
+    """PRE-based budget realignment form with quarterly amounts and document uploads"""
+
+    # Get user's approved PREs (NEW system - budgets.models.DepartmentPRE)
+    approved_pres = NewDepartmentPRE.objects.filter(
         submitted_by=request.user,
-        approved_by_approving_officer=True,
-        approved_by_admin=True,
+        status='Approved'
     ).order_by('-created_at')
-    
-    # Build available budget categories
+
+    print(f"DEBUG: Found {approved_pres.count()} approved PREs for user {request.user.username}")
+
+    # Build available budget line items with quarterly breakdown
     available_categories = []
-    
+
     for pre in approved_pres:
-        line_items = PRELineItemBudget.objects.filter(pre=pre)
-        
-        # Group by item_key and calculate totals
-        category_totals = {}
+        print(f"DEBUG: Processing PRE {pre.id}")
+        line_items = PRELineItem.objects.filter(pre=pre)
+        print(f"DEBUG: Found {line_items.count()} line items for PRE {pre.id}")
+
+        # Process each line item (NEW structure has quarterly amounts in single row)
         for item in line_items:
-            if item.item_key not in category_totals:
-                category_totals[item.item_key] = {
-                    'pre_id': pre.id,
-                    'item_key': item.item_key,
-                    'label': FRIENDLY_LABELS.get(item.item_key, item.item_key.replace('_', ' ').title()),
-                    'total_allocated': Decimal('0'),
-                    'total_consumed': Decimal('0'),
-                    'total_remaining': Decimal('0'),
-                    'quarters': []
+            # Build item key using line item ID (most reliable)
+            item_key = str(item.id)
+
+            # Build label from category/subcategory/item_name
+            if item.subcategory:
+                label = f"{item.category.name} - {item.subcategory.name} - {item.item_name}"
+            else:
+                label = f"{item.category.name} - {item.item_name}"
+
+            # Calculate quarterly data from NEW model structure
+            quarters_json = {}
+            total_remaining = Decimal('0')
+
+            for quarter in ['q1', 'q2', 'q3', 'q4']:
+                allocated = getattr(item, f'{quarter}_amount', Decimal('0'))
+                consumed = item.get_quarter_consumed(quarter)
+                remaining = allocated - consumed
+                total_remaining += remaining
+
+                quarters_json[quarter] = {
+                    'allocated': float(allocated),
+                    'consumed': float(consumed),
+                    'remaining': float(remaining)
                 }
-            
-            category_totals[item.item_key]['total_allocated'] += item.allocated_amount
-            category_totals[item.item_key]['total_consumed'] += item.consumed_amount
-            category_totals[item.item_key]['total_remaining'] += item.remaining_amount
-            category_totals[item.item_key]['quarters'].append({
-                'quarter': item.quarter,
-                'allocated': item.allocated_amount,
-                'consumed': item.consumed_amount,
-                'remaining': item.remaining_amount
-            })
-            
-        # Add categories with remaining budget
-        for item_key, data in category_totals.items():
-            if data['total_remaining'] > 0:
+
+            # Only add line items with remaining budget
+            if total_remaining > 0:
                 available_categories.append({
-                    'value': f"{data['pre_id']}|{item_key}",
-                    'label': f"{data['label']} - ₱{data['total_remaining']:,.2f} available",
-                    'remaining': data['total_remaining'],
-                    'pre_id': data['pre_id'],
-                    'item_key': item_key
+                    'value': f"{pre.id}|{item_key}",
+                    'label': f"{label} - ₱{total_remaining:,.2f} available",
+                    'pre_id': pre.id,
+                    'item_key': item_key,
+                    'quarters': json.dumps(quarters_json)
                 })
-                
+
     if request.method == 'POST':
         source_encoded = request.POST.get('source_category')
         target_encoded = request.POST.get('target_category')
-        amount = Decimal(request.POST.get('amount', '0'))
         reason = request.POST.get('reason', '').strip()
-        
+
+        # Get quarterly amounts
+        q1_amount = Decimal(request.POST.get('q1_amount', '0') or '0')
+        q2_amount = Decimal(request.POST.get('q2_amount', '0') or '0')
+        q3_amount = Decimal(request.POST.get('q3_amount', '0') or '0')
+        q4_amount = Decimal(request.POST.get('q4_amount', '0') or '0')
+
+        total_amount = q1_amount + q2_amount + q3_amount + q4_amount
+
+        # Get uploaded documents
+        uploaded_files = request.FILES.getlist('documents')
+
         # Validation
         if not source_encoded or not target_encoded:
             messages.error(request, "Please select both source and target categories.")
             return redirect('pre_budget_realignment')
-        
+
         if source_encoded == target_encoded:
             messages.error(request, "Source and target categories cannot be the same.")
             return redirect('pre_budget_realignment')
-        
-        if amount <= 0:
-            messages.error(request, "Amount must be greater than zero.")
+
+        if total_amount <= 0:
+            messages.error(request, "Total amount must be greater than zero. Please enter at least one quarterly amount.")
             return redirect('pre_budget_realignment')
-        
-        if not reason:
-            messages.error(request, "Please provide a reason for the realignment.")
+
+        if not uploaded_files:
+            messages.error(request, "Please upload at least one supporting document.")
             return redirect('pre_budget_realignment')
-        
+
         try:
-            # Parse source and target
-            source_pre_id, source_item_key = source_encoded.split('|')
-            target_pre_id, target_item_key = target_encoded.split('|')
-            
-            source_pre = DepartmentPRE.objects.get(id=source_pre_id, submitted_by=request.user)
-            target_pre = DepartmentPRE.objects.get(id=target_pre_id, submitted_by=request.user)
-            
-            # Validate source has sufficient funds
-            source_items = PRELineItemBudget.objects.filter(
-                pre=source_pre,
-                item_key=source_item_key
-            )
-            
-            total_available = sum(item.remaining_amount for item in source_items)
-            
-            if total_available < amount:
-                messages.error(request, f"Insufficient funds. Available: ₱{total_available:,.2f}, Requested: ₱{amount:,.2f}")
-                return redirect('pre_budget_realignment')
-            
-            # Validate target category exists
-            target_items = PRELineItemBudget.objects.filter(
-                pre=target_pre,
-                item_key=target_item_key
-            )
-            
-            if not target_items.exists():
-                messages.error(request, "Target category not found in your PRE.")
-                return redirect('pre_budget_realignment')
-            
-            # Create realignment request
-            realignment = PREBudgetRealignment.objects.create(
-                requested_by=request.user,
-                source_pre=source_pre,
-                source_item_key=source_item_key,
-                target_pre=target_pre,
-                target_item_key=target_item_key,
-                amount=amount,
-                reason=reason,
-                source_item_display=FRIENDLY_LABELS.get(source_item_key, source_item_key.replace('_', ' ').title()),
-                target_item_display=FRIENDLY_LABELS.get(target_item_key, target_item_key.replace('_', ' ').title()),
-            )
-            
-            # Log audit trail
-            log_audit_trail(
-                request=request,
-                action='CREATE',
-                model_name='PREBudgetRealignment',
-                record_id=realignment.id,
-                detail=f'Requested budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{amount:,.2f})',
-            )
-            
-            messages.success(request, f"Budget realignment request submitted successfully. Request ID: {realignment.id}")
-            return redirect('pre_budget_realignment')
-            
-        except (ValueError, DepartmentPRE.DoesNotExist) as e:
+            with transaction.atomic():
+                # Parse source and target
+                source_pre_id, source_item_key = source_encoded.split('|', 1)
+                target_pre_id, target_item_key = target_encoded.split('|', 1)
+
+                source_pre = NewDepartmentPRE.objects.get(id=source_pre_id, submitted_by=request.user)
+                target_pre = NewDepartmentPRE.objects.get(id=target_pre_id, submitted_by=request.user)
+
+                # Get source line item by ID (NEW structure)
+                try:
+                    source_line_item = PRELineItem.objects.get(id=source_item_key, pre=source_pre)
+                except PRELineItem.DoesNotExist:
+                    messages.error(request, "Source line item not found.")
+                    return redirect('pre_budget_realignment')
+
+                # Get target line item by ID
+                try:
+                    target_line_item = PRELineItem.objects.get(id=target_item_key, pre=target_pre)
+                except PRELineItem.DoesNotExist:
+                    messages.error(request, "Target line item not found.")
+                    return redirect('pre_budget_realignment')
+
+                # Validate each quarter has sufficient funds in NEW structure
+                for quarter_num, quarter_amount in enumerate([q1_amount, q2_amount, q3_amount, q4_amount], 1):
+                    if quarter_amount > 0:
+                        quarter_code = f'q{quarter_num}'
+                        allocated = getattr(source_line_item, f'{quarter_code}_amount', Decimal('0'))
+                        consumed = source_line_item.get_quarter_consumed(quarter_code)
+                        available = allocated - consumed
+
+                        if available < quarter_amount:
+                            messages.error(request, f"Insufficient funds for Q{quarter_num}. Available: ₱{available:,.2f}, Requested: ₱{quarter_amount:,.2f}")
+                            return redirect('pre_budget_realignment')
+
+                # Build display labels
+                if source_line_item.subcategory:
+                    source_display = f"{source_line_item.category.name} - {source_line_item.subcategory.name} - {source_line_item.item_name}"
+                else:
+                    source_display = f"{source_line_item.category.name} - {source_line_item.item_name}"
+
+                if target_line_item.subcategory:
+                    target_display = f"{target_line_item.category.name} - {target_line_item.subcategory.name} - {target_line_item.item_name}"
+                else:
+                    target_display = f"{target_line_item.category.name} - {target_line_item.item_name}"
+
+                # Create realignment request
+                realignment = PREBudgetRealignment.objects.create(
+                    requested_by=request.user,
+                    source_pre=source_pre,
+                    source_item_key=source_item_key,
+                    target_pre=target_pre,
+                    target_item_key=target_item_key,
+                    q1_amount=q1_amount,
+                    q2_amount=q2_amount,
+                    q3_amount=q3_amount,
+                    q4_amount=q4_amount,
+                    reason=reason,
+                    status='Pending',
+                    submitted_at=timezone.now(),
+                    source_item_display=source_display,
+                    target_item_display=target_display,
+                )
+
+                # Save uploaded documents
+                for uploaded_file in uploaded_files:
+                    BudgetRealignmentSupportingDocument.objects.create(
+                        budget_realignment=realignment,
+                        document=uploaded_file,
+                        file_name=uploaded_file.name,
+                        file_size=uploaded_file.size,
+                        uploaded_by=request.user,
+                        is_signed_copy=False
+                    )
+
+                # Log audit trail
+                log_audit_trail(
+                    request=request,
+                    action='CREATE',
+                    model_name='PREBudgetRealignment',
+                    record_id=realignment.id,
+                    detail=f'Requested budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{total_amount:,.2f})',
+                )
+
+                messages.success(request, f"Budget realignment request submitted successfully. Request ID: {realignment.id}")
+                return redirect('realignment_history')
+
+        except (ValueError, NewDepartmentPRE.DoesNotExist) as e:
             messages.error(request, f"Invalid selection: {str(e)}")
             return redirect('pre_budget_realignment')
         except Exception as e:
             messages.error(request, f"An error occurred: {str(e)}")
             return redirect('pre_budget_realignment')
-    
+
     # GET request - render form
+    print(f"DEBUG: Total available categories: {len(available_categories)}")
+
     context = {
         'available_categories': available_categories,
         'approved_pres': approved_pres,
+        'approved_pres_count': approved_pres.count(),
     }
-    
+
     return render(request, "end_user_app/pre_budget_realignment.html", context)
 
 @role_required('end_user', login_url='/')
 def realignment_history(request):
     """View for displaying user's budget realignment history"""
-    
+
     # Get all realignment requests for the current user
     realignment_requests = PREBudgetRealignment.objects.filter(
         requested_by=request.user
     ).select_related('source_pre', 'target_pre', 'approved_by').order_by('-created_at')
-    
+
     # Add pagination
     from django.core.paginator import Paginator
     paginator = Paginator(realignment_requests, 10)  # Show 10 requests per page
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
+
     # Filter by status if provided
     status_filter = request.GET.get('status')
     if status_filter:
         realignment_requests = realignment_requests.filter(status=status_filter)
         paginator = Paginator(realignment_requests, 10)
         page_obj = paginator.get_page(page_number)
-    
+
     # Calculate summary statistics
     total_requests = realignment_requests.count()
     pending_count = realignment_requests.filter(status='Pending').count()
     approved_count = realignment_requests.filter(status='Approved').count()
     rejected_count = realignment_requests.filter(status='Rejected').count()
-    
+
     context = {
         'page_obj': page_obj,
         'realignment_requests': page_obj,
@@ -3135,8 +3408,31 @@ def realignment_history(request):
         'approved_count': approved_count,
         'rejected_count': rejected_count,
     }
-    
+
     return render(request, "end_user_app/realignment_history.html", context)
+
+
+@role_required('end_user', login_url='/')
+def download_realignment_pdf_enduser(request, pk):
+    """Download partially approved PDF for budget realignment (end user view)"""
+    from django.http import FileResponse
+
+    realignment = get_object_or_404(PREBudgetRealignment, pk=pk, requested_by=request.user)
+
+    if not realignment.partially_approved_pdf:
+        messages.error(request, "PDF not yet generated. Please wait for admin partial approval.")
+        return redirect('realignment_history')
+
+    try:
+        response = FileResponse(
+            realignment.partially_approved_pdf.open('rb'),
+            content_type='application/pdf'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Budget_Realignment_{realignment.id}_Partially_Approved.pdf"'
+        return response
+    except Exception as e:
+        messages.error(request, f"Error downloading PDF: {str(e)}")
+        return redirect('realignment_history')
 
 @role_required('end_user', login_url='/')
 def download_activity_design_word(request, pk):
@@ -4354,21 +4650,20 @@ def budget_overview(request):
         is_active=True
     ).select_related('approved_budget')
 
-    # Get available years from budget allocations
+    # Get available years from budget allocations (based on fiscal_year)
     available_years = (
         base_allocations
-        .annotate(year=ExtractYear('allocated_at'))
-        .values_list('year', flat=True)
+        .values_list('approved_budget__fiscal_year', flat=True)
         .distinct()
-        .order_by('-year')
+        .order_by('-approved_budget__fiscal_year')
     )
 
-    # Apply year filter
+    # Apply year filter (filter by fiscal_year, not allocated_at)
     if selected_year == 'all':
         budget_allocations = base_allocations
     else:
         budget_allocations = base_allocations.filter(
-            allocated_at__year=selected_year
+            approved_budget__fiscal_year=selected_year
         )
 
     # Calculate totals across all allocations
@@ -4461,12 +4756,6 @@ def budget_overview(request):
     recent_activity.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
     recent_activity = recent_activity[:10]  # Keep only top 10
 
-    # Get recent budget changes (last 10 transactions)
-    from apps.budgets.models import BudgetTransactionLog
-    recent_budget_changes = BudgetTransactionLog.objects.filter(
-        allocation__in=budget_allocations
-    ).select_related('allocation').order_by('-created_at')[:10]
-
     context = {
         'total_allocated': total_allocated,
         'total_used': total_used,
@@ -4480,7 +4769,6 @@ def budget_overview(request):
         'ad_count': ad_count,
         'quarterly_spending': quarterly_spending,
         'recent_activity': recent_activity,
-        'recent_budget_changes': recent_budget_changes,
         'available_years': available_years,
         'selected_year': selected_year,
         'current_year': current_year,
@@ -4508,21 +4796,20 @@ def pre_budget_details(request):
         is_active=True
     ).select_related('approved_budget')
 
-    # Get available years from budget allocations
+    # Get available years from budget allocations (based on fiscal_year)
     available_years = (
         base_allocations
-        .annotate(year=ExtractYear('allocated_at'))
-        .values_list('year', flat=True)
+        .values_list('approved_budget__fiscal_year', flat=True)
         .distinct()
-        .order_by('-year')
+        .order_by('-approved_budget__fiscal_year')
     )
 
-    # Apply year filter
+    # Apply year filter (filter by fiscal_year, not allocated_at)
     if selected_year == 'all':
         budget_allocations = base_allocations
     else:
         budget_allocations = base_allocations.filter(
-            allocated_at__year=selected_year
+            approved_budget__fiscal_year=selected_year
         )
 
     # Get all approved PREs
@@ -4617,23 +4904,22 @@ def quarterly_analysis(request):
     base_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True
-    )
+    ).select_related('approved_budget')
 
-    # Get available years from budget allocations
+    # Get available years from budget allocations (based on fiscal_year)
     available_years = (
         base_allocations
-        .annotate(year=ExtractYear('allocated_at'))
-        .values_list('year', flat=True)
+        .values_list('approved_budget__fiscal_year', flat=True)
         .distinct()
-        .order_by('-year')
+        .order_by('-approved_budget__fiscal_year')
     )
 
-    # Apply year filter
+    # Apply year filter (filter by fiscal_year, not allocated_at)
     if selected_year == 'all':
         budget_allocations = base_allocations
     else:
         budget_allocations = base_allocations.filter(
-            allocated_at__year=selected_year
+            approved_budget__fiscal_year=selected_year
         )
 
     # Get all approved PREs

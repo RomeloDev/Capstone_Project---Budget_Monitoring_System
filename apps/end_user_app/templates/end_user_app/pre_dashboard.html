@@ -117,10 +117,10 @@
           </thead>
           <tbody>
             {% for pre in pres %}
-              <tr class="border-t hover:bg-gray-50 transition {% if pre.status == 'Partially Approved' and pre.partially_approved_pdf %}bg-purple-50{% endif %}">
+              <tr class="border-t hover:bg-gray-50 transition {% if pre.status == 'Partially Approved' and (pre.partially_approved_pdf or pre.original_excel_pdf) %}bg-purple-50{% endif %}">
                 <td class="px-4 py-3">
                   <span class="font-mono text-blue-600 font-semibold">PRE-{{ pre.id|slice:":8"|upper }}</span>
-                  {% if pre.status == 'Partially Approved' and pre.partially_approved_pdf %}
+                  {% if pre.status == 'Partially Approved' and (pre.partially_approved_pdf or pre.original_excel_pdf) %}
                     <span class="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-semibold">
                       Ready to Print!
                     </span>
@@ -155,15 +155,27 @@
                       View
                     </a>
                     
-                    {% if pre.status == 'Partially Approved' and pre.partially_approved_pdf %}
+                    {% if pre.status == 'Partially Approved' %}
+                      {% if pre.partially_approved_pdf %}
                       <a href="{{ pre.partially_approved_pdf.url }}" target="_blank" download
-                         class="bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-purple-700 transition flex items-center"
-                         title="Download PDF for printing">
+                         class="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-blue-700 transition flex items-center"
+                         title="Final PDF with custom items">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                         </svg>
-                        Print
+                        Final PDF
                       </a>
+                      {% endif %}
+                      {% if pre.original_excel_pdf %}
+                      <a href="{{ pre.original_excel_pdf.url }}" target="_blank" download
+                         class="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-green-700 transition flex items-center"
+                         title="Original Excel PDF">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        Excel PDF
+                      </a>
+                      {% endif %}
                     {% endif %}
 
                     {% if pre.status == 'Draft' %}

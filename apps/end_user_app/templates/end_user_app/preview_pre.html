@@ -99,6 +99,57 @@
     </div>
     {% endif %}
 
+    <!-- Custom Line Items Management Section -->
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800">Manage Line Items</h3>
+                <p class="text-sm text-gray-600">Add custom line items not in your DepartmentPRE template</p>
+            </div>
+            <button type="button"
+                    onclick="openAddLineItemModal()"
+                    class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition inline-flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Add Custom Line Item
+            </button>
+        </div>
+
+        <!-- Display existing custom items if any -->
+        {% if custom_line_items %}
+        <div class="mt-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Custom Line Items Added ({{ custom_line_items|length }}):</h4>
+            <div class="space-y-2">
+                {% for item in custom_line_items %}
+                <div class="flex justify-between items-center p-3 bg-green-50 border border-green-200 rounded">
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-900">{{ item.item_name }}</p>
+                        <p class="text-sm text-gray-600">{{ item.category_name }} - {{ item.subcategory_name }}</p>
+                        <p class="text-sm text-gray-700 mt-1">
+                            Q1: ₱{{ item.q1|floatformat:2|intcomma }} |
+                            Q2: ₱{{ item.q2|floatformat:2|intcomma }} |
+                            Q3: ₱{{ item.q3|floatformat:2|intcomma }} |
+                            Q4: ₱{{ item.q4|floatformat:2|intcomma }} |
+                            <span class="font-semibold">Total: ₱{{ item.total|floatformat:2|intcomma }}</span>
+                        </p>
+                    </div>
+                    <button type="button"
+                            onclick="removeCustomItem({{ forloop.counter0 }})"
+                            class="ml-4 text-red-600 hover:text-red-800 p-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 italic">No custom line items added yet.</p>
+        {% endif %}
+    </div>
+
     <!-- File Information -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">📄 File Information</h3>
@@ -236,6 +287,23 @@
                                 <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
                             </tr>
                             {% endfor %}
+
+                            <!-- Custom Personnel Items -->
+                            {% for item in custom_line_items %}
+                                {% if item.category_name == "Personnel Services" or item.category_name == "PERSONNEL" %}
+                                <tr class="bg-green-50">
+                                    <td class="px-4 py-2 text-sm text-gray-900 font-semibold">
+                                        {{ item.item_name }}
+                                        <span class="ml-2 px-2 py-1 bg-green-600 text-white text-xs rounded">CUSTOM</span>
+                                    </td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q3|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
                         </tbody>
                         <tfoot class="bg-blue-50">
                             <tr>
@@ -282,6 +350,26 @@
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
                                 <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
                             </tr>
+                            {% endfor %}
+
+                            <!-- Custom MOOE Items -->
+                            {% for item in custom_line_items %}
+                                {% if item.category_name == "Maintenance and Other Operating Expenses" or item.category_name == "MOOE" %}
+                                <tr class="bg-green-50">
+                                    <td class="px-4 py-2 text-xs text-gray-600 uppercase">
+                                        {{ item.subcategory_name }}
+                                    </td>
+                                    <td class="px-4 py-2 text-sm text-gray-900 font-semibold">
+                                        {{ item.item_name }}
+                                        <span class="ml-2 px-2 py-1 bg-green-600 text-white text-xs rounded">CUSTOM</span>
+                                    </td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q3|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
+                                </tr>
+                                {% endif %}
                             {% endfor %}
                         </tbody>
                         <tfoot class="bg-blue-50">
@@ -330,6 +418,26 @@
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
                                 <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
                             </tr>
+                            {% endfor %}
+
+                            <!-- Custom Capital Items -->
+                            {% for item in custom_line_items %}
+                                {% if item.category_name == "Capital Outlays" or item.category_name == "CAPITAL" %}
+                                <tr class="bg-green-50">
+                                    <td class="px-4 py-2 text-xs text-gray-600 uppercase">
+                                        {{ item.subcategory_name }}
+                                    </td>
+                                    <td class="px-4 py-2 text-sm text-gray-900 font-semibold">
+                                        {{ item.item_name }}
+                                        <span class="ml-2 px-2 py-1 bg-green-600 text-white text-xs rounded">CUSTOM</span>
+                                    </td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q3|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q4|floatformat:2|intcomma }}</td>
+                                    <td class="px-4 py-2 text-sm text-right font-semibold text-gray-900">₱{{ item.total|floatformat:2|intcomma }}</td>
+                                </tr>
+                                {% endif %}
                             {% endfor %}
                         </tbody>
                         <tfoot class="bg-blue-50">
@@ -403,6 +511,324 @@
         </button>
     </form>
 
+    <!-- Add Custom Line Item Modal -->
+    <div id="addLineItemModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div class="border-b pb-3 mb-4">
+                <h3 class="text-xl font-semibold text-gray-900">Add Custom Line Item</h3>
+                <p class="text-sm text-gray-600">This line item will be added to your PRE</p>
+            </div>
+
+            <form id="customLineItemForm" method="POST" action="{% url 'add_custom_line_item' %}">
+                {% csrf_token %}
+
+                <!-- Category Selection -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+                    <select name="category" id="categorySelect" required
+                            onchange="loadSubcategories()"
+                            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Select Category</option>
+                        {% for category in categories %}
+                        <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Subcategory Selection -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Subcategory (Optional)</label>
+                    <select name="subcategory" id="subcategorySelect"
+                            class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Select category first</option>
+                    </select>
+                </div>
+
+                <!-- Item Name -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Line Item Name *</label>
+                    <input type="text" name="item_name" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="e.g., Special Training Program">
+                </div>
+
+                <!-- Quarterly Budget Amounts -->
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Q1 Amount</label>
+                        <input type="text" name="q1_amount_display" id="q1_amount_display" value=""
+                               class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 quarter-amount"
+                               placeholder="0.00">
+                        <input type="hidden" name="q1_amount" id="q1_amount" value="0">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Q2 Amount</label>
+                        <input type="text" name="q2_amount_display" id="q2_amount_display" value=""
+                               class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 quarter-amount"
+                               placeholder="0.00">
+                        <input type="hidden" name="q2_amount" id="q2_amount" value="0">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Q3 Amount</label>
+                        <input type="text" name="q3_amount_display" id="q3_amount_display" value=""
+                               class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 quarter-amount"
+                               placeholder="0.00">
+                        <input type="hidden" name="q3_amount" id="q3_amount" value="0">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Q4 Amount</label>
+                        <input type="text" name="q4_amount_display" id="q4_amount_display" value=""
+                               class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 quarter-amount"
+                               placeholder="0.00">
+                        <input type="hidden" name="q4_amount" id="q4_amount" value="0">
+                    </div>
+                </div>
+
+                <!-- Total Display (Auto-calculated via JavaScript) -->
+                <div class="mb-4 p-3 bg-gray-50 rounded">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-medium text-gray-700">Total:</span>
+                        <span id="customItemTotal" class="text-lg font-bold text-blue-600">₱0.00</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button"
+                            onclick="closeAddLineItemModal()"
+                            class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
+                        Add Line Item
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </div>
+
+<script>
+function openAddLineItemModal() {
+    document.getElementById('addLineItemModal').classList.remove('hidden');
+}
+
+function closeAddLineItemModal() {
+    document.getElementById('addLineItemModal').classList.add('hidden');
+    document.getElementById('customLineItemForm').reset();
+
+    // Reset display fields to empty (show placeholder)
+    document.getElementById('q1_amount_display').value = '';
+    document.getElementById('q2_amount_display').value = '';
+    document.getElementById('q3_amount_display').value = '';
+    document.getElementById('q4_amount_display').value = '';
+
+    // Reset hidden fields
+    document.getElementById('q1_amount').value = '0';
+    document.getElementById('q2_amount').value = '0';
+    document.getElementById('q3_amount').value = '0';
+    document.getElementById('q4_amount').value = '0';
+
+    // Reset subcategory dropdown
+    document.getElementById('subcategorySelect').innerHTML = '<option value="">Select category first</option>';
+
+    document.getElementById('customItemTotal').textContent = '₱0.00';
+}
+
+function loadSubcategories() {
+    const categoryId = document.getElementById('categorySelect').value;
+    const subcategorySelect = document.getElementById('subcategorySelect');
+
+    if (!categoryId) {
+        subcategorySelect.innerHTML = '<option value="">Select category first</option>';
+        return;
+    }
+
+    // Show loading state
+    subcategorySelect.innerHTML = '<option value="">Loading...</option>';
+
+    fetch(`/api/get-subcategories/${categoryId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error from server:', data.error);
+                subcategorySelect.innerHTML = '<option value="">None available</option>';
+                return;
+            }
+
+            // Check if there are subcategories
+            if (data.subcategories && data.subcategories.length > 0) {
+                subcategorySelect.innerHTML = '<option value="">Select Subcategory (Optional)</option>';
+                data.subcategories.forEach(sub => {
+                    subcategorySelect.innerHTML += `<option value="${sub.id}">${sub.name}</option>`;
+                });
+            } else {
+                // No subcategories available
+                subcategorySelect.innerHTML = '<option value="">None available</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading subcategories:', error);
+            subcategorySelect.innerHTML = '<option value="">None available</option>';
+        });
+}
+
+// Currency formatting functions
+function formatCurrency(value) {
+    // If empty or just whitespace, return empty string
+    if (!value || value.trim() === '') {
+        return '';
+    }
+
+    // Remove all non-digit and non-decimal characters
+    let numValue = value.replace(/[^\d.]/g, '');
+
+    // If empty after cleaning, return empty
+    if (numValue === '') {
+        return '';
+    }
+
+    // Ensure only one decimal point
+    const parts = numValue.split('.');
+    if (parts.length > 2) {
+        numValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+
+    // Parse the number
+    const num = parseFloat(numValue);
+    if (isNaN(num)) return '';
+
+    // Format with commas and 2 decimal places
+    return num.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function parseCurrency(formattedValue) {
+    // If empty, return 0
+    if (!formattedValue || formattedValue.trim() === '') {
+        return 0;
+    }
+    // Remove commas and parse to float
+    return parseFloat(formattedValue.replace(/,/g, '')) || 0;
+}
+
+// Auto-calculate total and format inputs
+document.addEventListener('DOMContentLoaded', function() {
+    const quarterInputs = document.querySelectorAll('.quarter-amount');
+
+    quarterInputs.forEach(input => {
+        // Clear field on focus if it's 0.00 or empty
+        input.addEventListener('focus', function(e) {
+            if (e.target.value === '0.00' || e.target.value === '') {
+                e.target.value = '';
+            }
+        });
+
+        // Format on input (while typing)
+        input.addEventListener('input', function(e) {
+            const rawValue = e.target.value;
+
+            // Don't format while user is typing, just update hidden field
+            const numValue = rawValue.replace(/[^\d.]/g, '');
+            const hiddenFieldId = e.target.id.replace('_display', '');
+            const hiddenField = document.getElementById(hiddenFieldId);
+            if (hiddenField) {
+                hiddenField.value = numValue || '0';
+            }
+
+            // Recalculate total
+            calculateCustomTotal();
+        });
+
+        // Format on blur to ensure proper formatting
+        input.addEventListener('blur', function(e) {
+            if (e.target.value.trim() === '') {
+                // If empty, don't show anything, just keep placeholder visible
+                e.target.value = '';
+                const hiddenFieldId = e.target.id.replace('_display', '');
+                const hiddenField = document.getElementById(hiddenFieldId);
+                if (hiddenField) {
+                    hiddenField.value = '0';
+                }
+            } else {
+                // Format the value
+                const formatted = formatCurrency(e.target.value);
+                e.target.value = formatted;
+
+                // Update hidden field
+                const hiddenFieldId = e.target.id.replace('_display', '');
+                const hiddenField = document.getElementById(hiddenFieldId);
+                if (hiddenField) {
+                    hiddenField.value = parseCurrency(formatted);
+                }
+            }
+
+            calculateCustomTotal();
+        });
+
+        // Allow only numbers, decimal point
+        input.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which);
+            const currentValue = e.target.value;
+
+            // Allow numbers
+            if (/\d/.test(char)) {
+                return true;
+            }
+
+            // Allow decimal point only if there isn't one already
+            if (char === '.' && !currentValue.includes('.')) {
+                return true;
+            }
+
+            // Prevent all other characters
+            e.preventDefault();
+        });
+    });
+});
+
+function calculateCustomTotal() {
+    const q1 = parseFloat(document.getElementById('q1_amount').value) || 0;
+    const q2 = parseFloat(document.getElementById('q2_amount').value) || 0;
+    const q3 = parseFloat(document.getElementById('q3_amount').value) || 0;
+    const q4 = parseFloat(document.getElementById('q4_amount').value) || 0;
+    const total = q1 + q2 + q3 + q4;
+    document.getElementById('customItemTotal').textContent = '₱' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function removeCustomItem(index) {
+    if (confirm('Are you sure you want to remove this custom line item?')) {
+        fetch(`/pre/remove-custom-item/${index}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error removing item: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error removing custom line item');
+        });
+    }
+}
+
+// Close modal when clicking outside
+document.getElementById('addLineItemModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeAddLineItemModal();
+    }
+});
+</script>
 
 {% endblock main-content %}

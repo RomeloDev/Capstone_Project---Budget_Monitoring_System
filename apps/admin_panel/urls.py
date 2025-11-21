@@ -38,7 +38,9 @@ urlpatterns = [
     path('admin-preview-activity-design/<int:pk>/', views.admin_preview_activity_design, name='admin_preview_activity_design'),
 
     path('pre_budget_realignment/', views.pre_budget_realignment_admin, name='pre_budget_realignment_admin'),
+    path('pre_budget_realignment/<int:pk>/', views.pre_budget_realignment_detail, name='pre_budget_realignment_detail'),
     path('pre_budget_realignment/<int:pk>/action/', views.handle_pre_realignment_admin_action, name='handle_pre_realignment_admin_action'),
+    path('pre_budget_realignment/<int:pk>/download-pdf/', views.download_realignment_pdf, name='download_realignment_pdf'),
     path('download-document/<int:document_id>/', views.download_document, name='download_document'),
     path('export-budget-excel/<int:budget_id>/', views.export_budget_excel, name='export_budget_excel'),
     path('bulk-export-budgets/', views.bulk_export_budgets, name='bulk_export_budgets'),
@@ -81,10 +83,4 @@ urlpatterns = [
     path('archive/fiscal-year/<str:fiscal_year>/archive/', views.archive_fiscal_year_view, name='archive_fiscal_year'),
     path('archive/fiscal-year/<str:fiscal_year>/unarchive/', views.unarchive_fiscal_year_view, name='unarchive_fiscal_year'),
     path('archive/statistics/', views.archive_statistics_ajax, name='archive_statistics_ajax'),
-
-    # Budget Savings Management
-    path('savings/', views.savings_overview, name='savings_overview'),
-    path('savings/create-snapshot/', views.create_savings_snapshot, name='create_savings_snapshot'),
-    path('savings/export-excel/', views.export_savings_excel, name='export_savings_excel'),
-    path('savings/<int:snapshot_id>/line-items/', views.line_item_savings_detail, name='line_item_savings_detail'),
 ]

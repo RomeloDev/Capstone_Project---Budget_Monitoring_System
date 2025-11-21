@@ -85,8 +85,26 @@ class PREPDFGenerator:
         
         # Add expenditures by category
         story.extend(self._create_expenditures_section())
-        story.append(Spacer(1, 0.3*inch))
-        
+        story.append(Spacer(1, 0.15*inch))
+
+        # Add footnote for custom items if any exist
+        has_custom_items = self.pre.line_items.filter(source_type='manual').exists()
+        if has_custom_items:
+            footnote_style = ParagraphStyle(
+                'Footnote',
+                parent=self.normal_style,
+                fontSize=8,
+                textColor=colors.HexColor('#6b7280'),
+                italic=True
+            )
+            story.append(Paragraph(
+                "* Custom line item (not in original DepartmentPRE template)",
+                footnote_style
+            ))
+            story.append(Spacer(1, 0.15*inch))
+        else:
+            story.append(Spacer(1, 0.3*inch))
+
         # Add signature blocks
         story.extend(self._create_signature_blocks())
         
@@ -105,7 +123,7 @@ class PREPDFGenerator:
         
         # University/Organization name
         org_name = Paragraph(
-            "<b>BATANGAS STATE UNIVERSITY</b><br/>The National Engineering University<br/>Alangilan Campus",
+            "<b>BOHOL ISLAND STATE UNIVERSITY</b><br/>Balilihan Campus",
             self.title_style
         )
         elements.append(org_name)
@@ -242,7 +260,7 @@ class PREPDFGenerator:
             f'₱{(total_q1 + total_q2 + total_q3 + total_q4):,.2f}'
         ])
         
-        table = Table(data, colWidths=[2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.3*inch])
+        table = Table(data, colWidths=[3*inch, 1*inch, 1*inch, 1*inch, 1*inch, 1.1*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -293,9 +311,22 @@ class PREPDFGenerator:
                 item_name = item.item_name
                 if item.subcategory:
                     item_name = f"{item.subcategory.name} - {item.item_name}"
-                
+
+                # Mark custom items with asterisk
+                if hasattr(item, 'source_type') and item.source_type == 'manual':
+                    item_name = f"{item_name} *"
+
+                # Use Paragraph for text wrapping
+                item_name_para = Paragraph(item_name, ParagraphStyle(
+                    'ItemName',
+                    fontSize=8,
+                    leading=10,
+                    leftIndent=0,
+                    rightIndent=0,
+                ))
+
                 row = [
-                    item_name[:50],  # Truncate long names
+                    item_name_para,
                     f'₱{item.q1_amount:,.2f}',
                     f'₱{item.q2_amount:,.2f}',
                     f'₱{item.q3_amount:,.2f}',
@@ -324,7 +355,7 @@ class PREPDFGenerator:
             grand_total_q3 += cat_total_q3
             grand_total_q4 += cat_total_q4
             
-            table = Table(data, colWidths=[2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.3*inch])
+            table = Table(data, colWidths=[3*inch, 1*inch, 1*inch, 1*inch, 1*inch, 1.1*inch])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10b981')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -335,9 +366,11 @@ class PREPDFGenerator:
                 ('FONTSIZE', (0, 0), (-1, -1), 8),
                 ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d1fae5')),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#6ee7b7')),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ]))
             
             elements.append(table)
@@ -353,7 +386,7 @@ class PREPDFGenerator:
             f'₱{(grand_total_q1 + grand_total_q2 + grand_total_q3 + grand_total_q4):,.2f}'
         ]]
         
-        grand_table = Table(grand_data, colWidths=[2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.3*inch])
+        grand_table = Table(grand_data, colWidths=[3*inch, 1*inch, 1*inch, 1*inch, 1*inch, 1.1*inch])
         grand_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f2937')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -427,11 +460,167 @@ def save_pre_pdf(pre):
     Generate and save PDF to the PRE model
     """
     pdf_content = generate_pre_pdf(pre)
-    
+
     # Create filename
     filename = f'PRE_{str(pre.id)[:8].upper()}_{timezone.now().strftime("%Y%m%d")}.pdf'
-    
+
     # Save to model
     pre.partially_approved_pdf.save(filename, ContentFile(pdf_content), save=True)
-    
+
     return pre.partially_approved_pdf.url
+
+
+def generate_realignment_pdf_from_documents(realignment):
+    """
+    Generate a combined PDF from all uploaded supporting documents for budget realignment
+    Returns a ContentFile that can be saved to partially_approved_pdf field
+    """
+    from PyPDF2 import PdfMerger, PdfReader
+    from PIL import Image
+    from reportlab.pdfgen import canvas as pdf_canvas
+    import os
+    import tempfile
+
+    merger = PdfMerger()
+
+    # First, create a cover page with realignment details
+    cover_buffer = BytesIO()
+    c = pdf_canvas.Canvas(cover_buffer, pagesize=letter)
+    width, height = letter
+
+    # Header
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(width / 2, height - 50, "BUDGET REALIGNMENT REQUEST")
+
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(width / 2, height - 70, f"Request ID: {realignment.id}")
+    c.drawCentredString(width / 2, height - 85, f"Date: {timezone.now().strftime('%B %d, %Y')}")
+
+    # Details
+    y_position = height - 120
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y_position, "Realignment Details")
+
+    y_position -= 30
+    c.setFont("Helvetica", 10)
+
+    # Requested by
+    c.drawString(70, y_position, f"Requested by: {realignment.requested_by.get_full_name()}")
+    y_position -= 20
+    c.drawString(70, y_position, f"Department: {realignment.source_pre.department if hasattr(realignment.source_pre, 'department') else 'N/A'}")
+    y_position -= 20
+    c.drawString(70, y_position, f"Submitted on: {realignment.submitted_at.strftime('%B %d, %Y %I:%M %p') if realignment.submitted_at else 'N/A'}")
+
+    y_position -= 40
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(70, y_position, "Transfer Details:")
+
+    y_position -= 25
+    c.setFont("Helvetica", 10)
+    c.drawString(90, y_position, f"FROM: {realignment.source_item_display}")
+    y_position -= 20
+    c.drawString(90, y_position, f"TO: {realignment.target_item_display}")
+
+    y_position -= 35
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(70, y_position, "Quarterly Breakdown:")
+
+    y_position -= 25
+    c.setFont("Helvetica", 10)
+    quarters = realignment.get_selected_quarters()
+    for quarter_code, quarter_label, quarter_amount in quarters:
+        c.drawString(90, y_position, f"{quarter_label}: ₱{quarter_amount:,.2f}")
+        y_position -= 18
+
+    y_position -= 10
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(90, y_position, f"TOTAL AMOUNT: ₱{realignment.get_total_amount():,.2f}")
+
+    # Reason
+    if realignment.reason:
+        y_position -= 35
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(70, y_position, "Reason:")
+        y_position -= 20
+        c.setFont("Helvetica", 10)
+
+        # Word wrap reason text
+        reason_lines = []
+        words = realignment.reason.split()
+        current_line = ""
+        for word in words:
+            test_line = current_line + " " + word if current_line else word
+            if c.stringWidth(test_line, "Helvetica", 10) < (width - 140):
+                current_line = test_line
+            else:
+                reason_lines.append(current_line)
+                current_line = word
+        if current_line:
+            reason_lines.append(current_line)
+
+        for line in reason_lines[:5]:  # Limit to 5 lines
+            c.drawString(90, y_position, line)
+            y_position -= 18
+
+    # Footer
+    c.setFont("Helvetica-Italic", 9)
+    c.drawCentredString(width / 2, 50, "Supporting documents attached below")
+    c.drawCentredString(width / 2, 35, f"Generated: {timezone.now().strftime('%B %d, %Y %I:%M %p')}")
+
+    c.save()
+    cover_buffer.seek(0)
+    merger.append(cover_buffer)
+
+    # Add all supporting documents
+    supporting_docs = realignment.supporting_documents.filter(is_signed_copy=False).order_by('uploaded_at')
+
+    for doc in supporting_docs:
+        try:
+            file_path = doc.document.path
+            file_ext = os.path.splitext(file_path)[1].lower()
+
+            if file_ext == '.pdf':
+                # Direct PDF append
+                merger.append(file_path)
+
+            elif file_ext in ['.jpg', '.jpeg', '.png']:
+                # Convert image to PDF
+                img_buffer = BytesIO()
+                img = Image.open(file_path)
+
+                # Convert to RGB if necessary
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                # Resize if too large
+                max_size = (int(width - 100), int(height - 100))
+                img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+                # Create PDF from image
+                img_pdf = pdf_canvas.Canvas(img_buffer, pagesize=letter)
+                img_width, img_height = img.size
+                x = (width - img_width) / 2
+                y = (height - img_height) / 2
+                img_pdf.drawInlineImage(img, x, y, width=img_width, height=img_height)
+                img_pdf.save()
+
+                img_buffer.seek(0)
+                merger.append(img_buffer)
+
+            # Note: DOCX, XLSX would require conversion libraries like python-docx2pdf or similar
+            # For now, skipping non-PDF/image files
+
+        except Exception as e:
+            print(f"Error processing document {doc.file_name}: {str(e)}")
+            continue
+
+    # Write to final buffer
+    output_buffer = BytesIO()
+    merger.write(output_buffer)
+    merger.close()
+    output_buffer.seek(0)
+
+    # Create filename and ContentFile
+    filename = f'BR_{realignment.id}_partially_approved_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+
+    return ContentFile(output_buffer.read(), name=filename)

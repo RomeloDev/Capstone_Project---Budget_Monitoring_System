@@ -5,35 +5,19 @@
 
 {% block main-content %}
 <main class="content">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">PRE Budget Realignment</h1>
-            <p class="text-gray-600">
-                Realign budget between expense categories within your approved PREs. 
-                Transfer funds from categories with surplus to those that need additional budget.
-            </p>
-        </header>
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">PRE Budget Realignment</h1>
+        <p class="text-gray-600">
+            Realign budget between expense categories within your approved PREs.
+            Transfer funds quarterly from categories with surplus to those that need additional budget.
+        </p>
+    </header>
 
-    <div class="max-w-4xl mx-auto">
-
-        <!-- Available Categories Overview -->
-        {% if available_categories %}
-        <section class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Available Budget Categories</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {% for category in available_categories %}
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <h3 class="font-medium text-gray-900 mb-1">{{ category.label|truncatechars:50 }}</h3>
-                    <p class="text-sm text-gray-600">Available: <span class="font-semibold text-green-600">₱{{ category.remaining|floatformat:2|intcomma }}</span></p>
-                </div>
-                {% endfor %}
-            </div>
-        </section>
-        {% endif %}
-
+    <div class="max-w-6xl mx-auto">
 
         <!-- Messages -->
         {% if messages %}
-        <section class="mt-6">
+        <section class="mt-6 mb-6">
             {% for message in messages %}
             <div class="p-4 rounded-lg mb-4 {% if message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% elif message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
                 {{ message }}
@@ -53,7 +37,7 @@
                     </nav>
                 </div>
                 <div class="flex space-x-3">
-                    <a href="{% url 'realignment_history' %}" 
+                    <a href="{% url 'realignment_history' %}"
                     class="inline-flex items-center px-4 py-2 bg-blue-600 text-gray-50 rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -64,72 +48,215 @@
             </div>
         </section>
 
-
         <!-- Realignment Form -->
         <section class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold text-gray-800 mb-6">Submit Realignment Request</h2>
-            
-            <form method="POST" class="space-y-6">
+
+            <!-- Debug/Info Message -->
+            {% if approved_pres_count == 0 %}
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-yellow-700">
+                            <strong>No Approved PREs Found:</strong> You don't have any approved PREs yet. Please submit and get approval for a PRE before creating budget realignment requests.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% elif not available_categories %}
+            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-blue-700">
+                            <strong>No Available Budget:</strong> You have {{ approved_pres_count }} approved PRE(s), but none have line items with remaining budget available for realignment. All budget may already be allocated or consumed.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <form method="POST" enctype="multipart/form-data" class="space-y-6" id="realignmentForm">
                 {% csrf_token %}
-                
-                <!-- Source Category -->
+
+                <!-- Source Line Item -->
                 <div>
                     <label for="source_category" class="block text-sm font-medium text-gray-700 mb-2">
-                        Source Category (Transfer FROM)
+                        Source Line Item (Transfer FROM)
+                        <span class="text-red-500">*</span>
                     </label>
-                    <select id="source_category" name="source_category" required 
+                    <select id="source_category" name="source_category" required
                             class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">-- Select source category --</option>
+                        <option value="">-- Select source line item --</option>
                         {% for category in available_categories %}
-                        <option value="{{ category.value }}" data-remaining="{{ category.remaining }}">
+                        <option value="{{ category.value }}"
+                                data-quarters='{{ category.quarters|safe }}'>
                             {{ category.label }}
                         </option>
                         {% endfor %}
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Choose the category you want to transfer budget from</p>
+                    <p class="text-xs text-gray-500 mt-1">Choose the line item you want to transfer budget from</p>
+                    {% if not available_categories %}
+                    <p class="text-sm text-red-600 mt-2">⚠ No approved PREs with available budget found. Please ensure you have approved PREs with remaining budget.</p>
+                    {% endif %}
                 </div>
 
-                <!-- Target Category -->
+                <!-- Source Quarterly Breakdown (dynamically populated) -->
+                <div id="source_quarterly_info" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 class="font-medium text-gray-900 mb-3">Source Line Item - Available Budget by Quarter</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="source_quarters_display"></div>
+                </div>
+
+                <!-- Target Line Item -->
                 <div>
                     <label for="target_category" class="block text-sm font-medium text-gray-700 mb-2">
-                        Target Category (Transfer TO)
+                        Target Line Item (Transfer TO)
+                        <span class="text-red-500">*</span>
                     </label>
-                    <select id="target_category" name="target_category" required 
+                    <select id="target_category" name="target_category" required
                             class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">-- Select target category --</option>
+                        <option value="">-- Select target line item --</option>
                         {% for category in available_categories %}
                         <option value="{{ category.value }}">
                             {{ category.label }}
                         </option>
                         {% endfor %}
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Choose the category you want to transfer budget to</p>
+                    <p class="text-xs text-gray-500 mt-1">Choose the line item you want to transfer budget to</p>
                 </div>
 
-                <!-- Amount -->
+                <!-- Quarterly Amounts Section -->
+                <div id="quarterly_amounts_section" class="hidden">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                        <h3 class="font-medium text-gray-900 mb-4">Select Quarters and Enter Amounts to Transfer</h3>
+                        <p class="text-sm text-gray-600 mb-4">Select which quarters you want to transfer funds from and enter the amount for each quarter.</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Q1 -->
+                            <div class="border border-gray-300 rounded-lg p-4 bg-white">
+                                <div class="flex items-center mb-3">
+                                    <input type="checkbox" id="q1_checkbox" class="quarter-checkbox w-4 h-4 text-blue-600 rounded mr-2">
+                                    <label for="q1_checkbox" class="font-medium text-gray-900">Quarter 1 (Q1)</label>
+                                </div>
+                                <div class="mb-3">
+                                    <p class="text-xs text-gray-600 mb-1">Available: <span id="q1_available" class="font-semibold text-green-600">₱0.00</span></p>
+                                </div>
+                                <div>
+                                    <label for="q1_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
+                                    <input type="number" id="q1_amount" name="q1_amount" min="0" step="0.01" value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q1">
+                                        Realign all remaining
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Q2 -->
+                            <div class="border border-gray-300 rounded-lg p-4 bg-white">
+                                <div class="flex items-center mb-3">
+                                    <input type="checkbox" id="q2_checkbox" class="quarter-checkbox w-4 h-4 text-blue-600 rounded mr-2">
+                                    <label for="q2_checkbox" class="font-medium text-gray-900">Quarter 2 (Q2)</label>
+                                </div>
+                                <div class="mb-3">
+                                    <p class="text-xs text-gray-600 mb-1">Available: <span id="q2_available" class="font-semibold text-green-600">₱0.00</span></p>
+                                </div>
+                                <div>
+                                    <label for="q2_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
+                                    <input type="number" id="q2_amount" name="q2_amount" min="0" step="0.01" value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q2">
+                                        Realign all remaining
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Q3 -->
+                            <div class="border border-gray-300 rounded-lg p-4 bg-white">
+                                <div class="flex items-center mb-3">
+                                    <input type="checkbox" id="q3_checkbox" class="quarter-checkbox w-4 h-4 text-blue-600 rounded mr-2">
+                                    <label for="q3_checkbox" class="font-medium text-gray-900">Quarter 3 (Q3)</label>
+                                </div>
+                                <div class="mb-3">
+                                    <p class="text-xs text-gray-600 mb-1">Available: <span id="q3_available" class="font-semibold text-green-600">₱0.00</span></p>
+                                </div>
+                                <div>
+                                    <label for="q3_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
+                                    <input type="number" id="q3_amount" name="q3_amount" min="0" step="0.01" value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q3">
+                                        Realign all remaining
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Q4 -->
+                            <div class="border border-gray-300 rounded-lg p-4 bg-white">
+                                <div class="flex items-center mb-3">
+                                    <input type="checkbox" id="q4_checkbox" class="quarter-checkbox w-4 h-4 text-blue-600 rounded mr-2">
+                                    <label for="q4_checkbox" class="font-medium text-gray-900">Quarter 4 (Q4)</label>
+                                </div>
+                                <div class="mb-3">
+                                    <p class="text-xs text-gray-600 mb-1">Available: <span id="q4_available" class="font-semibold text-green-600">₱0.00</span></p>
+                                </div>
+                                <div>
+                                    <label for="q4_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
+                                    <input type="number" id="q4_amount" name="q4_amount" min="0" step="0.01" value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q4">
+                                        Realign all remaining
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Total Amount Display -->
+                        <div class="mt-6 pt-4 border-t border-gray-200">
+                            <div class="flex justify-between items-center">
+                                <span class="text-lg font-medium text-gray-900">Total Amount to Transfer:</span>
+                                <span id="total_amount_display" class="text-2xl font-bold text-blue-600">₱0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Supporting Documents Upload -->
                 <div>
-                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-2">
-                        Amount to Transfer (₱)
+                    <label for="documents" class="block text-sm font-medium text-gray-700 mb-2">
+                        Supporting Documents
+                        <span class="text-red-500">*</span>
                     </label>
-                    <input type="number" id="amount" name="amount" min="0.01" step="0.01" required
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="0.00">
-                    <p class="text-xs text-gray-500 mt-1" id="amount-validation"></p>
+                    <input type="file" id="documents" name="documents" multiple required accept=".pdf,.docx,.doc,.xlsx,.xls,.jpg,.jpeg,.png"
+                           class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">Upload supporting documents (PDF, Word, Excel, or Image files). Multiple files allowed.</p>
+                    <div id="file_list" class="mt-2 text-sm text-gray-600"></div>
                 </div>
 
                 <!-- Reason -->
                 <div>
                     <label for="reason" class="block text-sm font-medium text-gray-700 mb-2">
-                        Reason for Realignment
+                        Reason for Realignment (Optional)
                     </label>
-                    <textarea id="reason" name="reason" rows="4" required
+                    <textarea id="reason" name="reason" rows="4"
                               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="Explain why you need to realign this budget..."></textarea>
+                              placeholder="Explain why you need to realign this budget (optional)..."></textarea>
                 </div>
 
                 <!-- Submit Button -->
-                <div class="flex justify-end">
-                    <button type="submit" 
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="window.location.href='{% url 'user_dashboard' %}'"
+                            class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition duration-200 font-medium">
+                        Cancel
+                    </button>
+                    <button type="submit" id="submit_btn"
                             class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
                         Submit Realignment Request
                     </button>
@@ -141,35 +268,178 @@
 </main>
 
 <script>
-// Form validation
 document.addEventListener('DOMContentLoaded', function() {
     const sourceSelect = document.getElementById('source_category');
     const targetSelect = document.getElementById('target_category');
-    const amountInput = document.getElementById('amount');
-    const amountValidation = document.getElementById('amount-validation');
+    const quarterlySection = document.getElementById('quarterly_amounts_section');
+    const sourceQuarterlyInfo = document.getElementById('source_quarterly_info');
+    const sourceQuartersDisplay = document.getElementById('source_quarters_display');
+    const documentsInput = document.getElementById('documents');
+    const fileList = document.getElementById('file_list');
+    const totalAmountDisplay = document.getElementById('total_amount_display');
+    const submitBtn = document.getElementById('submit_btn');
 
-    function validateAmount() {
-        const sourceOption = sourceSelect.selectedOptions[0];
-        const amount = parseFloat(amountInput.value) || 0;
-        
-        if (sourceOption && sourceOption.dataset.remaining) {
-            const available = parseFloat(sourceOption.dataset.remaining);
-            
-            if (amount > available) {
-                amountValidation.textContent = `Amount exceeds available budget (₱${available.toLocaleString()})`;
-                amountValidation.className = 'text-xs text-red-500 mt-1';
-                return false;
-            } else if (amount > 0) {
-                amountValidation.textContent = `Valid amount (₱${available.toLocaleString()} available)`;
-                amountValidation.className = 'text-xs text-green-500 mt-1';
-                return true;
+    let sourceQuarters = {};
+
+    // Handle source category change
+    sourceSelect.addEventListener('change', function() {
+        const selectedOption = this.selectedOptions[0];
+
+        if (selectedOption && selectedOption.value) {
+            try {
+                sourceQuarters = JSON.parse(selectedOption.dataset.quarters || '{}');
+                displaySourceQuarters();
+                updateQuarterlyInputs();
+                sourceQuarterlyInfo.classList.remove('hidden');
+
+                if (targetSelect.value) {
+                    quarterlySection.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error('Error parsing quarters data:', e);
+                sourceQuarters = {};
             }
+        } else {
+            sourceQuarterlyInfo.classList.add('hidden');
+            quarterlySection.classList.add('hidden');
+            sourceQuarters = {};
         }
-        
-        amountValidation.textContent = '';
-        return true;
+
+        validateCategories();
+    });
+
+    // Handle target category change
+    targetSelect.addEventListener('change', function() {
+        if (sourceSelect.value && targetSelect.value) {
+            quarterlySection.classList.remove('hidden');
+        } else {
+            quarterlySection.classList.add('hidden');
+        }
+
+        validateCategories();
+    });
+
+    // Display source quarters
+    function displaySourceQuarters() {
+        sourceQuartersDisplay.innerHTML = '';
+
+        ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
+            const quarterData = sourceQuarters[quarter] || { remaining: 0 };
+            const div = document.createElement('div');
+            div.className = 'text-sm';
+            div.innerHTML = `
+                <span class="font-medium text-gray-700">${quarter.toUpperCase()}:</span>
+                <span class="text-green-600 font-semibold">₱${parseFloat(quarterData.remaining || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            `;
+            sourceQuartersDisplay.appendChild(div);
+        });
     }
 
+    // Update quarterly inputs with available amounts
+    function updateQuarterlyInputs() {
+        ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
+            const quarterData = sourceQuarters[quarter] || { remaining: 0 };
+            const availableSpan = document.getElementById(`${quarter}_available`);
+            const checkbox = document.getElementById(`${quarter}_checkbox`);
+            const input = document.getElementById(`${quarter}_amount`);
+            const realignBtn = document.querySelector(`.realign-all-btn[data-quarter="${quarter}"]`);
+
+            availableSpan.textContent = `₱${parseFloat(quarterData.remaining || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+            // Enable/disable checkbox based on availability
+            if (quarterData.remaining > 0) {
+                checkbox.disabled = false;
+                realignBtn.classList.remove('hidden');
+            } else {
+                checkbox.disabled = true;
+                checkbox.checked = false;
+                input.disabled = true;
+                input.value = 0;
+                realignBtn.classList.add('hidden');
+            }
+        });
+    }
+
+    // Handle quarter checkbox changes
+    document.querySelectorAll('.quarter-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const quarter = this.id.replace('_checkbox', '');
+            const input = document.getElementById(`${quarter}_amount`);
+
+            if (this.checked) {
+                input.disabled = false;
+                input.focus();
+            } else {
+                input.disabled = true;
+                input.value = 0;
+            }
+
+            updateTotalAmount();
+        });
+    });
+
+    // Handle amount inputs
+    ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
+        const input = document.getElementById(`${quarter}_amount`);
+        input.addEventListener('input', function() {
+            validateQuarterAmount(quarter);
+            updateTotalAmount();
+        });
+    });
+
+    // Handle "Realign all remaining" buttons
+    document.querySelectorAll('.realign-all-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const quarter = this.dataset.quarter;
+            const checkbox = document.getElementById(`${quarter}_checkbox`);
+            const input = document.getElementById(`${quarter}_amount`);
+            const quarterData = sourceQuarters[quarter] || { remaining: 0 };
+
+            checkbox.checked = true;
+            input.disabled = false;
+            input.value = parseFloat(quarterData.remaining || 0).toFixed(2);
+
+            validateQuarterAmount(quarter);
+            updateTotalAmount();
+        });
+    });
+
+    // Validate quarter amount
+    function validateQuarterAmount(quarter) {
+        const input = document.getElementById(`${quarter}_amount`);
+        const quarterData = sourceQuarters[quarter] || { remaining: 0 };
+        const amount = parseFloat(input.value) || 0;
+
+        if (amount > quarterData.remaining) {
+            input.setCustomValidity(`Amount exceeds available budget for ${quarter.toUpperCase()} (₱${quarterData.remaining.toLocaleString()})`);
+            input.classList.add('border-red-500');
+        } else {
+            input.setCustomValidity('');
+            input.classList.remove('border-red-500');
+        }
+    }
+
+    // Update total amount display
+    function updateTotalAmount() {
+        let total = 0;
+        ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
+            const input = document.getElementById(`${quarter}_amount`);
+            total += parseFloat(input.value) || 0;
+        });
+
+        totalAmountDisplay.textContent = `₱${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        // Update submit button state
+        if (total > 0) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    // Validate categories
     function validateCategories() {
         if (sourceSelect.value && targetSelect.value && sourceSelect.value === targetSelect.value) {
             targetSelect.setCustomValidity('Source and target categories cannot be the same');
@@ -178,13 +448,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    sourceSelect.addEventListener('change', function() {
-        validateAmount();
-        validateCategories();
+    // Handle file upload display
+    documentsInput.addEventListener('change', function() {
+        const files = Array.from(this.files);
+
+        if (files.length > 0) {
+            fileList.innerHTML = `<strong>Selected files:</strong><ul class="list-disc list-inside mt-1">`;
+            files.forEach(file => {
+                const size = (file.size / 1024).toFixed(1);
+                fileList.innerHTML += `<li>${file.name} (${size} KB)</li>`;
+            });
+            fileList.innerHTML += `</ul>`;
+        } else {
+            fileList.innerHTML = '';
+        }
     });
 
-    targetSelect.addEventListener('change', validateCategories);
-    amountInput.addEventListener('input', validateAmount);
+    // Form validation before submit
+    document.getElementById('realignmentForm').addEventListener('submit', function(e) {
+        let totalAmount = 0;
+        ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
+            const input = document.getElementById(`${quarter}_amount`);
+            totalAmount += parseFloat(input.value) || 0;
+        });
+
+        if (totalAmount === 0) {
+            e.preventDefault();
+            alert('Please enter at least one quarterly amount greater than zero.');
+            return false;
+        }
+
+        if (!documentsInput.files.length) {
+            e.preventDefault();
+            alert('Please upload at least one supporting document.');
+            return false;
+        }
+    });
+
+    // Initialize submit button state
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
 });
 </script>
 {% endblock main-content %}

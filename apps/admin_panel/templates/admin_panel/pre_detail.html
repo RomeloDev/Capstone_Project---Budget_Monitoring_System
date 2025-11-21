@@ -178,20 +178,39 @@
         </div>
         {% endif %}
 
-        <!-- Partially Approved PDF -->
+        <!-- Partially Approved PDF (Database-generated with custom items) -->
         {% if pre.partially_approved_pdf %}
+        <div class="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200">
+          <div class="flex items-center">
+            <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-gray-800">Final PRE PDF (With Custom Items)</p>
+              <p class="text-xs text-gray-500">Database-generated • Includes all custom line items marked with *</p>
+            </div>
+          </div>
+          <a href="{{ pre.partially_approved_pdf.url }}" target="_blank"
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+            Download
+          </a>
+        </div>
+        {% endif %}
+
+        <!-- Original Excel PDF -->
+        {% if pre.original_excel_pdf %}
         <div class="flex items-center justify-between p-3 bg-gray-50 rounded border">
           <div class="flex items-center">
-            <svg class="w-8 h-8 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-8 h-8 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
             </svg>
             <div>
-              <p class="font-medium text-gray-800">Partially Approved PDF</p>
-              <p class="text-xs text-gray-500">For printing and signatures</p>
+              <p class="font-medium text-gray-800">Original Excel PDF (Submitted Version)</p>
+              <p class="text-xs text-gray-500">Excel-converted • Original submission snapshot without custom items</p>
             </div>
           </div>
-          <a href="{{ pre.partially_approved_pdf.url }}" target="_blank" 
-            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+          <a href="{{ pre.original_excel_pdf.url }}" target="_blank"
+            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm">
             Download
           </a>
         </div>

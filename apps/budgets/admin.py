@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ApprovedBudget, SupportingDocument, DepartmentPRE, BudgetAllocation, PRECategory, PRELineItem, PREReceipt, PRESubCategory, SystemNotification, RequestApproval, PurchaseRequest, PurchaseRequestAllocation, PurchaseRequestItem, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation, ActivityDesignSupportingDocument, DepartmentPRESupportingDocument, BudgetSavings, PRELineItemSavings
+from .models import ApprovedBudget, SupportingDocument, DepartmentPRE, BudgetAllocation, PRECategory, PRELineItem, PREReceipt, PRESubCategory, SystemNotification, RequestApproval, PurchaseRequest, PurchaseRequestAllocation, PurchaseRequestItem, PRDraft, PRDraftSupportingDocument, PurchaseRequestSupportingDocument, ActivityDesign, ActivityDesignAllocation, ActivityDesignSupportingDocument, DepartmentPRESupportingDocument, BudgetSavings, PRELineItemSavings, PREBudgetRealignment, BudgetRealignmentSupportingDocument
 
 # Register your models here.
 admin.site.register(ApprovedBudget)
@@ -21,6 +21,8 @@ admin.site.register(PurchaseRequestSupportingDocument)
 admin.site.register(ActivityDesign)
 admin.site.register(ActivityDesignAllocation)
 admin.site.register(ActivityDesignSupportingDocument)
+admin.site.register(PREBudgetRealignment)
+admin.site.register(BudgetRealignmentSupportingDocument)
 
 
 @admin.register(DepartmentPRESupportingDocument)

@@ -24,6 +24,7 @@ urlpatterns = [
     path('view_budget/budget_details/<int:budget_id>/', views.budget_details, name='budget_details'),
     path('pre_budget_realignment/', views.pre_budget_realignment, name='pre_budget_realignment'),
     path('realignment_history/', views.realignment_history, name='realignment_history'),
+    path('realignment/<int:pk>/download-pdf/', views.download_realignment_pdf_enduser, name='download_realignment_pdf_enduser'),
     path('download_activity_design/<int:pk>/', views.download_activity_design_word, name='download_activity_design_word'),
     path('inspect_excel_template/', views.inspect_excel_template, name='inspect_excel_template'), 
     path('download_pre_excel/<int:pk>/', views.download_pre_excel, name='download_pre_excel'),
@@ -31,6 +32,11 @@ urlpatterns = [
     path('pre/upload_pre/<int:allocation_id>/', views.upload_pre, name='upload_pre'),
     path('pre/view/<uuid:pre_id>/', views.view_pre_detail, name='view_pre_detail'),
     path('pr/preview/<uuid:pr_id>/', views.preview_submitted_pr, name='preview_submitted_pr'),
+
+    # Custom PRE Line Items
+    path('api/get-subcategories/<int:category_id>/', views.get_subcategories, name='get_subcategories'),
+    path('pre/add-custom-item/', views.add_custom_line_item, name='add_custom_line_item'),
+    path('pre/remove-custom-item/<int:index>/', views.remove_custom_line_item, name='remove_custom_line_item'),
 
     # Activity Design (New Multi-Line Item Support)
     path('pr-ad-request/activity_design_upload/', views.activity_design_upload, name='activity_design_upload'),

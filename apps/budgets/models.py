@@ -286,9 +286,16 @@ class DepartmentPRE(models.Model):
         upload_to='pre_pdfs/%Y/%m/',
         null=True,
         blank=True,
-        help_text="PDF generated when partially approved for printing"
+        help_text="PDF generated from database when partially approved (includes custom line items)"
     )
-    
+
+    original_excel_pdf = models.FileField(
+        upload_to='pre_pdfs/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text="PDF converted from original uploaded Excel file (preserved snapshot)"
+    )
+
     final_approved_scan = models.FileField(
         upload_to='pre_scanned/%Y/%m/',
         null=True,
@@ -1063,11 +1070,21 @@ class PRELineItem(models.Model):
     pre = models.ForeignKey('budgets.DepartmentPRE', on_delete=models.CASCADE, related_name='line_items')
     category = models.ForeignKey(PRECategory, on_delete=models.CASCADE)
     subcategory = models.ForeignKey(PRESubCategory, on_delete=models.CASCADE, null=True, blank=True)
-    
+
     # Line item details
     item_name = models.CharField(max_length=255)
     item_code = models.CharField(max_length=50, blank=True)
     description = models.TextField(blank=True)
+
+    # Source type - track whether item came from Excel template or was manually added
+    source_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('excel', 'From Excel Template'),
+            ('manual', 'Manually Added')
+        ],
+        default='excel'
+    )
     
     # Quarterly amounts
     q1_amount = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('0.00'))
@@ -2175,3 +2192,321 @@ class BudgetTransactionLog(models.Model):
             return f"-₱{abs(self.amount_change):,.2f}"
         else:
             return "₱0.00"
+
+
+class PREBudgetRealignment(models.Model):
+    """PRE-based budget realignment between line items with quarterly tracking"""
+    STATUS_CHOICES = [
+        ('Draft', 'Draft'),
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="pre_realignment_requests")
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pre_realignment_approvals")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    reason = models.TextField(blank=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    partially_approved_at = models.DateTimeField(null=True, blank=True)
+    final_approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Approval tracking
+    approved_by_approving_officer = models.BooleanField(default=False, null=True, blank=True)
+    approved_by_admin = models.BooleanField(default=False, null=True, blank=True)
+    partial_approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pre_realignment_partial_approvals")
+    admin_approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pre_realignment_admin_approvals")
+    admin_approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Document fields (following PRE/PR pattern)
+    partially_approved_pdf = models.FileField(
+        upload_to='br_pdfs/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text="PDF generated from uploaded documents when partially approved"
+    )
+    approved_documents = models.FileField(
+        upload_to='br_approved_docs/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text="Scanned approved documents uploaded by admin"
+    )
+    final_approved_scan = models.FileField(
+        upload_to='br_scanned/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text="Scanned copy of signed budget realignment"
+    )
+
+    # Admin notes and rejection
+    admin_notes = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)
+
+    # Source (Where funds come FROM)
+    source_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.CASCADE,
+        related_name='source_budget_realignments'
+    )
+    source_item_key = models.CharField(max_length=255)
+    source_quarter = models.CharField(max_length=10, null=True, blank=True)  # Deprecated - use quarterly amounts
+
+    target_pre = models.ForeignKey(
+        'DepartmentPRE',
+        on_delete=models.CASCADE,
+        related_name='target_budget_realignments'
+    )
+    target_item_key = models.CharField(max_length=255)
+    target_quarter = models.CharField(max_length=10, null=True, blank=True)  # Deprecated - use quarterly amounts
+
+    # Quarterly amounts (NEW - replaces single 'amount' field)
+    q1_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    q2_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    q3_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    q4_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    # Keep single amount for backward compatibility
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    source_item_display = models.CharField(max_length=500, null=True, blank=True)
+    target_item_display = models.CharField(max_length=500, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        total_amount = self.get_total_amount()
+        return f"Realignment: {self.source_item_display} → {self.target_item_display} (₱{total_amount:,.2f})"
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate total amount from quarterly amounts"""
+        self.amount = self.get_total_amount()
+        super().save(*args, **kwargs)
+
+    def get_total_amount(self):
+        """Calculate total amount from quarterly amounts"""
+        return self.q1_amount + self.q2_amount + self.q3_amount + self.q4_amount
+
+    def get_selected_quarters(self):
+        """Get list of quarters with non-zero amounts"""
+        quarters = []
+        if self.q1_amount > 0:
+            quarters.append(('q1', 'Q1', self.q1_amount))
+        if self.q2_amount > 0:
+            quarters.append(('q2', 'Q2', self.q2_amount))
+        if self.q3_amount > 0:
+            quarters.append(('q3', 'Q3', self.q3_amount))
+        if self.q4_amount > 0:
+            quarters.append(('q4', 'Q4', self.q4_amount))
+        return quarters
+
+    @property
+    def can_be_approved(self):
+        """Check if realignment can still be approved"""
+        if self.status != 'Pending' and self.status != 'Partially Approved':
+            return False
+
+        # Check each quarter has sufficient funds in the NEW PRELineItem structure
+        quarters_to_check = self.get_selected_quarters()
+
+        for quarter_code, quarter_label, quarter_amount in quarters_to_check:
+            # Use NEW PRELineItem model - source_item_key now stores the PRELineItem ID
+            try:
+                source_item = PRELineItem.objects.get(id=self.source_item_key, pre=self.source_pre)
+            except (PRELineItem.DoesNotExist, ValueError):
+                return False
+
+            # Check the specific quarter's remaining amount
+            allocated = getattr(source_item, f'{quarter_code}_amount', 0)
+            consumed = source_item.get_quarter_consumed(quarter_code)
+            remaining = allocated - consumed
+
+            if remaining < quarter_amount:
+                return False
+
+        return True
+
+    @property
+    def source_available_budget(self):
+        """Get total available budget for source line item"""
+        try:
+            source_item = PRELineItem.objects.get(id=self.source_item_key, pre=self.source_pre)
+        except (PRELineItem.DoesNotExist, ValueError):
+            return 0
+
+        # Sum all quarterly remaining amounts
+        total_remaining = 0
+        for quarter in ['q1', 'q2', 'q3', 'q4']:
+            allocated = getattr(source_item, f'{quarter}_amount', 0)
+            consumed = source_item.get_quarter_consumed(quarter)
+            total_remaining += (allocated - consumed)
+
+        return total_remaining
+
+    def get_source_quarterly_available(self):
+        """Get available budget for each quarter in source"""
+        quarters = {}
+        try:
+            source_item = PRELineItem.objects.get(id=self.source_item_key, pre=self.source_pre)
+        except (PRELineItem.DoesNotExist, ValueError):
+            source_item = None
+
+        for quarter in ['q1', 'q2', 'q3', 'q4']:
+            if source_item:
+                allocated = getattr(source_item, f'{quarter}_amount', 0)
+                consumed = source_item.get_quarter_consumed(quarter)
+                remaining = allocated - consumed
+            else:
+                allocated = consumed = remaining = 0
+
+            quarters[quarter] = {
+                'allocated': allocated,
+                'consumed': consumed,
+                'remaining': remaining,
+            }
+        return quarters
+
+    @property
+    def target_current_budget(self):
+        """Get current allocated budget for target line item"""
+        try:
+            target_item = PRELineItem.objects.get(id=self.target_item_key, pre=self.target_pre)
+        except (PRELineItem.DoesNotExist, ValueError):
+            return 0
+
+        # Sum all quarterly allocated amounts
+        return sum([
+            getattr(target_item, 'q1_amount', 0),
+            getattr(target_item, 'q2_amount', 0),
+            getattr(target_item, 'q3_amount', 0),
+            getattr(target_item, 'q4_amount', 0),
+        ])
+
+    @property
+    def source_total_allocated(self):
+        """Get total allocated budget for source line item"""
+        try:
+            source_item = PRELineItem.objects.get(id=self.source_item_key, pre=self.source_pre)
+        except (PRELineItem.DoesNotExist, ValueError):
+            return 0
+
+        return sum([
+            getattr(source_item, 'q1_amount', 0),
+            getattr(source_item, 'q2_amount', 0),
+            getattr(source_item, 'q3_amount', 0),
+            getattr(source_item, 'q4_amount', 0),
+        ])
+
+    @property
+    def source_total_consumed(self):
+        """Get total consumed budget for source line item"""
+        try:
+            source_item = PRELineItem.objects.get(id=self.source_item_key, pre=self.source_pre)
+        except (PRELineItem.DoesNotExist, ValueError):
+            return 0
+
+        return sum([
+            source_item.get_quarter_consumed('q1'),
+            source_item.get_quarter_consumed('q2'),
+            source_item.get_quarter_consumed('q3'),
+            source_item.get_quarter_consumed('q4'),
+        ])
+
+    def approve_with_documents(self, admin_user):
+        """Final approval after document upload - executes budget realignment"""
+        from django.utils import timezone
+        from decimal import Decimal
+
+        was_already_approved = self.status == 'Approved'
+
+        self.status = 'Approved'
+        self.final_approved_at = timezone.now()
+        self.admin_approved_by = admin_user
+        self.admin_approved_at = timezone.now()
+        self.approved_by_admin = True
+
+        # Execute budget realignment if not already done
+        if not was_already_approved:
+            self._execute_budget_realignment()
+
+        self.save()
+
+    def _execute_budget_realignment(self):
+        """Execute the actual budget transfer between line items"""
+        from decimal import Decimal
+        from django.db import transaction
+
+        # Transfer each quarter's amount
+        quarters_to_transfer = self.get_selected_quarters()
+
+        with transaction.atomic():
+            for quarter_code, quarter_label, quarter_amount in quarters_to_transfer:
+                if quarter_amount <= 0:
+                    continue
+
+                # Get source line item by ID
+                try:
+                    source_item = PRELineItem.objects.get(id=self.source_item_key, pre=self.source_pre)
+                except PRELineItem.DoesNotExist:
+                    raise ValueError(f"Source line item not found for ID {self.source_item_key}")
+
+                # Get target line item by ID
+                try:
+                    target_item = PRELineItem.objects.get(id=self.target_item_key, pre=self.target_pre)
+                except PRELineItem.DoesNotExist:
+                    raise ValueError(f"Target line item not found for ID {self.target_item_key}")
+
+                # Deduct from source
+                quarter_field = f'{quarter_code}_amount'
+                current_source = getattr(source_item, quarter_field, 0)
+                setattr(source_item, quarter_field, current_source - quarter_amount)
+                source_item.save()
+
+                # Add to target
+                current_target = getattr(target_item, quarter_field, 0)
+                setattr(target_item, quarter_field, current_target + quarter_amount)
+                target_item.save()
+
+
+class BudgetRealignmentSupportingDocument(models.Model):
+    """Supporting documents for Budget Realignment requests"""
+    budget_realignment = models.ForeignKey(
+        PREBudgetRealignment,
+        on_delete=models.CASCADE,
+        related_name='supporting_documents'
+    )
+    document = models.FileField(
+        upload_to='br_supporting_docs/%Y/%m/',
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'docx', 'doc', 'xlsx', 'xls', 'jpg', 'jpeg', 'png']
+        )]
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField()
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    description = models.CharField(max_length=500, blank=True)
+    is_signed_copy = models.BooleanField(default=False, help_text="Is this a signed/approved copy?")
+
+    class Meta:
+        ordering = ['uploaded_at']
+
+    def __str__(self):
+        return self.file_name
+
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size_bytes = self.file_size
+        if size_bytes < 1024:
+            return f"{size_bytes} bytes"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        else:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"

@@ -15,7 +15,9 @@ from apps.budgets.models import (
     ActivityDesign as NewActivityDesign,
     RequestApproval,
     SystemNotification,
-    BudgetTransactionLog
+    BudgetTransactionLog,
+    PREBudgetRealignment,
+    BudgetRealignmentSupportingDocument
 )
 from django.contrib import messages
 from decimal import Decimal
@@ -3462,47 +3464,206 @@ def pre_budget_realignment_admin(request):
 
 @role_required('admin', login_url='/admin/')
 def handle_pre_realignment_admin_action(request, pk):
-    """Handle approve/reject actions for PRE realignment requests"""
-    
+    """Handle approve/reject/upload actions for PRE realignment requests (2-step workflow)"""
+    from django.utils import timezone
+    from .pdf_generator import generate_realignment_pdf_from_documents
+
     realignment = get_object_or_404(PREBudgetRealignment, pk=pk)
-    
+
     if request.method == 'POST':
         action = request.POST.get('action')
-        
+
         if action == 'partial_approve':
-            realignment.status='Partially Approved'
-            realignment.approved_by_admin = True
-            realignment.partial_approved_by = request.user
-            realignment.save()
-            
-            # Log audit trail
-            log_audit_trail(
-                request=request,
-                action='PARTIAL_APPROVE',
-                model_name='PREBudgetRealignment',
-                record_id=realignment.id,
-                detail=f'Partially approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
-            )
-            
-            messages.success(request, f'Budget realignment partially approved.')
-        
+            # Step 1: Partial Approval - Generate PDF from uploaded documents
+            try:
+                with transaction.atomic():
+                    # Generate PDF from uploaded documents
+                    pdf_file = generate_realignment_pdf_from_documents(realignment)
+
+                    realignment.status = 'Partially Approved'
+                    realignment.approved_by_admin = True
+                    realignment.partial_approved_by = request.user
+                    realignment.partially_approved_at = timezone.now()
+                    realignment.partially_approved_pdf = pdf_file
+
+                    # Add admin notes if provided
+                    admin_notes = request.POST.get('admin_notes', '').strip()
+                    if admin_notes:
+                        realignment.admin_notes = admin_notes
+
+                    realignment.save()
+
+                    # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='PARTIAL_APPROVE',
+                        model_name='PREBudgetRealignment',
+                        record_id=realignment.id,
+                        detail=f'Partially approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.get_total_amount():,.2f})',
+                    )
+
+                    messages.success(request, 'Budget realignment partially approved. PDF generated successfully. End user can now download and print for physical signature.')
+
+            except Exception as e:
+                messages.error(request, f'Error during partial approval: {str(e)}')
+
+        elif action == 'final_approve':
+            # Step 2: Final Approval - Upload signed documents and execute budget transfer
+            uploaded_docs = request.FILES.getlist('approved_documents')
+
+            if not uploaded_docs:
+                messages.error(request, 'Please upload the signed/approved documents.')
+                return redirect('handle_pre_realignment_admin_action', pk=pk)
+
+            try:
+                with transaction.atomic():
+                    # Save uploaded signed documents
+                    for uploaded_file in uploaded_docs:
+                        BudgetRealignmentSupportingDocument.objects.create(
+                            budget_realignment=realignment,
+                            document=uploaded_file,
+                            file_name=uploaded_file.name,
+                            file_size=uploaded_file.size,
+                            uploaded_by=request.user,
+                            is_signed_copy=True
+                        )
+
+                    # Execute final approval and budget transfer
+                    realignment.approve_with_documents(request.user)
+
+                    # Add transaction log
+                    from apps.budgets.models import BudgetTransactionLog
+
+                    # Log for source (deduction)
+                    if realignment.source_pre.budget_allocation:
+                        BudgetTransactionLog.objects.create(
+                            allocation=realignment.source_pre.budget_allocation,
+                            transaction_type='REALIGNMENT_APPROVED',
+                            amount_change=-realignment.get_total_amount(),
+                            previous_balance=realignment.source_pre.budget_allocation.remaining_balance + realignment.get_total_amount(),
+                            new_balance=realignment.source_pre.budget_allocation.remaining_balance,
+                            related_document_type='BUDGET_REALIGNMENT',
+                            related_document_id=str(realignment.id),
+                            created_by=request.user,
+                            notes=f'Budget realignment: Transferred ₱{realignment.get_total_amount():,.2f} from {realignment.source_item_display} to {realignment.target_item_display}'
+                        )
+
+                    # Log for target (addition)
+                    if realignment.target_pre.budget_allocation:
+                        BudgetTransactionLog.objects.create(
+                            allocation=realignment.target_pre.budget_allocation,
+                            transaction_type='REALIGNMENT_APPROVED',
+                            amount_change=realignment.get_total_amount(),
+                            previous_balance=realignment.target_pre.budget_allocation.remaining_balance - realignment.get_total_amount(),
+                            new_balance=realignment.target_pre.budget_allocation.remaining_balance,
+                            related_document_type='BUDGET_REALIGNMENT',
+                            related_document_id=str(realignment.id),
+                            created_by=request.user,
+                            notes=f'Budget realignment: Received ₱{realignment.get_total_amount():,.2f} from {realignment.source_item_display} to {realignment.target_item_display}'
+                        )
+
+                    # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='FINAL_APPROVE',
+                        model_name='PREBudgetRealignment',
+                        record_id=realignment.id,
+                        detail=f'Final approved budget realignment and executed transfer: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.get_total_amount():,.2f})',
+                    )
+
+                    messages.success(request, 'Budget realignment approved and executed successfully. Budget has been transferred.')
+
+            except Exception as e:
+                messages.error(request, f'Error during final approval: {str(e)}')
+
         elif action == 'reject':
+            rejection_reason = request.POST.get('rejection_reason', '').strip()
+
+            if not rejection_reason:
+                messages.error(request, 'Please provide a reason for rejection.')
+                return redirect('handle_pre_realignment_admin_action', pk=pk)
+
             realignment.status = 'Rejected'
             realignment.approved_by = request.user
+            realignment.rejection_reason = rejection_reason
             realignment.save()
-            
+
             # Log audit trail
             log_audit_trail(
                 request=request,
                 action='REJECT',
                 model_name='PREBudgetRealignment',
                 record_id=realignment.id,
-                detail=f'Rejected budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.amount:,.2f})',
+                detail=f'Rejected budget realignment: {realignment.source_item_display} → {realignment.target_item_display}. Reason: {rejection_reason}',
             )
-            
+
             messages.success(request, 'Budget realignment rejected.')
-    
+
     return redirect('pre_budget_realignment_admin')
+
+
+@role_required('admin', login_url='/admin/')
+def pre_budget_realignment_detail(request, pk):
+    """Admin detail view for a specific budget realignment request"""
+    realignment = get_object_or_404(
+        PREBudgetRealignment.objects.select_related(
+            'requested_by', 'approved_by', 'partial_approved_by', 'admin_approved_by',
+            'source_pre', 'target_pre'
+        ).prefetch_related('supporting_documents'),
+        pk=pk
+    )
+
+    # Get quarterly breakdown
+    quarters = realignment.get_selected_quarters()
+
+    # Get source quarterly availability
+    source_quarterly = realignment.get_source_quarterly_available()
+
+    # Get supporting documents
+    original_documents = realignment.supporting_documents.filter(is_signed_copy=False).order_by('uploaded_at')
+    signed_documents = realignment.supporting_documents.filter(is_signed_copy=True).order_by('uploaded_at')
+
+    context = {
+        'realignment': realignment,
+        'quarters': quarters,
+        'source_quarterly': source_quarterly,
+        'original_documents': original_documents,
+        'signed_documents': signed_documents,
+        'can_partial_approve': realignment.status == 'Pending',
+        'can_final_approve': realignment.status == 'Partially Approved',
+        'can_reject': realignment.status in ['Pending', 'Partially Approved'],
+    }
+
+    return render(request, 'admin_panel/pre_budget_realignment_detail.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+def download_realignment_pdf(request, pk):
+    """Download partially approved PDF for budget realignment"""
+    from django.http import FileResponse
+
+    realignment = get_object_or_404(PREBudgetRealignment, pk=pk)
+
+    # Check if user has permission (admin or the requester)
+    if not (request.user.is_staff or request.user == realignment.requested_by):
+        messages.error(request, "You don't have permission to download this document.")
+        return redirect('user_dashboard')
+
+    if not realignment.partially_approved_pdf:
+        messages.error(request, "PDF not yet generated. Please wait for admin partial approval.")
+        return redirect('realignment_history')
+
+    try:
+        response = FileResponse(
+            realignment.partially_approved_pdf.open('rb'),
+            content_type='application/pdf'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Budget_Realignment_{realignment.id}_Partially_Approved.pdf"'
+        return response
+    except Exception as e:
+        messages.error(request, f"Error downloading PDF: {str(e)}")
+        return redirect('realignment_history')
+
 
 @role_required('admin', login_url='/admin/')
 def admin_pre_list(request):
@@ -3767,28 +3928,28 @@ def admin_approve_pre_with_comment(request, pre_id):
     pre.admin_notes = comment
     pre.save()
     
-    # 🔥 THIS IS THE KEY PART - Auto-generate PDF
-    # try:
-    #     from .pdf_generator import save_pre_pdf
-    #     pdf_url = save_pre_pdf(pre)
-    #     print(f"✅ PDF generated successfully: {pdf_url}")
-    # except Exception as e:
-    #     # If PDF generation fails, still approve but log error
-    #     print(f"❌ PDF generation failed: {str(e)}")
-    #     pdf_url = None
-    
+    # 🔥 THIS IS THE KEY PART - Auto-generate BOTH PDFs
+    from .pdf_generator import save_pre_pdf
     from .excel_to_pdf_converter import generate_pre_pdf_from_excel
 
-    # Auto-generate PDF from Excel
+    # 1. Generate database PDF (includes custom line items, marked with asterisk)
     try:
-        pdf_url = generate_pre_pdf_from_excel(pre)
-        if pdf_url:
-            print(f"✅ PDF generated successfully: {pdf_url}")
-        else:
-            print("⚠️ Auto-conversion failed - manual upload needed")
+        database_pdf_url = save_pre_pdf(pre)
+        print(f"✅ Database PDF generated successfully: {database_pdf_url}")
     except Exception as e:
-        print(f"❌ PDF generation failed: {str(e)}")
-        pdf_url = None
+        print(f"❌ Database PDF generation failed: {str(e)}")
+        database_pdf_url = None
+
+    # 2. Generate Excel-converted PDF (original submission snapshot)
+    try:
+        excel_pdf_url = generate_pre_pdf_from_excel(pre)
+        if excel_pdf_url:
+            print(f"✅ Excel PDF generated successfully: {excel_pdf_url}")
+        else:
+            print("⚠️ Excel PDF conversion returned None")
+    except Exception as e:
+        print(f"❌ Excel PDF generation failed: {str(e)}")
+        excel_pdf_url = None
     
     # Create approval record
     RequestApproval.objects.create(
@@ -5322,424 +5483,3 @@ def archive_statistics_ajax(request):
         'success': True,
         'statistics': stats
     })
-
-
-# ============================================================================
-# BUDGET SAVINGS VIEWS
-# ============================================================================
-
-@role_required('admin', login_url='/admin/')
-def savings_overview(request):
-    """
-    Display budget savings overview across all departments.
-    Shows real-time calculations of allocated vs used amounts.
-    """
-    from apps.budgets.models import BudgetSavings
-
-    # Get filters
-    fiscal_year_filter = request.GET.get('fiscal_year', '')
-    department_filter = request.GET.get('department', '')
-
-    # Get all active budget allocations
-    allocations = NewBudgetAllocation.objects.filter(
-        is_active=True,
-        is_archived=False
-    ).select_related('approved_budget', 'end_user')
-
-    # Apply filters
-    if fiscal_year_filter:
-        allocations = allocations.filter(approved_budget__fiscal_year=fiscal_year_filter)
-    if department_filter:
-        allocations = allocations.filter(department__icontains=department_filter)
-
-    # Calculate savings for each allocation
-    savings_data = []
-    total_allocated = Decimal('0.00')
-    total_pr_used = Decimal('0.00')
-    total_ad_used = Decimal('0.00')
-    total_used = Decimal('0.00')
-    total_savings = Decimal('0.00')
-
-    for allocation in allocations:
-        pr_used = allocation.pr_amount_used
-        ad_used = allocation.ad_amount_used
-        used = pr_used + ad_used
-        savings = allocation.remaining_balance
-
-        savings_data.append({
-            'id': allocation.id,
-            'department': allocation.department,
-            'fiscal_year': allocation.approved_budget.fiscal_year,
-            'end_user': allocation.end_user.get_full_name() if allocation.end_user else 'N/A',
-            'allocated': allocation.allocated_amount,
-            'pr_used': pr_used,
-            'ad_used': ad_used,
-            'total_used': used,
-            'savings': savings,
-            'utilization': (used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
-        })
-
-        total_allocated += allocation.allocated_amount
-        total_pr_used += pr_used
-        total_ad_used += ad_used
-        total_used += used
-        total_savings += savings
-
-    # Get available fiscal years for filter
-    fiscal_years = NewApprovedBudget.objects.filter(
-        is_archived=False
-    ).values_list('fiscal_year', flat=True).distinct().order_by('-fiscal_year')
-
-    # Get existing savings snapshots
-    snapshots = BudgetSavings.objects.all()[:10]  # Last 10 snapshots
-
-    context = {
-        'savings_data': savings_data,
-        'total_allocated': total_allocated,
-        'total_pr_used': total_pr_used,
-        'total_ad_used': total_ad_used,
-        'total_used': total_used,
-        'total_savings': total_savings,
-        'total_utilization': (total_used / total_allocated * 100) if total_allocated > 0 else 0,
-        'fiscal_years': fiscal_years,
-        'fiscal_year_filter': fiscal_year_filter,
-        'department_filter': department_filter,
-        'snapshots': snapshots,
-    }
-
-    return render(request, 'admin_panel/savings_overview.html', context)
-
-
-@role_required('admin', login_url='/admin/')
-def create_savings_snapshot(request):
-    """
-    Create a snapshot of current budget savings.
-    This captures the current state of all budget allocations.
-    """
-    if request.method != 'POST':
-        messages.error(request, 'Invalid request method.')
-        return redirect('savings_overview')
-
-    from apps.budgets.models import BudgetSavings, PRELineItemSavings
-    import logging
-    logger = logging.getLogger(__name__)
-
-    fiscal_year = request.POST.get('fiscal_year')
-    quarter = request.POST.get('quarter', 'Full Year')
-    notes = request.POST.get('notes', '')
-
-    # Feature flag - can be disabled if issues arise
-    ENABLE_LINE_ITEM_SAVINGS = True  # Set to False to disable line item tracking
-    SURPLUS_THRESHOLD = Decimal('5000.00')  # Threshold for "significant" surplus
-
-    if not fiscal_year:
-        messages.error(request, 'Please select a fiscal year.')
-        return redirect('savings_overview')
-
-    try:
-        with transaction.atomic():
-            # Get all active allocations for the fiscal year
-            allocations = NewBudgetAllocation.objects.filter(
-                is_active=True,
-                is_archived=False,
-                approved_budget__fiscal_year=fiscal_year
-            ).select_related('approved_budget', 'end_user')
-
-            if not allocations.exists():
-                messages.warning(request, f'No active budget allocations found for fiscal year {fiscal_year}.')
-                return redirect('savings_overview')
-
-            snapshots_created = 0
-            line_items_created = 0
-
-            for allocation in allocations:
-                pr_used = allocation.pr_amount_used
-                ad_used = allocation.ad_amount_used
-                total_used = pr_used + ad_used
-                savings = allocation.remaining_balance
-
-                # STEP 1: Create main BudgetSavings snapshot (EXISTING - SAFE)
-                snapshot = BudgetSavings.objects.create(
-                    budget_allocation=allocation,
-                    fiscal_year=fiscal_year,
-                    department=allocation.department,
-                    allocated_amount=allocation.allocated_amount,
-                    pr_used=pr_used,
-                    ad_used=ad_used,
-                    total_used=total_used,
-                    savings_amount=savings,
-                    created_by=request.user,
-                    quarter=quarter,
-                    notes=notes,
-                )
-                snapshots_created += 1
-
-                # STEP 2: Create line item breakdown (NEW - OPTIONAL)
-                if ENABLE_LINE_ITEM_SAVINGS:
-                    try:
-                        # Get all approved PREs for this allocation
-                        pres = allocation.pres.filter(status='Approved')
-
-                        for pre in pres:
-                            for line_item in pre.line_items.all():
-                                # Calculate quarterly breakdown
-                                q1_data = line_item.get_quarter_breakdown('Q1')
-                                q2_data = line_item.get_quarter_breakdown('Q2')
-                                q3_data = line_item.get_quarter_breakdown('Q3')
-                                q4_data = line_item.get_quarter_breakdown('Q4')
-
-                                total_surplus = (
-                                    q1_data['available'] +
-                                    q2_data['available'] +
-                                    q3_data['available'] +
-                                    q4_data['available']
-                                )
-
-                                # Only save line items with surplus
-                                if total_surplus > 0:
-                                    PRELineItemSavings.objects.create(
-                                        budget_savings=snapshot,
-                                        pre_line_item=line_item,
-                                        category=line_item.category.name if line_item.category else 'Uncategorized',
-                                        subcategory=line_item.subcategory.name if line_item.subcategory else '',
-                                        item_name=line_item.item_name,
-                                        # Q1
-                                        q1_allocated=q1_data['original'],
-                                        q1_consumed=q1_data['total_consumed'],
-                                        q1_surplus=q1_data['available'],
-                                        # Q2
-                                        q2_allocated=q2_data['original'],
-                                        q2_consumed=q2_data['total_consumed'],
-                                        q2_surplus=q2_data['available'],
-                                        # Q3
-                                        q3_allocated=q3_data['original'],
-                                        q3_consumed=q3_data['total_consumed'],
-                                        q3_surplus=q3_data['available'],
-                                        # Q4
-                                        q4_allocated=q4_data['original'],
-                                        q4_consumed=q4_data['total_consumed'],
-                                        q4_surplus=q4_data['available'],
-                                        # Totals
-                                        total_allocated=line_item.get_total(),
-                                        total_consumed=q1_data['total_consumed'] + q2_data['total_consumed'] + q3_data['total_consumed'] + q4_data['total_consumed'],
-                                        total_surplus=total_surplus,
-                                        is_procurable=line_item.is_procurable,
-                                        is_significant=total_surplus >= SURPLUS_THRESHOLD,
-                                    )
-                                    line_items_created += 1
-
-                    except Exception as line_item_error:
-                        # Log error but don't fail the main snapshot
-                        logger.warning(
-                            f"Line item savings creation failed for allocation {allocation.id}: {line_item_error}"
-                        )
-                        # Main snapshot still succeeds - this is the safety mechanism
-
-            # Log audit trail
-            detail_msg = f'Created {snapshots_created} savings snapshots for fiscal year {fiscal_year} ({quarter})'
-            if ENABLE_LINE_ITEM_SAVINGS and line_items_created > 0:
-                detail_msg += f' with {line_items_created} line item breakdowns'
-
-            log_audit_trail(
-                request,
-                action='CREATE',
-                model_name='BudgetSavings',
-                record_id=fiscal_year,
-                detail=detail_msg
-            )
-
-            success_msg = f'Successfully created {snapshots_created} savings snapshot(s) for fiscal year {fiscal_year}.'
-            if ENABLE_LINE_ITEM_SAVINGS and line_items_created > 0:
-                success_msg += f' Captured {line_items_created} line items with surplus.'
-
-            messages.success(request, success_msg)
-
-    except Exception as e:
-        logger.error(f'Error creating savings snapshot: {str(e)}')
-        messages.error(request, f'Error creating savings snapshot: {str(e)}')
-
-    return redirect('savings_overview')
-
-
-@role_required('admin', login_url='/admin/')
-def export_savings_excel(request):
-    """
-    Export budget savings to Excel format.
-    """
-    fiscal_year = request.GET.get('fiscal_year', '')
-
-    # Get allocations
-    allocations = NewBudgetAllocation.objects.filter(
-        is_active=True,
-        is_archived=False
-    ).select_related('approved_budget', 'end_user')
-
-    if fiscal_year:
-        allocations = allocations.filter(approved_budget__fiscal_year=fiscal_year)
-
-    # Create workbook
-    wb = Workbook()
-    ws = wb.active
-    ws.title = f'Budget Savings {fiscal_year}'
-
-    # Styles
-    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-    header_font = Font(bold=True, color='FFFFFF', size=11)
-    border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
-    )
-
-    # Headers
-    headers = [
-        'Department',
-        'Fiscal Year',
-        'Allocated Amount',
-        'PR Used',
-        'AD Used',
-        'Total Used',
-        'Savings',
-        'Utilization %'
-    ]
-
-    for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num)
-        cell.value = header
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center', vertical='center')
-        cell.border = border
-
-    # Data
-    row_num = 2
-    total_allocated = Decimal('0.00')
-    total_pr_used = Decimal('0.00')
-    total_ad_used = Decimal('0.00')
-    total_used = Decimal('0.00')
-    total_savings = Decimal('0.00')
-
-    for allocation in allocations:
-        pr_used = allocation.pr_amount_used
-        ad_used = allocation.ad_amount_used
-        used = pr_used + ad_used
-        savings = allocation.remaining_balance
-        utilization = (used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
-
-        ws.cell(row=row_num, column=1, value=allocation.department)
-        ws.cell(row=row_num, column=2, value=allocation.approved_budget.fiscal_year)
-        ws.cell(row=row_num, column=3, value=float(allocation.allocated_amount))
-        ws.cell(row=row_num, column=4, value=float(pr_used))
-        ws.cell(row=row_num, column=5, value=float(ad_used))
-        ws.cell(row=row_num, column=6, value=float(used))
-        ws.cell(row=row_num, column=7, value=float(savings))
-        ws.cell(row=row_num, column=8, value=f"{utilization:.1f}%")
-
-        # Apply borders
-        for col in range(1, 9):
-            ws.cell(row=row_num, column=col).border = border
-
-        # Number formatting
-        for col in range(3, 8):
-            ws.cell(row=row_num, column=col).number_format = '₱#,##0.00'
-
-        total_allocated += allocation.allocated_amount
-        total_pr_used += pr_used
-        total_ad_used += ad_used
-        total_used += used
-        total_savings += savings
-        row_num += 1
-
-    # Totals row
-    ws.cell(row=row_num, column=1, value='TOTAL')
-    ws.cell(row=row_num, column=1).font = Font(bold=True)
-    ws.cell(row=row_num, column=3, value=float(total_allocated))
-    ws.cell(row=row_num, column=4, value=float(total_pr_used))
-    ws.cell(row=row_num, column=5, value=float(total_ad_used))
-    ws.cell(row=row_num, column=6, value=float(total_used))
-    ws.cell(row=row_num, column=7, value=float(total_savings))
-    total_util = (total_used / total_allocated * 100) if total_allocated > 0 else 0
-    ws.cell(row=row_num, column=8, value=f"{total_util:.1f}%")
-
-    for col in range(1, 9):
-        ws.cell(row=row_num, column=col).border = border
-        ws.cell(row=row_num, column=col).font = Font(bold=True)
-
-    for col in range(3, 8):
-        ws.cell(row=row_num, column=col).number_format = '₱#,##0.00'
-
-    # Adjust column widths
-    ws.column_dimensions['A'].width = 30
-    ws.column_dimensions['B'].width = 15
-    for col in ['C', 'D', 'E', 'F', 'G']:
-        ws.column_dimensions[col].width = 18
-    ws.column_dimensions['H'].width = 15
-
-    # Create response
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    filename = f'Budget_Savings_{fiscal_year}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-    wb.save(response)
-    return response
-
-
-@role_required('admin', login_url='/admin/')
-def line_item_savings_detail(request, snapshot_id):
-    """
-    Display detailed line item breakdown for a specific savings snapshot.
-    Shows which PRE line items have unused/surplus budget.
-    """
-    from apps.budgets.models import BudgetSavings, PRELineItemSavings
-    from django.db.models import Sum, Count
-
-    # Get the savings snapshot
-    snapshot = get_object_or_404(BudgetSavings, id=snapshot_id)
-
-    # Get filter parameters
-    category_filter = request.GET.get('category', 'all')
-    show_significant_only = request.GET.get('significant', '') == 'true'
-
-    # Get line items for this snapshot
-    line_items = snapshot.line_item_breakdowns.all()
-
-    # Apply filters
-    if category_filter != 'all':
-        line_items = line_items.filter(category=category_filter)
-
-    if show_significant_only:
-        line_items = line_items.filter(is_significant=True)
-
-    # Get category breakdown
-    category_summary = snapshot.line_item_breakdowns.values('category').annotate(
-        total_surplus=Sum('total_surplus'),
-        item_count=Count('id')
-    ).order_by('-total_surplus')
-
-    # Get all unique categories for filter
-    all_categories = snapshot.line_item_breakdowns.values_list('category', flat=True).distinct()
-
-    # Calculate totals
-    total_line_items = line_items.count()
-    total_surplus_all = snapshot.line_item_breakdowns.aggregate(
-        total=Sum('total_surplus')
-    )['total'] or Decimal('0.00')
-
-    significant_count = snapshot.line_item_breakdowns.filter(is_significant=True).count()
-
-    context = {
-        'snapshot': snapshot,
-        'line_items': line_items,
-        'category_summary': category_summary,
-        'all_categories': all_categories,
-        'category_filter': category_filter,
-        'show_significant_only': show_significant_only,
-        'total_line_items': total_line_items,
-        'total_surplus_all': total_surplus_all,
-        'significant_count': significant_count,
-    }
-
-    return render(request, 'admin_panel/line_item_savings_detail.html', context)

@@ -1,0 +1,22 @@
+New Task: Budget Realignment Feature.
+
+context: I have a Budget Realignment Feature on this current system but it's deprecated because I used the deprecated model and it contains many errors now. We meet our client and she say the requirements of Budget Realignment are Documents attached by end user, Line Items Selection: Transfer From (This Line Item as Source) Transfer To (This Line Item to be funded), Quarterly Selection: End user can select what quarter to transfer and they can select all quarter or maybe how many quarter of that line item, End User Enter Amount of each quarter to transfer, and Reason (optional). The Approval process is still the same to PR, AD, and PRE that after end user submit the request it goes to admin and if admin approve that request it will change the status to Partially Approved and generate a converted pdf of the uploaded documents to be download and printed by end user and end user will process another approval for approving officer in office to be signed it by approving officer and submit an approve copy of the documents to admin in office and admin will upload the copy and change the status to "Approved" and the budget of the line item selected will now be realigned. I will provide an example flow below for you to understand.
+
+Example Flow: 
+1. End User upload the documents (it can be multiple files).
+2. Select Source Line Item -> Basic Salary (Display Total Amount Available of each quarter)
+3. Select Target Line Item -> Accountable Form Expenses (Display Total Amount Available of each quarter)
+4. Select Quarter -> Q1 & Q2
+5. Enter Amount -> Q1: 10,000.00 Q2: 20,000.00 (Display also available amount of each quarter so that the end user will know and there is also an option to realign all remaining amounts each quarter so that end user will never input amount if they okay to realign all remaining.)
+6. Input Reason but this is optional.
+7. Submit the Request.
+8. It will display to admin panel Budget Realignment Tab.
+9. Admin can View Details of that Pending Budget Realignment Request.
+10. If Admin Approve that request the status will change to "Partially Approved" and generate a converted PDF file of the uploaded documents.
+11. Notify on the end user part that their Budget Realignment Request is Partially Approved By Admin and they can now download and print the generated converted pdf documents for second approval.
+12. End user submit the printed documents to Approving Officer in Office and after that Approving Officer signed the documents as Approved.
+13. End user submit the Approve Copy to admin in office.
+14. Admin upload the approve copy in the system and submit it.
+15. Budget Realignment has now been "Approved" and the budget of Accountable Form Expenses Line Item has now been added an amount of 10,000.00 in Q1 and 20,000.00 in Q2 and the Basic Salary Line Item has now been deducted.
+
+Now I want you to plan this task first before you implement and make sure the stable functionalities will not be affected. You can scan also this project so you can understand how to implement this, especially I has a Budget Realignment Feature of this current system but its deprecated and you can enhance it.

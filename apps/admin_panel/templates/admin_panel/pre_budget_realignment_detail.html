@@ -1,0 +1,458 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Budget Realignment Details - Request #{{ realignment.id }}{% endblock %}
+
+{% block main-content %}
+<div class="flex flex-col w-full">
+  <!-- Header with Back Button -->
+  <header class="bg-blue-600 px-4 py-3 text-white shadow-sm rounded-lg mb-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center">
+        <a href="{% url 'pre_budget_realignment_admin' %}" class="mr-4 hover:bg-blue-700 p-2 rounded transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+          </svg>
+        </a>
+        <div>
+          <h1 class="text-[20px] font-bold">Budget Realignment Details</h1>
+          <p class="text-sm text-blue-100 mt-1">Request #{{ realignment.id }} - {{ realignment.source_item_display }} → {{ realignment.target_item_display }}</p>
+        </div>
+      </div>
+      <div>
+        <span class="px-4 py-2 rounded-full text-sm font-semibold
+          {% if realignment.status == 'Pending' %} bg-yellow-400 text-yellow-900
+          {% elif realignment.status == 'Partially Approved' %} bg-blue-400 text-blue-900
+          {% elif realignment.status == 'Approved' %} bg-green-400 text-green-900
+          {% elif realignment.status == 'Rejected' %} bg-red-400 text-red-900
+          {% endif %}">
+          {{ realignment.status }}
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 px-6 py-4 bg-gray-100 space-y-6">
+    <!-- Messages -->
+    {% if messages %}
+        <div class="mb-4">
+            {% for message in messages %}
+                <div class="text-white px-4 py-2 mt-1 rounded
+                    {% if message.tags == 'error' %} bg-red-500
+                    {% elif message.tags == 'success' %} bg-green-500
+                    {% elif message.tags == 'warning' %} bg-yellow-500
+                    {% else %} bg-gray-500 {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Action Buttons for Pending Status -->
+    {% if can_partial_approve %}
+    <section class="bg-white p-4 rounded-lg shadow-md">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-800">Quick Actions</h2>
+        <div class="flex gap-3">
+          <form method="POST" action="{% url 'handle_pre_realignment_admin_action' realignment.id %}" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="partial_approve">
+            <button type="submit" onclick="return confirm('Partially approve this budget realignment request? A PDF will be generated for end-user download.')"
+                    class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition flex items-center">
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Partially Approve
+            </button>
+          </form>
+          <button onclick="openRejectModal()"
+                  class="bg-red-600 text-white px-6 py-2 rounded-md hover:bg-red-700 transition flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Reject
+          </button>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Upload Signed Document Section (Partially Approved Status) -->
+    {% if can_final_approve %}
+    <section class="bg-green-50 border-l-4 border-green-500 p-6 rounded-lg shadow-md">
+      <div class="flex items-start justify-between">
+        <div class="flex-1">
+          <h2 class="text-lg font-semibold text-green-800 mb-2 flex items-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Ready for Final Approval
+          </h2>
+          <p class="text-green-700 text-sm mb-4">
+            This budget realignment has been partially approved. The end user should submit the signed physical documents to the office.
+            Once received and verified, upload the scanned copy below to complete the approval and execute the budget transfer.
+          </p>
+
+          <div class="bg-white p-4 rounded-lg border border-green-200 mb-4">
+            <h3 class="font-semibold text-gray-800 mb-2">Next Steps:</h3>
+            <ol class="text-sm text-gray-700 space-y-1 list-decimal list-inside">
+              <li>End user downloads and prints the partially approved PDF</li>
+              <li>End user submits physical documents to approving officer for signature</li>
+              <li>End user submits signed documents to admin office</li>
+              <li><strong>Admin uploads scanned copy using form below</strong></li>
+              <li>Budget realignment automatically executes and changes to "Approved" status</li>
+            </ol>
+          </div>
+
+          <!-- Upload Form -->
+          <form method="POST" action="{% url 'handle_pre_realignment_admin_action' realignment.id %}" enctype="multipart/form-data" class="bg-white p-4 rounded-lg border border-green-200">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="final_approve">
+
+            <div class="mb-4">
+              <label for="approved_documents" class="block text-sm font-medium text-gray-700 mb-2">
+                Upload Signed/Approved Documents
+                <span class="text-red-500">*</span>
+              </label>
+              <input type="file" id="approved_documents" name="approved_documents" multiple required
+                     accept=".pdf,.jpg,.jpeg,.png"
+                     class="w-full border border-gray-300 rounded-lg px-4 py-2">
+              <p class="text-xs text-gray-500 mt-1">Upload the scanned signed documents (PDF or images). Multiple files allowed.</p>
+            </div>
+
+            <button type="submit" onclick="return confirm('Upload signed documents and execute final approval? This will transfer the budget and cannot be undone.')"
+                    class="w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold">
+              <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+              Upload Signed Documents & Execute Final Approval
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Request Information -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Request Information</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="text-sm font-medium text-gray-500 mb-1">Requested By</h3>
+          <p class="text-base text-gray-900">{{ realignment.requested_by.get_full_name }}</p>
+        </div>
+        <div>
+          <h3 class="text-sm font-medium text-gray-500 mb-1">Submitted On</h3>
+          <p class="text-base text-gray-900">
+            {% if realignment.submitted_at %}
+              {{ realignment.submitted_at|date:"F d, Y g:i A" }}
+            {% else %}
+              Not submitted
+            {% endif %}
+          </p>
+        </div>
+        <div>
+          <h3 class="text-sm font-medium text-gray-500 mb-1">Department</h3>
+          <p class="text-base text-gray-900">
+            {% if realignment.source_pre.department %}
+              {{ realignment.source_pre.department }}
+            {% else %}
+              N/A
+            {% endif %}
+          </p>
+        </div>
+        <div>
+          <h3 class="text-sm font-medium text-gray-500 mb-1">Status</h3>
+          <p class="text-base font-semibold
+            {% if realignment.status == 'Pending' %} text-yellow-600
+            {% elif realignment.status == 'Partially Approved' %} text-blue-600
+            {% elif realignment.status == 'Approved' %} text-green-600
+            {% elif realignment.status == 'Rejected' %} text-red-600
+            {% endif %}">
+            {{ realignment.status }}
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Transfer Details -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Budget Transfer Details</h2>
+
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex-1">
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+              <h3 class="text-sm font-medium text-blue-800 mb-1">Transfer FROM (Source)</h3>
+              <p class="text-lg font-semibold text-blue-900">{{ realignment.source_item_display }}</p>
+            </div>
+          </div>
+
+          <div class="mx-4">
+            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+            </svg>
+          </div>
+
+          <div class="flex-1">
+            <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+              <h3 class="text-sm font-medium text-green-800 mb-1">Transfer TO (Target)</h3>
+              <p class="text-lg font-semibold text-green-900">{{ realignment.target_item_display }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quarterly Breakdown -->
+      <div class="mb-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">Quarterly Breakdown</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {% for quarter_code, quarter_label, quarter_amount in quarters %}
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-gray-600 mb-1">{{ quarter_label }}</h4>
+            <p class="text-2xl font-bold text-blue-600">₱{{ quarter_amount|floatformat:2|intcomma }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Total Amount -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex justify-between items-center">
+          <span class="text-lg font-semibold text-gray-800">Total Amount to Transfer:</span>
+          <span class="text-3xl font-bold text-blue-600">₱{{ realignment.get_total_amount|floatformat:2|intcomma }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Source Budget Availability -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Source Category - Current Budget Status</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {% for quarter, data in source_quarterly.items %}
+        <div class="border border-gray-200 rounded-lg p-4">
+          <h4 class="text-sm font-medium text-gray-600 mb-2">{{ quarter|upper }}</h4>
+          <div class="space-y-1 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-600">Allocated:</span>
+              <span class="font-semibold">₱{{ data.allocated|floatformat:2|intcomma }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Consumed:</span>
+              <span class="font-semibold text-red-600">₱{{ data.consumed|floatformat:2|intcomma }}</span>
+            </div>
+            <div class="flex justify-between border-t pt-1">
+              <span class="text-gray-600">Remaining:</span>
+              <span class="font-semibold text-green-600">₱{{ data.remaining|floatformat:2|intcomma }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Reason -->
+    {% if realignment.reason %}
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-3">Reason for Realignment</h2>
+      <p class="text-gray-700 whitespace-pre-line">{{ realignment.reason }}</p>
+    </section>
+    {% endif %}
+
+    <!-- Supporting Documents -->
+    {% if original_documents %}
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Supporting Documents (Original Submission)</h2>
+      <div class="space-y-2">
+        {% for doc in original_documents %}
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+          <div class="flex items-center">
+            <svg class="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+              <p class="text-sm text-gray-500">{{ doc.get_file_size_display }} - Uploaded {{ doc.uploaded_at|date:"M d, Y g:i A" }}</p>
+            </div>
+          </div>
+          <a href="{{ doc.document.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 font-medium">
+            View
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Signed/Approved Documents -->
+    {% if signed_documents %}
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Signed/Approved Documents</h2>
+      <div class="space-y-2">
+        {% for doc in signed_documents %}
+        <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition">
+          <div class="flex items-center">
+            <svg class="w-6 h-6 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+              <p class="text-sm text-gray-500">{{ doc.get_file_size_display }} - Uploaded {{ doc.uploaded_at|date:"M d, Y g:i A" }} by {{ doc.uploaded_by.get_full_name }}</p>
+            </div>
+          </div>
+          <a href="{{ doc.document.url }}" target="_blank" class="text-green-600 hover:text-green-800 font-medium">
+            View
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Generated PDF -->
+    {% if realignment.partially_approved_pdf %}
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Generated PDF for Printing</h2>
+      <div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+        <div class="flex items-center">
+          <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+          </svg>
+          <div>
+            <p class="font-semibold text-gray-900">Partially Approved PDF</p>
+            <p class="text-sm text-gray-600">Generated on {{ realignment.partially_approved_at|date:"M d, Y g:i A" }}</p>
+          </div>
+        </div>
+        <a href="{% url 'download_realignment_pdf' realignment.id %}"
+           class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+          Download PDF
+        </a>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Approval Timeline -->
+    <section class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Approval Timeline</h2>
+      <div class="space-y-4">
+        <!-- Submitted -->
+        {% if realignment.submitted_at %}
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="font-semibold text-gray-900">Submitted</p>
+            <p class="text-sm text-gray-600">{{ realignment.submitted_at|date:"F d, Y g:i A" }}</p>
+            <p class="text-sm text-gray-500">By {{ realignment.requested_by.get_full_name }}</p>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Partially Approved -->
+        {% if realignment.partially_approved_at %}
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="font-semibold text-gray-900">Partially Approved</p>
+            <p class="text-sm text-gray-600">{{ realignment.partially_approved_at|date:"F d, Y g:i A" }}</p>
+            <p class="text-sm text-gray-500">By {{ realignment.partial_approved_by.get_full_name }}</p>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Final Approved -->
+        {% if realignment.final_approved_at %}
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="font-semibold text-gray-900">Final Approved & Budget Executed</p>
+            <p class="text-sm text-gray-600">{{ realignment.final_approved_at|date:"F d, Y g:i A" }}</p>
+            <p class="text-sm text-gray-500">By {{ realignment.admin_approved_by.get_full_name }}</p>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Rejected -->
+        {% if realignment.status == 'Rejected' %}
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="font-semibold text-gray-900">Rejected</p>
+            <p class="text-sm text-gray-600">{{ realignment.updated_at|date:"F d, Y g:i A" }}</p>
+            {% if realignment.rejection_reason %}
+            <p class="text-sm text-red-600 mt-1"><strong>Reason:</strong> {{ realignment.rejection_reason }}</p>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Reject Modal -->
+<div id="rejectModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    <form method="POST" action="{% url 'handle_pre_realignment_admin_action' realignment.id %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="reject">
+
+      <div class="p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Reject Budget Realignment</h3>
+
+        <div class="mb-4">
+          <label for="rejection_reason" class="block text-sm font-medium text-gray-700 mb-2">
+            Reason for Rejection <span class="text-red-500">*</span>
+          </label>
+          <textarea id="rejection_reason" name="rejection_reason" rows="4" required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="Explain why this budget realignment is being rejected..."></textarea>
+        </div>
+      </div>
+
+      <div class="bg-gray-50 px-6 py-4 flex justify-end space-x-3 rounded-b-lg">
+        <button type="button" onclick="closeRejectModal()"
+                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+          Cancel
+        </button>
+        <button type="submit"
+                class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+          Reject Request
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openRejectModal() {
+  document.getElementById('rejectModal').classList.remove('hidden');
+}
+
+function closeRejectModal() {
+  document.getElementById('rejectModal').classList.add('hidden');
+}
+
+// Close modal when clicking outside
+document.getElementById('rejectModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeRejectModal();
+  }
+});
+</script>
+{% endblock main-content %}
