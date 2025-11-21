@@ -100,6 +100,18 @@
             </div>
         </div>
 
+        <!-- Preview & Print Button -->
+        <div class="mb-4">
+            <a href="{% url 'preview_pre_documents' pre.id %}"
+               class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition flex items-center justify-center gap-3 shadow-lg text-lg">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                </svg>
+                Preview & Print Documents
+            </a>
+            <p class="text-sm text-purple-600 mt-2 text-center">Click here to view and print all documents for signing</p>
+        </div>
+
         <!-- PDF Download Options -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {% if pre.partially_approved_pdf %}

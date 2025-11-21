@@ -31,6 +31,7 @@ urlpatterns = [
     path('pre/download_pre_template/', views.download_pre_template, name='download_pre_template'),
     path('pre/upload_pre/<int:allocation_id>/', views.upload_pre, name='upload_pre'),
     path('pre/view/<uuid:pre_id>/', views.view_pre_detail, name='view_pre_detail'),
+    path('pre/preview-documents/<uuid:pre_id>/', views.preview_pre_documents, name='preview_pre_documents'),
     path('pr/preview/<uuid:pr_id>/', views.preview_submitted_pr, name='preview_submitted_pr'),
 
     # Custom PRE Line Items

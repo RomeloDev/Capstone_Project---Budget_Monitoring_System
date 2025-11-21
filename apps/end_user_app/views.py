@@ -2579,6 +2579,37 @@ def view_pre_detail(request, pre_id):
 
     return render(request, 'end_user_app/view_pre_detail.html', context)
 
+
+@role_required('end_user', login_url='/')
+def preview_pre_documents(request, pre_id):
+    """
+    Preview PRE documents for printing.
+    Shows original Excel PDF and all supporting documents in a print-friendly view.
+    Used in Phase 3b of new PRE workflow.
+    """
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related(
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'submitted_by'
+        ).prefetch_related(
+            'supporting_documents'
+        ),
+        id=pre_id,
+        submitted_by=request.user
+    )
+
+    # Get supporting documents
+    supporting_documents = pre.supporting_documents.all().order_by('-uploaded_at')
+
+    context = {
+        'pre': pre,
+        'supporting_documents': supporting_documents,
+    }
+
+    return render(request, 'end_user_app/preview_pre_documents.html', context)
+
+
 # @role_required('end_user', login_url='/')
 # def preview_pre(request, pk: int):
 #     pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by'), pk=pk)

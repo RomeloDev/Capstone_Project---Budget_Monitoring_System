@@ -1,0 +1,278 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Preview PRE Documents - {{ pre.department }}{% endblock title %}
+
+{% block main-content %}
+<div class="p-6 max-w-7xl mx-auto space-y-6">
+
+    <!-- Back Button and Print Button (Hidden when printing) -->
+    <div class="no-print flex justify-between items-center mb-4">
+        <a href="{% url 'view_pre_detail' pre.id %}"
+           class="inline-flex items-center text-sm text-gray-600 hover:text-blue-600 transition gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to PRE Details
+        </a>
+
+        <button onclick="window.print()"
+                class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition gap-2 shadow-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Print Documents
+        </button>
+    </div>
+
+    <!-- Instructions (Hidden when printing) -->
+    <div class="no-print bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+            </svg>
+            <div>
+                <h3 class="font-semibold text-blue-900 mb-1">Document Preview & Printing Instructions</h3>
+                <ol class="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                    <li>Review all documents below carefully</li>
+                    <li>Click "Print Documents" to print or save as PDF</li>
+                    <li>Get physical signatures from approving officers</li>
+                    <li>Upload signed documents in the next step</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header (Visible in print) -->
+    <div class="print-header bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+        <div class="text-center mb-4">
+            <h1 class="text-2xl font-bold text-gray-900">BISU Balilihan Campus</h1>
+            <h2 class="text-xl font-semibold text-gray-700 mt-2">Program of Receipts and Expenditures (PRE)</h2>
+            <p class="text-gray-600 mt-1">Fiscal Year {{ pre.fiscal_year }}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mt-4 text-sm">
+            <div>
+                <p class="text-gray-600">Department:</p>
+                <p class="font-semibold text-gray-900">{{ pre.department }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">PRE Reference:</p>
+                <p class="font-semibold text-gray-900">#{{ pre.id|slice:":8"|upper }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Status:</p>
+                <p class="font-semibold
+                    {% if pre.status == 'Approved' %} text-green-600
+                    {% elif pre.status == 'Partially Approved' %} text-purple-600
+                    {% elif pre.status == 'Pending' %} text-yellow-600
+                    {% elif pre.status == 'Rejected' %} text-red-600
+                    {% else %} text-gray-600
+                    {% endif %}">{{ pre.status }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Total Amount:</p>
+                <p class="font-bold text-lg text-blue-600">₱{{ pre.total_amount|floatformat:2|intcomma }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Original Excel PDF Document -->
+    {% if pre.original_excel_pdf %}
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-6 page-break">
+        <div class="border-b border-gray-200 px-6 py-4 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                </svg>
+                Original PRE Document (Excel to PDF)
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">Generated from uploaded Excel file with BISU header</p>
+        </div>
+        <div class="p-6">
+            <div class="aspect-[8.5/11] border-2 border-gray-300 rounded bg-gray-50 overflow-hidden">
+                <embed src="{{ pre.original_excel_pdf.url }}"
+                       type="application/pdf"
+                       width="100%"
+                       height="100%"
+                       class="rounded">
+            </div>
+            <div class="mt-4 flex gap-3 no-print">
+                <a href="{{ pre.original_excel_pdf.url }}"
+                   target="_blank"
+                   class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    View Full Size
+                </a>
+                <a href="{{ pre.original_excel_pdf.url }}"
+                   download
+                   class="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Download PDF
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <div class="flex items-center gap-3">
+            <svg class="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+            </svg>
+            <p class="text-sm text-yellow-800">Original PRE PDF not yet generated. Please contact administrator.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Supporting Documents -->
+    {% if supporting_documents %}
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden page-break">
+        <div class="border-b border-gray-200 px-6 py-4 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z"></path>
+                </svg>
+                Supporting Documents ({{ supporting_documents.count }})
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">Additional documents uploaded with this PRE</p>
+        </div>
+        <div class="p-6 space-y-6">
+            {% for doc in supporting_documents %}
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-semibold text-gray-900">{{ doc.file_name }}</h4>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Uploaded: {{ doc.uploaded_at|date:"F d, Y g:i A" }}
+                                {% if doc.file_size %}
+                                • Size: {{ doc.file_size|filesizeformat }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="no-print flex gap-2">
+                            <a href="{{ doc.document.url }}"
+                               target="_blank"
+                               class="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition text-sm gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                                View
+                            </a>
+                            <a href="{{ doc.document.url }}"
+                               download
+                               class="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition text-sm gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                Download
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% if doc.document.url|slice:"-4:" == ".pdf" or doc.document.url|slice:"-4:" == ".PDF" %}
+                <div class="p-4">
+                    <div class="aspect-[8.5/11] border-2 border-gray-300 rounded bg-gray-50 overflow-hidden">
+                        <embed src="{{ doc.document.url }}"
+                               type="application/pdf"
+                               width="100%"
+                               height="100%"
+                               class="rounded">
+                    </div>
+                </div>
+                {% elif doc.document.url|slice:"-4:" == ".jpg" or doc.document.url|slice:"-4:" == ".JPG" or doc.document.url|slice:"-4:" == "jpeg" or doc.document.url|slice:"-4:" == ".png" or doc.document.url|slice:"-4:" == ".PNG" %}
+                <div class="p-4">
+                    <img src="{{ doc.document.url }}"
+                         alt="{{ doc.file_name }}"
+                         class="max-w-full h-auto border border-gray-300 rounded">
+                </div>
+                {% else %}
+                <div class="p-4 bg-gray-50">
+                    <p class="text-sm text-gray-600">Preview not available for this file type. Please download to view.</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+        <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <p class="text-gray-600 font-medium">No supporting documents uploaded</p>
+        <p class="text-sm text-gray-500 mt-1">Only the original PRE document is available</p>
+    </div>
+    {% endif %}
+
+    <!-- Next Steps (Hidden when printing) -->
+    <div class="no-print bg-green-50 border border-green-200 rounded-lg p-6 mt-8">
+        <h3 class="font-semibold text-green-900 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clip-rule="evenodd"></path>
+            </svg>
+            Next Steps
+        </h3>
+        <ol class="text-sm text-green-800 space-y-2 list-decimal list-inside">
+            <li>Print these documents using the "Print Documents" button above</li>
+            <li>Bring printed documents to your approving officers for signatures</li>
+            <li>After getting all required signatures, return to the PRE details page</li>
+            <li>Upload the signed documents for admin verification</li>
+            <li>Admin will verify and approve your PRE</li>
+        </ol>
+        <div class="mt-4">
+            <a href="{% url 'view_pre_detail' pre.id %}"
+               class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Go to PRE Details
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<style>
+/* Print-specific styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .page-break {
+        page-break-after: always;
+    }
+
+    .print-header {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    body {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    /* Ensure PDFs and images print properly */
+    embed, img {
+        max-width: 100%;
+        page-break-inside: avoid;
+    }
+}
+
+/* Screen-only enhancements */
+@media screen {
+    .print-header {
+        box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    }
+}
+</style>
+
+{% endblock main-content %}
