@@ -178,23 +178,45 @@ class DepartmentPREApprovedDocument(models.Model):
 
 ---
 
-## 📋 PENDING PHASES
+## ✅ PHASE 4 COMPLETE
 
-### Phase 4: End-User Document Upload
-**Status:** PENDING
-**Target Files:**
-- Create: `apps/end_user_app/views.py` → `upload_approved_pre_documents()`
-- Update: `apps/end_user_app/urls.py`
-- Create: Template with upload interface
+### Phase 4: End-User Document Upload ✅
+**Status:** COMPLETE
+**Files Created:**
+- `apps/end_user_app/views.py` → `upload_approved_pre_documents()` (line 2614)
 
-**Tasks:**
-- [ ] Create upload view for signed documents
-- [ ] Support multiple file uploads
-- [ ] Update PRE status to 'Awaiting Admin Verification'
-- [ ] Send notification to admin
-- [ ] Update PRE detail template
+**Files Modified:**
+- `apps/end_user_app/urls.py` (added upload route)
+- `apps/end_user_app/templates/end_user_app/view_pre_detail.html` (added upload form + Awaiting Verification display)
+
+**Completed Tasks:**
+- ✅ Created upload view for signed documents
+- ✅ Support multiple file uploads with dynamic form
+- ✅ Update PRE status to 'Awaiting Admin Verification'
+- ✅ Set awaiting_verification flag and timestamp
+- ✅ Updated PRE detail template with upload form
+- ✅ File type validation (PDF, JPG, PNG)
+- ✅ Document categorization (signed_pre, signed_supporting)
+- ✅ Display uploaded documents in status section
+
+**Features Implemented:**
+- Multi-file upload in single submission
+- "Add Another Document" button for dynamic inputs
+- Document type selection dropdown
+- Optional description field per file
+- File extension validation
+- Error handling with user feedback
+- Security: Owner-only access, status check
+- "Awaiting Admin Verification" status display
+- Uploaded documents list with view links
+- Automatic status transition
+
+**Deferred:**
+- ⏸️ Admin notification (will be added in Phase 4b if needed)
 
 ---
+
+## 📋 PENDING PHASES
 
 ### Phase 4b: Admin Verification Workflow
 **Status:** PENDING
@@ -260,12 +282,12 @@ class DepartmentPREApprovedDocument(models.Model):
 | Phase 2: Database Models | ✅ Complete | 100% |
 | Phase 3: Upload Workflow | ✅ Complete | 100% |
 | Phase 3b: Preview & Print | ✅ Complete | 100% |
-| Phase 4: End-User Upload | ⏸️ Pending | 0% |
+| Phase 4: End-User Upload | ✅ Complete | 100% |
 | Phase 4b: Admin Verification | ⏸️ Pending | 0% |
 | Phase 5: Budget Monitoring | ⏸️ Pending | 0% |
 | Phase 6: Testing & Docs | ⏸️ Pending | 0% |
 
-**Overall Progress:** 50% (4/8 phases complete)
+**Overall Progress:** 62.5% (5/8 phases complete)
 
 ---
 
