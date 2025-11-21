@@ -124,6 +124,7 @@ class DepartmentPREApprovedDocument(models.Model):
 **Status:** COMPLETE
 **Files Modified:**
 - `apps/end_user_app/views.py` (3 functions updated)
+- `apps/end_user_app/templates/end_user_app/preview_pre.html` (major cleanup)
 
 **Completed Tasks:**
 - ✅ Updated `upload_pre()` to use `parse_pre_excel_dynamic()`
@@ -133,10 +134,15 @@ class DepartmentPREApprovedDocument(models.Model):
 - ✅ Updated `preview_pre()` context with new metadata
 - ✅ Added comprehensive error handling
 - ✅ Removed manual entry support (all from Excel now)
+- ✅ Updated preview_pre.html template (show custom item badges)
+- ✅ Removed custom line item web form from templates
+- ✅ Removed deprecated modal and JavaScript for manual entry
+- ✅ Fixed category display to use subcategory field
 
-**Pending Tasks:**
-- [ ] Update preview_pre.html template (show custom item badges)
-- [ ] Remove custom line item web form from templates
+**Changes Summary:**
+- Added blue "CUSTOM" badge next to custom items in all sections
+- Removed 402 lines of deprecated code (manual entry UI and JS)
+- Template reduced from 649 to 432 lines (-33% code reduction)
 
 ---
 
@@ -235,14 +241,14 @@ class DepartmentPREApprovedDocument(models.Model):
 |-----------|-----------|--------------|
 | Phase 1: Dynamic Parser | ✅ Complete | 100% |
 | Phase 2: Database Models | ✅ Complete | 100% |
-| Phase 3: Upload Workflow | ✅ Complete | 90% (templates pending) |
+| Phase 3: Upload Workflow | ✅ Complete | 100% |
 | Phase 3b: Preview & Print | ⏸️ Pending | 0% |
 | Phase 4: End-User Upload | ⏸️ Pending | 0% |
 | Phase 4b: Admin Verification | ⏸️ Pending | 0% |
 | Phase 5: Budget Monitoring | ⏸️ Pending | 0% |
 | Phase 6: Testing & Docs | ⏸️ Pending | 0% |
 
-**Overall Progress:** 36% (2.9/8 phases complete)
+**Overall Progress:** 37.5% (3/8 phases complete)
 
 ---
 
