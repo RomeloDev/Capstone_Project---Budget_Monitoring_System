@@ -1959,30 +1959,38 @@ def upload_pre(request, allocation_id):
                 messages.error(request, "Please upload a PRE Excel file first.")
                 return redirect('upload_pre', allocation_id=allocation_id)
             
-            # Parse Excel file
+            # Parse Excel file using NEW dynamic parser
             try:
-                result = parse_pre_excel(draft.pre_file.path)
-                
+                # Import the new dynamic parser
+                from apps.end_user_app.utils.pre_parser_dynamic import parse_pre_excel_dynamic
+
+                result = parse_pre_excel_dynamic(draft.pre_file.path)
+
                 if not result['success']:
-                    messages.error(request, 
-                        f"Error parsing PRE file: {', '.join(result['errors'])}")
+                    # Show all errors
+                    for error in result['errors']:
+                        messages.error(request, error)
                     return redirect('upload_pre', allocation_id=allocation_id)
-                
+
+                # Show warnings (non-blocking)
+                for warning in result['warnings'][:5]:  # Show first 5 warnings
+                    messages.warning(request, warning)
+
                 # Validate fiscal year
                 if result['fiscal_year']:
                     if result['fiscal_year'] != allocation.approved_budget.fiscal_year:
-                        messages.error(request, 
+                        messages.error(request,
                             f"PRE fiscal year ({result['fiscal_year']}) does not match "
                             f"budget allocation fiscal year ({allocation.approved_budget.fiscal_year}).")
                         return redirect('upload_pre', allocation_id=allocation_id)
-                
+
                 # Validate grand total
                 if result['grand_total'] > allocation.remaining_balance:
-                    messages.error(request, 
+                    messages.error(request,
                         f"PRE total amount (₱{result['grand_total']:,.2f}) exceeds "
                         f"remaining budget allocation (₱{allocation.remaining_balance:,.2f}).")
                     return redirect('upload_pre', allocation_id=allocation_id)
-                
+
                 # Store data in session for preview
                 request.session['pre_upload_data'] = {
                     'allocation_id': allocation_id,
@@ -1991,14 +1999,26 @@ def upload_pre(request, allocation_id):
                     'grand_total': str(result['grand_total']),
                     'fiscal_year': result['fiscal_year'],
                     'pre_filename': draft.pre_filename,
-                    'validation_warnings': result.get('validation_warnings', [])
+                    'total_items': result.get('total_items', 0),
+                    'custom_items_count': result.get('custom_items_count', 0),
+                    'items_by_section': result.get('items_by_section', {}),
+                    'validation_warnings': result.get('warnings', []),
+                    'validation_summary': result.get('validation_summary', {})
                 }
-                
-                messages.success(request, "Files validated successfully. Please review the extracted data.")
+
+                # Success message with item counts
+                success_msg = f"✅ Successfully extracted {result['total_items']} line items"
+                if result['custom_items_count'] > 0:
+                    success_msg += f" (including {result['custom_items_count']} custom items)"
+                messages.success(request, success_msg)
+                messages.info(request, "Please review the extracted data before submitting.")
+
                 return redirect('preview_pre')
-                
+
             except Exception as e:
                 messages.error(request, f"Error processing file: {str(e)}")
+                import traceback
+                traceback.print_exc()  # Log full error for debugging
                 return redirect('upload_pre', allocation_id=allocation_id)
         
         elif action == 'clear_draft':
@@ -2022,12 +2042,13 @@ def upload_pre(request, allocation_id):
 
 def create_pre_line_items(pre, extracted_data, custom_line_items=None):
     """
-    Create PRELineItem records from extracted data and custom items
+    Create PRELineItem records from extracted data (NEW: supports dynamic parser output)
 
     Args:
         pre: NewDepartmentPRE instance
         extracted_data: Dict with categories (receipts, personnel, mooe, capital)
-        custom_line_items: List of custom line items added by user (optional)
+                       Each item now includes: row_number, category, subcategory, is_custom_item
+        custom_line_items: List of custom line items added by user (DEPRECATED - no longer used)
 
     Returns:
         int: Number of line items created
@@ -2038,18 +2059,18 @@ def create_pre_line_items(pre, extracted_data, custom_line_items=None):
 
     # Category mapping
     category_mapping = {
-        'receipts': ('PERSONNEL', 'Receipts'),  # Or create a separate category
+        'receipts': ('RECEIPTS', 'Budget Receipts'),
         'personnel': ('PERSONNEL', 'Personnel Services'),
         'mooe': ('MOOE', 'Maintenance and Other Operating Expenses'),
         'capital': ('CAPITAL', 'Capital Outlays'),
     }
 
-    # Create line items from Excel data
+    # Create line items from dynamically parsed Excel data
     for section_key, items_list in extracted_data.items():
         if not items_list:
             continue
 
-        # Get or create category
+        # Get or create main category
         category_type, category_name = category_mapping.get(
             section_key,
             ('MOOE', section_key.title())
@@ -2069,21 +2090,21 @@ def create_pre_line_items(pre, extracted_data, custom_line_items=None):
         for item_data in items_list:
             item_name = item_data.get('item_name', 'Unknown Item')
 
-            # Get subcategory from nested data (for MOOE and Capital)
+            # Get subcategory (dynamically detected by parser)
             subcategory = None
-            subcategory_name = item_data.get('category')  # MOOE/Capital have subcategories
+            subcategory_name = item_data.get('subcategory')
 
-            if subcategory_name:
+            if subcategory_name and subcategory_name != 'Uncategorized':
                 subcategory, _ = PRESubCategory.objects.get_or_create(
                     category=category,
-                    name=subcategory_name.replace('_', ' ').title(),
+                    name=subcategory_name,
                     defaults={
-                        'code': subcategory_name[:10].upper(),
+                        'code': subcategory_name[:10].upper().replace(' ', '_'),
                         'is_active': True,
                     }
                 )
 
-            # Create line item with source_type='excel'
+            # Create line item with NEW fields
             PRELineItem.objects.create(
                 pre=pre,
                 category=category,
@@ -2093,42 +2114,12 @@ def create_pre_line_items(pre, extracted_data, custom_line_items=None):
                 q2_amount=Decimal(str(item_data.get('q2', 0))),
                 q3_amount=Decimal(str(item_data.get('q3', 0))),
                 q4_amount=Decimal(str(item_data.get('q4', 0))),
-                source_type='excel',
+                source_type='excel',  # All items from Excel now
+                excel_row_number=item_data.get('row_number'),  # NEW: Track source row
+                is_custom_item=item_data.get('is_custom_item', False),  # NEW: Flag custom items
             )
 
             line_items_created += 1
-
-    # Create custom line items
-    if custom_line_items:
-        for custom_item in custom_line_items:
-            try:
-                category = PRECategory.objects.get(id=custom_item['category_id'])
-
-                # Subcategory is optional
-                subcategory = None
-                subcategory_id = custom_item.get('subcategory_id')
-                if subcategory_id:
-                    try:
-                        subcategory = PRESubCategory.objects.get(id=subcategory_id)
-                    except PRESubCategory.DoesNotExist:
-                        print(f"⚠️ Subcategory {subcategory_id} not found for custom item '{custom_item['item_name']}'")
-
-                PRELineItem.objects.create(
-                    pre=pre,
-                    category=category,
-                    subcategory=subcategory,
-                    item_name=custom_item['item_name'],
-                    q1_amount=Decimal(str(custom_item.get('q1', 0))),
-                    q2_amount=Decimal(str(custom_item.get('q2', 0))),
-                    q3_amount=Decimal(str(custom_item.get('q3', 0))),
-                    q4_amount=Decimal(str(custom_item.get('q4', 0))),
-                    source_type='manual',
-                )
-
-                line_items_created += 1
-                print(f"✅ Created custom line item: {custom_item['item_name']}")
-            except Exception as e:
-                print(f"❌ Error creating custom line item '{custom_item.get('item_name', 'Unknown')}': {e}")
 
     print(f"✅ Created {line_items_created} PRELineItem records for PRE {pre.id}")
     return line_items_created
@@ -2373,6 +2364,11 @@ def preview_pre(request):
         'custom_line_items': custom_line_items,
         'custom_total': custom_total,
         'categories': categories,
+        # NEW: Dynamic parser metadata
+        'total_items': upload_data.get('total_items', 0),
+        'custom_items_count': upload_data.get('custom_items_count', 0),
+        'items_by_section': upload_data.get('items_by_section', {}),
+        'validation_summary': upload_data.get('validation_summary', {}),
     }
 
     return render(request, 'end_user_app/preview_pre.html', context)
