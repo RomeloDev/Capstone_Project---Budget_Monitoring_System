@@ -4091,6 +4091,132 @@ def admin_reject_pre_with_reason(request, pre_id):
 
 
 @role_required('admin', login_url='/admin/')
+def admin_verify_and_approve_pre(request, pre_id):
+    """
+    Verify uploaded signed documents and give final approval.
+    This is the final step in the new PRE workflow (Phase 4b).
+
+    Workflow:
+    1. Admin reviews uploaded signed documents
+    2. Admin verifies signatures are valid
+    3. On approval: PRE status → 'Approved', create line item budgets
+    4. On rejection: PRE status → 'Partially Approved', delete uploaded docs, user must re-upload
+    """
+    from apps.budgets.models import DepartmentPREApprovedDocument, LineItemBudget
+    from django.utils import timezone
+
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('dashboard')
+
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('admin_pre_detail', pre_id=pre_id)
+
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related(
+            'budget_allocation',
+            'submitted_by'
+        ).prefetch_related('line_items'),
+        id=pre_id
+    )
+
+    # Only allow verification if PRE is awaiting verification
+    if pre.status != 'Awaiting Admin Verification':
+        messages.error(request, f'Cannot verify PRE. Current status: {pre.status}')
+        return redirect('admin_pre_detail', pre_id=pre.id)
+
+    action = request.POST.get('action')
+    comment = request.POST.get('comment', '').strip()
+
+    if action == 'approve':
+        # Final approval - create line item budgets
+        pre.status = 'Approved'
+        pre.awaiting_verification = False
+        pre.admin_approved_at = timezone.now()
+        pre.admin_approved_by = request.user
+        pre.admin_notes = comment
+        pre.save()
+
+        # Create line item budgets for each PRE line item
+        budgets_created = 0
+        for line_item in pre.line_items.all():
+            # Check if budget already exists
+            existing_budget = LineItemBudget.objects.filter(
+                budget_allocation=pre.budget_allocation,
+                category=line_item.category,
+                subcategory=line_item.subcategory,
+                item_name=line_item.item_name
+            ).first()
+
+            if not existing_budget:
+                LineItemBudget.objects.create(
+                    budget_allocation=pre.budget_allocation,
+                    category=line_item.category,
+                    subcategory=line_item.subcategory,
+                    item_name=line_item.item_name,
+                    q1_budget=line_item.q1_amount,
+                    q2_budget=line_item.q2_amount,
+                    q3_budget=line_item.q3_amount,
+                    q4_budget=line_item.q4_amount,
+                    source_pre=pre
+                )
+                budgets_created += 1
+
+        # Create approval record
+        RequestApproval.objects.create(
+            content_type='pre',
+            object_id=pre.id,
+            approved_by=request.user,
+            approval_level='final',
+            comments=comment or 'Documents verified and approved'
+        )
+
+        # Notification will be created by signal
+        messages.success(
+            request,
+            f'PRE {str(pre.id)[:8]} has been verified and fully approved! '
+            f'{budgets_created} line item budgets created.'
+        )
+
+    elif action == 'reject':
+        # Reject verification - reset to Partially Approved, delete uploaded docs
+        reason = request.POST.get('reason', 'Documents verification failed').strip()
+
+        pre.status = 'Partially Approved'
+        pre.awaiting_verification = False
+        pre.end_user_uploaded_at = None
+        pre.rejection_reason = reason
+        pre.admin_notes = comment
+        pre.save()
+
+        # Delete all uploaded signed documents
+        deleted_count = pre.signed_approved_documents.all().count()
+        pre.signed_approved_documents.all().delete()
+
+        # Create approval record
+        RequestApproval.objects.create(
+            content_type='pre',
+            object_id=pre.id,
+            approved_by=request.user,
+            approval_level='verification_rejected',
+            comments=reason
+        )
+
+        # Notification will be created by signal
+        messages.warning(
+            request,
+            f'PRE {str(pre.id)[:8]} verification rejected. '
+            f'{deleted_count} documents deleted. End user must re-upload.'
+        )
+
+    else:
+        messages.error(request, 'Invalid action.')
+
+    return redirect('admin_pre_detail', pre_id=pre.id)
+
+
+@role_required('admin', login_url='/admin/')
 def admin_update_pre_status(request, pre_id):
     """
     General status update endpoint

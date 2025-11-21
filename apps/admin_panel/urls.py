@@ -55,6 +55,8 @@ urlpatterns = [
     path('pre/<uuid:pre_id>/approve/', views.admin_approve_pre_with_comment, name='admin_approve_pre'),
     # Advanced Reject with Reason (AJAX)
     path('pre/<uuid:pre_id>/reject/', views.admin_reject_pre_with_reason, name='admin_reject_pre'),
+    # Verify and Approve Signed Documents (Phase 4b - New Workflow)
+    path('pre/<uuid:pre_id>/verify/', views.admin_verify_and_approve_pre, name='admin_verify_and_approve_pre'),
     # Update PRE Status
     path('pre/<uuid:pre_id>/update-status/', views.admin_update_pre_status, name='admin_update_pre_status'),
     # PDF Generation
