@@ -231,11 +231,64 @@ class BudgetAllocation(models.Model):
     def get_total_used(self):
         """Calculate total amount used (PR and AD only, excluding PRE)"""
         return self.pr_amount_used + self.ad_amount_used
-    
+
     def update_remaining_balance(self):
         """Update remaining balance based on approved requests"""
         self.remaining_balance = self.allocated_amount - self.get_total_used()
         self.save()
+
+    def get_pre_approved_total(self):
+        """
+        Get total amount from approved PRE grand total.
+        This is the amount that was approved for spending based on the PRE.
+
+        Returns:
+            Decimal: Total from approved PRE, or 0 if no approved PRE exists
+
+        Phase 5: New PRE Workflow - Budget monitoring based on PRE grand total
+        """
+        from django.db.models import Sum
+
+        # Get approved PRE for this allocation
+        approved_pre = self.pres.filter(status='Approved').first()
+
+        if approved_pre:
+            return approved_pre.total_amount
+
+        return Decimal('0.00')
+
+    def get_available_pre_budget(self):
+        """
+        Get available budget based on approved PRE grand total minus PR/AD usage.
+
+        This is the recommended way to calculate available budget in the new workflow:
+        - Budget comes from PRE grand total (not full allocation)
+        - PR and AD requests consume this PRE budget
+
+        Returns:
+            Decimal: Available budget from PRE
+
+        Phase 5: New PRE Workflow - Budget monitoring based on PRE grand total
+        """
+        pre_total = self.get_pre_approved_total()
+
+        if pre_total == Decimal('0.00'):
+            # No approved PRE - fall back to allocated amount
+            return self.remaining_balance
+
+        # PRE approved - calculate based on PRE total minus PR/AD usage
+        return pre_total - self.get_total_used()
+
+    def has_approved_pre(self):
+        """
+        Check if this allocation has an approved PRE.
+
+        Returns:
+            bool: True if approved PRE exists, False otherwise
+
+        Phase 5: New PRE Workflow
+        """
+        return self.pres.filter(status='Approved').exists()
 
 
 class DepartmentPRE(models.Model):
