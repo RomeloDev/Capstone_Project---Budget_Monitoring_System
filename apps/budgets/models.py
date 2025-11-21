@@ -569,7 +569,7 @@ class PurchaseRequest(models.Model):
         ('Rejected', 'Rejected'),
     ]
     status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=STATUS_CHOICES,
         default='Draft'
     )
@@ -833,7 +833,7 @@ class ActivityDesign(models.Model):
 
     # Status and workflow (same as PRE)
     STATUS_CHOICES = DepartmentPRE.STATUS_CHOICES
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Draft')
 
     # Workflow files
     partially_approved_pdf = models.FileField(upload_to='ad_pdfs/%Y/%m/', null=True, blank=True)
@@ -1658,7 +1658,7 @@ class DepartmentPREApprovedDocument(models.Model):
     pre = models.ForeignKey(
         'DepartmentPRE',
         on_delete=models.CASCADE,
-        related_name='approved_documents',
+        related_name='signed_approved_documents',
         help_text='Link to PRE submission'
     )
     document = models.FileField(
