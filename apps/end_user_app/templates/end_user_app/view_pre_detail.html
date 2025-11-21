@@ -156,8 +156,120 @@
             </div>
             {% endif %}
         </div>
+
+        <!-- Upload Signed Documents Section -->
+        <div class="mt-6 bg-white border-2 border-yellow-300 rounded-xl p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                </svg>
+                Upload Signed Documents
+            </h3>
+            <p class="text-sm text-gray-600 mb-4">After getting signatures, upload the signed documents here for admin verification.</p>
+
+            <form action="{% url 'upload_approved_pre_documents' pre.id %}" method="POST" enctype="multipart/form-data" id="uploadForm">
+                {% csrf_token %}
+
+                <div id="fileInputsContainer" class="space-y-3 mb-4">
+                    <!-- Initial file input -->
+                    <div class="file-input-group border border-gray-300 rounded-lg p-4 bg-gray-50">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Document File *</label>
+                                <input type="file"
+                                       name="documents"
+                                       accept=".pdf,.jpg,.jpeg,.png"
+                                       required
+                                       class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                <p class="text-xs text-gray-500 mt-1">PDF, JPG, or PNG only</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Document Type *</label>
+                                <select name="document_types"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                    <option value="signed_pre">Signed PRE Document</option>
+                                    <option value="signed_supporting">Signed Supporting Document</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                            <input type="text"
+                                   name="descriptions"
+                                   placeholder="e.g., PRE with all signatures"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mb-4">
+                    <button type="button"
+                            onclick="addFileInput()"
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-sm inline-flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Add Another Document
+                    </button>
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="submit"
+                            class="px-6 py-3 bg-yellow-600 text-white rounded-lg font-bold hover:bg-yellow-700 transition inline-flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                        </svg>
+                        Submit for Admin Verification
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
     {% endif %}
+    {% elif pre.status == 'Awaiting Admin Verification' %}
+    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-100 rounded-full p-3">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-blue-900">Documents Submitted - Awaiting Admin Verification</h3>
+                <p class="text-blue-700 mt-1">Your signed documents have been uploaded. An administrator will verify and approve them soon.</p>
+                {% if pre.end_user_uploaded_at %}
+                <p class="text-sm text-blue-600 mt-2">Uploaded: {{ pre.end_user_uploaded_at|date:"F d, Y g:i A" }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Display uploaded documents -->
+        {% if pre.signed_approved_documents.all %}
+        <div class="mt-6 bg-white rounded-lg border border-blue-200 p-4">
+            <h4 class="font-semibold text-gray-800 mb-3">Uploaded Documents ({{ pre.signed_approved_documents.count }})</h4>
+            <div class="space-y-2">
+                {% for doc in pre.signed_approved_documents.all %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+                            <p class="text-xs text-gray-500">{{ doc.get_document_type_display }} • {{ doc.uploaded_at|date:"M d, Y" }}</p>
+                        </div>
+                    </div>
+                    <a href="{{ doc.document.url }}"
+                       target="_blank"
+                       class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        View
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
     {% elif pre.status == 'Approved' %}
     <div class="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-6">
         <div class="flex items-center gap-4">
@@ -673,4 +785,50 @@
     </div>
 
 </div>
+
+<script>
+// Function to add another file input for multiple document uploads
+function addFileInput() {
+    const container = document.getElementById('fileInputsContainer');
+    const newFileInput = document.createElement('div');
+    newFileInput.className = 'file-input-group border border-gray-300 rounded-lg p-4 bg-gray-50 relative';
+    newFileInput.innerHTML = `
+        <button type="button"
+                onclick="this.parentElement.remove()"
+                class="absolute top-2 right-2 text-red-600 hover:text-red-800">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Document File *</label>
+                <input type="file"
+                       name="documents"
+                       accept=".pdf,.jpg,.jpeg,.png"
+                       required
+                       class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                <p class="text-xs text-gray-500 mt-1">PDF, JPG, or PNG only</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Document Type *</label>
+                <select name="document_types"
+                        class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="signed_pre">Signed PRE Document</option>
+                    <option value="signed_supporting">Signed Supporting Document</option>
+                </select>
+            </div>
+        </div>
+        <div class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+            <input type="text"
+                   name="descriptions"
+                   placeholder="e.g., Supporting document with signatures"
+                   class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+        </div>
+    `;
+    container.appendChild(newFileInput);
+}
+</script>
+
 {% endblock main-content %}

@@ -2610,6 +2610,97 @@ def preview_pre_documents(request, pre_id):
     return render(request, 'end_user_app/preview_pre_documents.html', context)
 
 
+@role_required('end_user', login_url='/')
+def upload_approved_pre_documents(request, pre_id):
+    """
+    Upload signed/approved documents after getting physical signatures.
+    Updates PRE status to 'Awaiting Admin Verification'.
+    Used in Phase 4 of new PRE workflow.
+    """
+    from apps.budgets.models import DepartmentPREApprovedDocument
+    from django.utils import timezone
+
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related(
+            'budget_allocation',
+            'submitted_by'
+        ),
+        id=pre_id,
+        submitted_by=request.user
+    )
+
+    # Only allow upload if PRE is Partially Approved
+    if pre.status != 'Partially Approved':
+        messages.error(request, 'Documents can only be uploaded for Partially Approved PREs.')
+        return redirect('view_pre_detail', pre_id=pre.id)
+
+    if request.method == 'POST':
+        files = request.FILES.getlist('documents')
+        document_types = request.POST.getlist('document_types')
+        descriptions = request.POST.getlist('descriptions')
+
+        if not files:
+            messages.error(request, 'Please select at least one document to upload.')
+            return redirect('view_pre_detail', pre_id=pre.id)
+
+        # Validate file extensions
+        allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
+        uploaded_count = 0
+
+        for i, file in enumerate(files):
+            # Get file extension
+            file_ext = file.name.split('.')[-1].lower()
+
+            if file_ext not in allowed_extensions:
+                messages.warning(
+                    request,
+                    f'File "{file.name}" skipped: Only PDF and image files (JPG, PNG) are allowed.'
+                )
+                continue
+
+            # Get document type (default to 'signed_pre' if not provided)
+            doc_type = document_types[i] if i < len(document_types) else 'signed_pre'
+
+            # Get description (optional)
+            description = descriptions[i] if i < len(descriptions) else ''
+
+            # Create document record
+            try:
+                doc = DepartmentPREApprovedDocument(
+                    pre=pre,
+                    document=file,
+                    file_name=file.name,
+                    file_size=file.size,
+                    document_type=doc_type,
+                    uploaded_by=request.user,
+                    description=description
+                )
+                doc.save()
+                uploaded_count += 1
+            except Exception as e:
+                messages.error(request, f'Error uploading "{file.name}": {str(e)}')
+
+        if uploaded_count > 0:
+            # Update PRE status to 'Awaiting Admin Verification'
+            pre.status = 'Awaiting Admin Verification'
+            pre.awaiting_verification = True
+            pre.end_user_uploaded_at = timezone.now()
+            pre.save()
+
+            messages.success(
+                request,
+                f'Successfully uploaded {uploaded_count} document(s). '
+                f'Your PRE is now awaiting admin verification.'
+            )
+        else:
+            messages.error(request, 'No documents were uploaded. Please try again.')
+
+        return redirect('view_pre_detail', pre_id=pre.id)
+
+    # GET request - redirect to PRE detail page
+    return redirect('view_pre_detail', pre_id=pre.id)
+
+
 # @role_required('end_user', login_url='/')
 # def preview_pre(request, pk: int):
 #     pre = get_object_or_404(DepartmentPRE.objects.select_related('submitted_by'), pk=pk)
