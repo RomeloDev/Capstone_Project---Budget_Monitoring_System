@@ -305,3 +305,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+else:
+    # Development: Allow same-origin framing for PDF preview
+    X_FRAME_OPTIONS = 'SAMEORIGIN'

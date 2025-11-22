@@ -1976,13 +1976,13 @@ def upload_pre(request, allocation_id):
                 for warning in result['warnings'][:5]:  # Show first 5 warnings
                     messages.warning(request, warning)
 
-                # Validate fiscal year
+                # Validate fiscal year (changed to warning instead of error)
                 if result['fiscal_year']:
                     if result['fiscal_year'] != allocation.approved_budget.fiscal_year:
-                        messages.error(request,
-                            f"PRE fiscal year ({result['fiscal_year']}) does not match "
-                            f"budget allocation fiscal year ({allocation.approved_budget.fiscal_year}).")
-                        return redirect('upload_pre', allocation_id=allocation_id)
+                        messages.warning(request,
+                            f"Note: PRE fiscal year ({result['fiscal_year']}) does not match "
+                            f"budget allocation fiscal year ({allocation.approved_budget.fiscal_year}). "
+                            f"Please ensure this is intentional.")
 
                 # Validate grand total
                 if result['grand_total'] > allocation.remaining_balance:
@@ -2042,12 +2042,12 @@ def upload_pre(request, allocation_id):
 
 def create_pre_line_items(pre, extracted_data, custom_line_items=None):
     """
-    Create PRELineItem records from extracted data (NEW: supports dynamic parser output)
+    Create PRELineItem records from extracted data (supports dynamic parser output)
 
     Args:
         pre: NewDepartmentPRE instance
         extracted_data: Dict with categories (receipts, personnel, mooe, capital)
-                       Each item now includes: row_number, category, subcategory, is_custom_item
+                       Each item includes: row_number, category, subcategory, item_name, q1-q4 amounts
         custom_line_items: List of custom line items added by user (DEPRECATED - no longer used)
 
     Returns:
@@ -2104,7 +2104,7 @@ def create_pre_line_items(pre, extracted_data, custom_line_items=None):
                     }
                 )
 
-            # Create line item with NEW fields
+            # Create line item
             PRELineItem.objects.create(
                 pre=pre,
                 category=category,
@@ -2115,8 +2115,6 @@ def create_pre_line_items(pre, extracted_data, custom_line_items=None):
                 q3_amount=Decimal(str(item_data.get('q3', 0))),
                 q4_amount=Decimal(str(item_data.get('q4', 0))),
                 source_type='excel',  # All items from Excel now
-                excel_row_number=item_data.get('row_number'),  # NEW: Track source row
-                is_custom_item=item_data.get('is_custom_item', False),  # NEW: Flag custom items
             )
 
             line_items_created += 1
@@ -2279,11 +2277,24 @@ def preview_pre(request):
                         from django.core.files.base import ContentFile
                         with draft.pre_file.open('rb') as f:
                             pre.uploaded_excel_file.save(
-                                draft.pre_filename, 
-                                ContentFile(f.read()), 
+                                draft.pre_filename,
+                                ContentFile(f.read()),
                                 save=True
                             )
-                    
+
+                    # 2.5. Convert Excel to PDF for admin preview (with BISU header)
+                    if pre.uploaded_excel_file:
+                        try:
+                            from apps.admin_panel.excel_to_pdf_converter import generate_pre_pdf_from_excel
+                            pdf_url = generate_pre_pdf_from_excel(pre)
+                            if pdf_url:
+                                print(f"✅ Excel-to-PDF conversion successful: {pdf_url}")
+                            else:
+                                print("⚠️ Excel-to-PDF conversion failed (non-blocking)")
+                        except Exception as pdf_error:
+                            # Non-blocking - don't fail the entire submission
+                            print(f"⚠️ Excel-to-PDF conversion error: {pdf_error}")
+
                     # 3. 🔥 CREATE LINE ITEMS FROM EXTRACTED DATA AND CUSTOM ITEMS
                     custom_items = upload_data.get('custom_line_items', [])
                     line_items_created = create_pre_line_items(pre, extracted_data, custom_items)
@@ -2317,6 +2328,19 @@ def preview_pre(request):
                                 save=True
                             )
                             supporting_docs_count += 1
+
+                            # Convert Excel/Word files to PDF for preview
+                            file_ext = pre_doc.get_file_extension()
+                            if file_ext in ['xlsx', 'xls', 'docx', 'doc']:
+                                try:
+                                    from apps.admin_panel.supporting_doc_converter import convert_pre_supporting_doc
+                                    pdf_url = convert_pre_supporting_doc(pre_doc)
+                                    if pdf_url:
+                                        print(f"✅ Supporting doc converted to PDF: {pdf_url}")
+                                    else:
+                                        print(f"⚠️ Could not convert {draft_doc.file_name} to PDF (non-blocking)")
+                                except Exception as conv_error:
+                                    print(f"⚠️ PDF conversion error for {draft_doc.file_name}: {conv_error}")
 
                         except Exception as doc_error:
                             # Log error but don't fail entire submission
@@ -7079,4 +7103,127 @@ def budget_history(request):
         'total_count': budget_logs.count(),
     }
 
-    return render(request, 'end_user_app/budget_history.html', context)
+    return render(request, 'end_user_app/budget_transaction_log.html', context)
+
+
+# ============================================================================
+# PURCHASE REQUEST NEW WORKFLOW (Phase 4b - Similar to PRE Workflow)
+# ============================================================================
+
+@role_required('end_user')
+def end_user_upload_signed_pr(request, pr_id):
+    """
+    End user uploads signed PR documents after getting Approving Officer signature.
+    Similar to end_user_upload_approved_pre_documents function.
+
+    Workflow:
+    1. PR is Partially Approved by admin → PDF generated
+    2. End user downloads/prints documents
+    3. End user gets Approving Officer signature
+    4. End user uploads signed documents using this view
+    5. PR status changes to 'Awaiting Admin Verification'
+    """
+    from apps.budgets.models import PurchaseRequest, PurchaseRequestApprovedDocument
+    from django.utils import timezone
+
+    pr = get_object_or_404(
+        PurchaseRequest.objects.select_related('budget_allocation', 'submitted_by'),
+        id=pr_id,
+        submitted_by=request.user
+    )
+
+    # Can only upload signed docs for partially approved PRs
+    if pr.status != 'Partially Approved':
+        messages.error(request, "Can only upload signed documents for partially approved PRs")
+        return redirect('pr_detail', pr_id=pr.id)
+
+    if request.method == 'POST':
+        files = request.FILES.getlist('signed_documents')
+
+        if not files:
+            messages.error(request, "Please select at least one file to upload")
+            return redirect('pr_detail', pr_id=pr.id)
+
+        # Validate file types
+        allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
+        for file in files:
+            ext = file.name.split('.')[-1].lower()
+            if ext not in allowed_extensions:
+                messages.error(request, f"Invalid file type: {file.name}. Only PDF and images allowed.")
+                return redirect('pr_detail', pr_id=pr.id)
+
+        # Upload files
+        uploaded_count = 0
+        for file in files:
+            PurchaseRequestApprovedDocument.objects.create(
+                purchase_request=pr,
+                document=file,
+                file_name=file.name,
+                file_size=file.size,
+                uploaded_by=request.user,
+                document_type='signed_pr'
+            )
+            uploaded_count += 1
+
+        # Update PR status
+        pr.status = 'Awaiting Admin Verification'
+        pr.awaiting_verification = True
+        pr.end_user_uploaded_at = timezone.now()
+        pr.save()
+
+        # Create notification for admin
+        from apps.budgets.models import SystemNotification
+        from apps.users.models import User
+
+        admins = User.objects.filter(role='admin', is_active=True)
+        for admin in admins:
+            SystemNotification.objects.create(
+                recipient=admin,
+                title='PR Awaiting Verification',
+                message=f'PR {pr.pr_number} has uploaded signed documents and is awaiting verification. '
+                        f'Submitted by: {request.user.get_full_name()}',
+                content_type='pr',
+                object_id=pr.id
+            )
+
+        messages.success(request, f"Successfully uploaded {uploaded_count} signed document(s). "
+                                   "Your PR is now awaiting admin verification.")
+
+        return redirect('pr_detail', pr_id=pr.id)
+
+    return redirect('pr_detail', pr_id=pr.id)
+
+
+@role_required('end_user')
+def end_user_preview_pr_documents(request, pr_id):
+    """
+    Preview PR documents for end user (print-friendly view).
+    Shows original PR PDF and all supporting documents.
+    Allows end user to preview and print without downloading.
+    """
+    from apps.budgets.models import PurchaseRequest
+
+    pr = get_object_or_404(
+        PurchaseRequest.objects.select_related(
+            'budget_allocation',
+            'submitted_by'
+        ).prefetch_related(
+            'supporting_documents',
+            'signed_approved_documents'
+        ),
+        id=pr_id,
+        submitted_by=request.user
+    )
+
+    supporting_documents = pr.supporting_documents.all().order_by('-uploaded_at')
+    signed_documents = pr.signed_approved_documents.all().order_by('-uploaded_at')
+
+    context = {
+        'pr': pr,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+    }
+
+    response = render(request, 'end_user_app/preview_pr_documents.html', context)
+    response['X-Frame-Options'] = 'SAMEORIGIN'  # Allow PDF embedding
+    return response

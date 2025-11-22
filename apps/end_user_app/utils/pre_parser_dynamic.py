@@ -323,8 +323,12 @@ class DynamicPREParser:
             logger.info(f"Scanning section '{section_key}' (rows {start_row}-{end_row})")
 
             for row_num in range(start_row, end_row + 1):
-                # Get item name from column A
-                item_name = self.worksheet[f'A{row_num}'].value
+                # Get item name from columns A, B, or C (check all for multi-level items)
+                item_name = (
+                    self.worksheet[f'A{row_num}'].value or
+                    self.worksheet[f'B{row_num}'].value or
+                    self.worksheet[f'C{row_num}'].value
+                )
 
                 # Skip if no item name or is a skip row
                 if not item_name or self._is_skip_row(item_name):
@@ -433,10 +437,29 @@ class DynamicPREParser:
         Returns:
             dict: Validation result
         """
-        # Get Excel grand total from row 177, column I
-        excel_grand_total = self._parse_cell_value(
-            self.worksheet[f'I{self.GRAND_TOTAL_ROW}'].value
-        )
+        # Get raw cell value first to check for placeholders
+        raw_cell_value = self.worksheet[f'I{self.GRAND_TOTAL_ROW}'].value
+        excel_grand_total = self._parse_cell_value(raw_cell_value)
+
+        # Check if cell contains placeholder text
+        if isinstance(raw_cell_value, str):
+            placeholder_values = ['xxx', 'x', '-']
+            if raw_cell_value.strip().lower() in placeholder_values:
+                # Use calculated total as source of truth when placeholder is found
+                warning_msg = (
+                    f"Grand total cell contains placeholder '{raw_cell_value}'. "
+                    f"Using calculated total: ₱{calculated_total:,.2f}"
+                )
+                logger.warning(warning_msg)
+
+                return {
+                    'valid': True,
+                    'message': warning_msg,
+                    'calculated_total': float(calculated_total),
+                    'excel_total': float(calculated_total),  # Use calculated as excel value
+                    'difference': 0.0,
+                    'is_placeholder': True,
+                }
 
         difference = abs(calculated_total - excel_grand_total)
 

@@ -185,9 +185,6 @@
                             <tr>
                                 <td class="px-4 py-2 text-sm text-gray-900">
                                     {{ item.item_name }}
-                                    {% if item.is_custom_item %}
-                                    <span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded" title="Custom item added by user">CUSTOM</span>
-                                    {% endif %}
                                 </td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
@@ -235,9 +232,6 @@
                             <tr>
                                 <td class="px-4 py-2 text-sm text-gray-900">
                                     {{ item.item_name }}
-                                    {% if item.is_custom_item %}
-                                    <span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded" title="Custom item added by user">CUSTOM</span>
-                                    {% endif %}
                                 </td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
@@ -287,9 +281,6 @@
                                 <td class="px-4 py-2 text-xs text-gray-600 uppercase">{{ item.subcategory|default:"" }}</td>
                                 <td class="px-4 py-2 text-sm text-gray-900">
                                     {{ item.item_name }}
-                                    {% if item.is_custom_item %}
-                                    <span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded" title="Custom item added by user">CUSTOM</span>
-                                    {% endif %}
                                 </td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>
@@ -340,9 +331,6 @@
                                 <td class="px-4 py-2 text-xs text-gray-600 uppercase">{{ item.subcategory|default:"" }}</td>
                                 <td class="px-4 py-2 text-sm text-gray-900">
                                     {{ item.item_name }}
-                                    {% if item.is_custom_item %}
-                                    <span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded" title="Custom item added by user">CUSTOM</span>
-                                    {% endif %}
                                 </td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q1|floatformat:2|intcomma }}</td>
                                 <td class="px-4 py-2 text-sm text-right text-gray-700">₱{{ item.q2|floatformat:2|intcomma }}</td>

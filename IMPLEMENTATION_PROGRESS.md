@@ -443,7 +443,47 @@ bb_budget_monitoring_system/
 
 ## 🐛 KNOWN ISSUES
 
-None currently. Models and migrations applied successfully.
+### ✅ FIXED: Grand Total Placeholder Bug
+**Issue:** Parser failed validation when Excel grand total cell (I177) contained placeholder text ("xxx") instead of formula
+**Error:** "Grand total mismatch: Calculated=₱367,100.00, Excel=₱0.00, Difference=₱367,100.00"
+**Fix Applied:** Modified `validate_grand_total()` method in `pre_parser_dynamic.py` (lines 426-487)
+- Parser now detects placeholder values ('xxx', 'x', '-')
+- Uses calculated total as source of truth when placeholder found
+- Returns validation success with warning message
+- Status: ✅ FIXED and tested with PRE_Research.xlsx
+**Date Fixed:** 2025-01-21
+
+### ✅ FIXED: Missing Line Items from Multi-Level Structure
+**Issue:** Parser only checked column A for item names, missing indented sub-items in columns B and C
+**Symptoms:**
+- MOOE section extracted only 6 items instead of 9+
+- Missing items like "Machinery", "ICT Equipment", "Airport Equipment" (all in column B)
+- Grand total showed ₱367,100 instead of correct ₱497,100
+- Lost ₱130,000 worth of line items
+**Root Cause:** Excel template uses multi-level structure:
+- Column A: Parent category headers (e.g., "Semi-Expendable Machinery and Equipment Expenses")
+- Column B: Sub-items under parent (e.g., "Machinery", "Office Equipment")
+- Column C: Third-level items (if any)
+Parser was only reading column A, missing all B and C level items
+**Fix Applied:** Modified `extract_line_items_dynamic()` method in `pre_parser_dynamic.py` (lines 326-331)
+```python
+# OLD: Only checked column A
+item_name = self.worksheet[f'A{row_num}'].value
+
+# NEW: Check columns A, B, or C
+item_name = (
+    self.worksheet[f'A{row_num}'].value or
+    self.worksheet[f'B{row_num}'].value or
+    self.worksheet[f'C{row_num}'].value
+)
+```
+**Test Results:**
+- Before: 12 items, ₱367,100 grand total
+- After: 15 items, ₱497,100 grand total ✅
+- MOOE section: 6 → 9 items ✅
+- All indented items now extracted correctly
+**Status:** ✅ FIXED and tested with PRE_Research.xlsx
+**Date Fixed:** 2025-01-21
 
 ---
 
@@ -456,6 +496,6 @@ For questions or issues with this implementation:
 
 ---
 
-**Last Updated:** 2025-01-21
+**Last Updated:** 2025-01-21 (Bug Fixes: Grand Total Placeholder + Multi-Level Item Extraction)
 **Author:** Claude Code
 **Project:** BISU Balilihan Budget Monitoring System

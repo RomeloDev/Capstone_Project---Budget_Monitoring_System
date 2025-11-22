@@ -34,6 +34,9 @@ urlpatterns = [
     path('pre/preview-documents/<uuid:pre_id>/', views.preview_pre_documents, name='preview_pre_documents'),
     path('pre/upload-approved-documents/<uuid:pre_id>/', views.upload_approved_pre_documents, name='upload_approved_pre_documents'),
     path('pr/preview/<uuid:pr_id>/', views.preview_submitted_pr, name='preview_submitted_pr'),
+    # PR New Workflow (Phase 4b)
+    path('pr/<uuid:pr_id>/upload-signed/', views.end_user_upload_signed_pr, name='end_user_upload_signed_pr'),
+    path('pr/<uuid:pr_id>/preview-documents/', views.end_user_preview_pr_documents, name='end_user_preview_pr_documents'),
 
     # Custom PRE Line Items
     path('api/get-subcategories/<int:category_id>/', views.get_subcategories, name='get_subcategories'),

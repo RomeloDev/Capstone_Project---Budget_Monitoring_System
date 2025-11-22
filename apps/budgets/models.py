@@ -618,11 +618,12 @@ class PurchaseRequest(models.Model):
         ('Draft', 'Draft'),
         ('Pending', 'Pending Review'),
         ('Partially Approved', 'Partially Approved'),
+        ('Awaiting Admin Verification', 'Awaiting Admin Verification'),
         ('Approved', 'Approved'),
         ('Rejected', 'Rejected'),
     ]
     status = models.CharField(
-        max_length=30,
+        max_length=50,
         choices=STATUS_CHOICES,
         default='Draft'
     )
@@ -675,6 +676,36 @@ class PurchaseRequest(models.Model):
         help_text="Admin notes when uploading signed copy"
     )
     rejection_reason = models.TextField(blank=True)
+
+    # New Workflow Fields (Phase 4b - similar to PRE workflow)
+    awaiting_verification = models.BooleanField(
+        default=False,
+        help_text="True when PR is awaiting admin verification of signed documents"
+    )
+    end_user_uploaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When end user uploaded signed documents"
+    )
+    admin_approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pr_final_approvals',
+        help_text="Admin who gave final approval"
+    )
+    admin_approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When admin gave final approval after verification"
+    )
+    original_pr_pdf = models.FileField(
+        upload_to='pr_original_pdfs/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text="PDF of original PR with BISU header (generated on partial approval)"
+    )
 
     # Archive fields
     is_archived = models.BooleanField(default=False, db_index=True)
@@ -1636,6 +1667,97 @@ class PurchaseRequestSupportingDocument(models.Model):
     def __str__(self):
         return f"{self.file_name} for PR {self.purchase_request.pr_number}"
 
+    def get_file_extension(self):
+        """Get file extension in lowercase"""
+        return self.file_name.split('.')[-1].lower() if '.' in self.file_name else ''
+
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size = self.file_size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
+
+
+class PurchaseRequestApprovedDocument(models.Model):
+    """
+    Approved/signed PR documents uploaded by end users after getting signatures
+    from the Approving Officer
+
+    New Workflow:
+    1. Admin partially approves PR → PDF generated
+    2. End user prints PDF → gets it signed by Approving Officer
+    3. End user uploads signed documents using this model
+    4. Admin verifies and gives final approval
+    """
+    purchase_request = models.ForeignKey(
+        'PurchaseRequest',
+        on_delete=models.CASCADE,
+        related_name='signed_approved_documents',
+        help_text='Link to PR submission'
+    )
+    document = models.FileField(
+        upload_to='pr_approved_uploads/%Y/%m/',
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'jpg', 'jpeg', 'png']
+        )],
+        help_text='Signed/approved document (PDF or image scan)'
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField(help_text='File size in bytes', editable=False)
+    document_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('signed_pr', 'Signed PR Document'),
+            ('signed_supporting', 'Signed Supporting Document'),
+        ],
+        default='signed_pr',
+        help_text='Type of approved document'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_pr_approved_documents',
+        help_text='End user who uploaded this document'
+    )
+    description = models.TextField(
+        blank=True,
+        help_text='Optional description or notes'
+    )
+
+    class Meta:
+        db_table = 'purchase_request_approved_documents'
+        ordering = ['-uploaded_at']
+        verbose_name = 'PR Approved Document'
+        verbose_name_plural = 'PR Approved Documents'
+
+    def __str__(self):
+        return f"{self.file_name} for PR {self.purchase_request.pr_number}"
+
+    def get_file_extension(self):
+        """Get file extension in lowercase"""
+        return self.file_name.split('.')[-1].lower() if '.' in self.file_name else ''
+
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size = self.file_size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate file size before saving"""
+        if self.document and not self.file_size:
+            self.file_size = self.document.size
+        super().save(*args, **kwargs)
+
 
 class DepartmentPRESupportingDocument(models.Model):
     """Supporting documents for Department PRE submissions"""
@@ -1666,6 +1788,12 @@ class DepartmentPRESupportingDocument(models.Model):
         max_length=500,
         blank=True,
         help_text='Optional description of the document'
+    )
+    converted_pdf = models.FileField(
+        upload_to='pre_supporting_docs_pdf/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Auto-converted PDF version for preview (Excel/Word files)'
     )
 
     class Meta:

@@ -566,9 +566,41 @@ def handle_departments_request(request, request_id):
                 purchase_request.partially_approved_at = timezone.now()
                 purchase_request.save(update_fields=['status', 'partially_approved_at', 'updated_at'])
                 
-                # 2. 🔥 AUTO-CONVERT DOCUMENTS TO PDF
+                # 2. 🔥 AUTO-CONVERT DOCUMENTS TO PDF using new converter
                 print(f"🔄 Starting document conversion for PR {purchase_request.pr_number}")
-                conversion_results = convert_pr_documents_to_pdf(purchase_request)
+                from .pr_to_pdf_converter import generate_pr_pdf
+                import traceback
+
+                try:
+                    pdf_url = generate_pr_pdf(purchase_request)
+                    if pdf_url:
+                        print(f"✅ PR PDF generated successfully: {pdf_url}")
+                        conversion_results = {
+                            'main_document': True,
+                            'main_document_format': 'PDF',
+                            'supporting_docs': [],
+                            'warnings': [],
+                            'errors': []
+                        }
+                    else:
+                        print("⚠️ PR PDF conversion returned None")
+                        conversion_results = {
+                            'main_document': False,
+                            'main_document_format': None,
+                            'supporting_docs': [],
+                            'warnings': ['PDF conversion returned no result'],
+                            'errors': []
+                        }
+                except Exception as e:
+                    print(f"❌ PR PDF generation failed: {str(e)}")
+                    print(f"Full traceback: {traceback.format_exc()}")
+                    conversion_results = {
+                        'main_document': False,
+                        'main_document_format': None,
+                        'supporting_docs': [],
+                        'warnings': [],
+                        'errors': [f'PDF generation failed: {str(e)}']
+                    }
 
                 # 3. Check conversion results and show appropriate messages
                 if conversion_results['main_document']:
@@ -3928,19 +3960,10 @@ def admin_approve_pre_with_comment(request, pre_id):
     pre.admin_notes = comment
     pre.save()
     
-    # 🔥 THIS IS THE KEY PART - Auto-generate BOTH PDFs
-    from .pdf_generator import save_pre_pdf
+    # Generate Excel-converted PDF (original submission with BISU header)
     from .excel_to_pdf_converter import generate_pre_pdf_from_excel
+    import traceback
 
-    # 1. Generate database PDF (includes custom line items, marked with asterisk)
-    try:
-        database_pdf_url = save_pre_pdf(pre)
-        print(f"✅ Database PDF generated successfully: {database_pdf_url}")
-    except Exception as e:
-        print(f"❌ Database PDF generation failed: {str(e)}")
-        database_pdf_url = None
-
-    # 2. Generate Excel-converted PDF (original submission snapshot)
     try:
         excel_pdf_url = generate_pre_pdf_from_excel(pre)
         if excel_pdf_url:
@@ -3949,6 +3972,7 @@ def admin_approve_pre_with_comment(request, pre_id):
             print("⚠️ Excel PDF conversion returned None")
     except Exception as e:
         print(f"❌ Excel PDF generation failed: {str(e)}")
+        print(f"Full traceback: {traceback.format_exc()}")
         excel_pdf_url = None
     
     # Create approval record
@@ -3974,7 +3998,7 @@ def admin_approve_pre_with_comment(request, pre_id):
         'message': f'PRE approved and PDF generated successfully',
         'pre_id': str(pre.id),
         'new_status': pre.status,
-        'pdf_generated': pdf_url is not None  # Include this info
+        'excel_pdf_generated': excel_pdf_url is not None
     })
 
 @role_required('admin', login_url='/admin/')
@@ -4102,7 +4126,7 @@ def admin_verify_and_approve_pre(request, pre_id):
     3. On approval: PRE status → 'Approved', create line item budgets
     4. On rejection: PRE status → 'Partially Approved', delete uploaded docs, user must re-upload
     """
-    from apps.budgets.models import DepartmentPREApprovedDocument, LineItemBudget
+    from apps.budgets.models import DepartmentPREApprovedDocument
     from django.utils import timezone
 
     if not request.user.is_staff:
@@ -4130,38 +4154,13 @@ def admin_verify_and_approve_pre(request, pre_id):
     comment = request.POST.get('comment', '').strip()
 
     if action == 'approve':
-        # Final approval - create line item budgets
+        # Final approval
         pre.status = 'Approved'
         pre.awaiting_verification = False
         pre.admin_approved_at = timezone.now()
         pre.admin_approved_by = request.user
         pre.admin_notes = comment
         pre.save()
-
-        # Create line item budgets for each PRE line item
-        budgets_created = 0
-        for line_item in pre.line_items.all():
-            # Check if budget already exists
-            existing_budget = LineItemBudget.objects.filter(
-                budget_allocation=pre.budget_allocation,
-                category=line_item.category,
-                subcategory=line_item.subcategory,
-                item_name=line_item.item_name
-            ).first()
-
-            if not existing_budget:
-                LineItemBudget.objects.create(
-                    budget_allocation=pre.budget_allocation,
-                    category=line_item.category,
-                    subcategory=line_item.subcategory,
-                    item_name=line_item.item_name,
-                    q1_budget=line_item.q1_amount,
-                    q2_budget=line_item.q2_amount,
-                    q3_budget=line_item.q3_amount,
-                    q4_budget=line_item.q4_amount,
-                    source_pre=pre
-                )
-                budgets_created += 1
 
         # Create approval record
         RequestApproval.objects.create(
@@ -4175,8 +4174,7 @@ def admin_verify_and_approve_pre(request, pre_id):
         # Notification will be created by signal
         messages.success(
             request,
-            f'PRE {str(pre.id)[:8]} has been verified and fully approved! '
-            f'{budgets_created} line item budgets created.'
+            f'PRE {str(pre.id)[:8]} has been verified and fully approved!'
         )
 
     elif action == 'reject':
@@ -4214,6 +4212,47 @@ def admin_verify_and_approve_pre(request, pre_id):
         messages.error(request, 'Invalid action.')
 
     return redirect('admin_pre_detail', pre_id=pre.id)
+
+
+@role_required('admin', login_url='/admin/')
+def admin_preview_pre_documents(request, pre_id):
+    """
+    Preview PRE documents for admin (print-friendly view).
+    Shows original Excel PDF and all supporting documents.
+    Allows admin to preview and print without downloading.
+    """
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('dashboard')
+
+    pre = get_object_or_404(
+        NewDepartmentPRE.objects.select_related(
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'submitted_by'
+        ).prefetch_related(
+            'supporting_documents',
+            'signed_approved_documents'
+        ),
+        id=pre_id
+    )
+
+    # Get supporting documents (original submission)
+    supporting_documents = pre.supporting_documents.all().order_by('-uploaded_at')
+
+    # Get signed approved documents (if any)
+    signed_documents = pre.signed_approved_documents.all().order_by('-uploaded_at')
+
+    context = {
+        'pre': pre,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+    }
+
+    response = render(request, 'admin_panel/preview_pre_documents.html', context)
+    # Remove X-Frame-Options to allow PDF embedding
+    response['X-Frame-Options'] = 'ALLOWALL'
+    return response
 
 
 @role_required('admin', login_url='/admin/')
@@ -5609,3 +5648,182 @@ def archive_statistics_ajax(request):
         'success': True,
         'statistics': stats
     })
+
+
+# ============================================================================
+# PURCHASE REQUEST NEW WORKFLOW (Phase 4b - Similar to PRE Workflow)
+# ============================================================================
+
+@role_required('admin', login_url='/admin/')
+def admin_verify_and_approve_pr(request, pr_id):
+    """
+    Verify uploaded signed PR documents and give final approval.
+    This is the final step in the new PR workflow (Phase 4b).
+
+    Workflow:
+    1. Admin reviews uploaded signed documents
+    2. Admin verifies signatures are valid
+    3. On approval: PR status → 'Approved', deduct from PRE line item budgets
+    4. On rejection: PR status → 'Partially Approved', delete uploaded docs, user must re-upload
+    """
+    from apps.budgets.models import PurchaseRequest, RequestApproval, SystemNotification
+    from django.utils import timezone
+
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('dashboard')
+
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('admin_preview_pr', pr_id=pr_id)
+
+    pr = get_object_or_404(
+        PurchaseRequest.objects.select_related(
+            'budget_allocation',
+            'submitted_by',
+            'source_pre',
+            'source_line_item'
+        ).prefetch_related('pre_allocations', 'signed_approved_documents'),
+        id=pr_id
+    )
+
+    # Only allow verification if PR is awaiting verification
+    if pr.status != 'Awaiting Admin Verification':
+        messages.error(request, f'Cannot verify PR. Current status: {pr.status}')
+        return redirect('admin_preview_pr', pr_id=pr.id)
+
+    action = request.POST.get('action')
+    comment = request.POST.get('comment', '').strip()
+
+    if action == 'approve':
+        # Final approval
+        pr.status = 'Approved'
+        pr.awaiting_verification = False
+        pr.admin_approved_at = timezone.now()
+        pr.admin_approved_by = request.user
+        pr.admin_notes = comment
+        pr.final_approved_at = timezone.now()
+        pr.save()
+
+        # Create approval record
+        RequestApproval.objects.create(
+            content_type='pr',
+            object_id=pr.id,
+            approved_by=request.user,
+            approval_level='final',
+            comments=comment or 'Documents verified and approved'
+        )
+
+        # Create notification for end user
+        SystemNotification.objects.create(
+            recipient=pr.submitted_by,
+            title='PR Fully Approved',
+            message=f'Your PR {pr.pr_number} has been verified and fully approved! '
+                    f'Amount: ₱{pr.total_amount:,.2f}',
+            content_type='pr',
+            object_id=pr.id
+        )
+
+        # Log audit trail
+        log_audit_trail(
+            request=request,
+            action='APPROVE',
+            model_name='PurchaseRequest',
+            record_id=pr.id,
+            detail=f'PR {pr.pr_number} verified and fully approved by {request.user.get_full_name()}'
+        )
+
+        messages.success(
+            request,
+            f'PR {pr.pr_number} has been verified and fully approved!'
+        )
+
+    elif action == 'reject':
+        # Reject verification - reset to Partially Approved, delete uploaded docs
+        reason = request.POST.get('reason', 'Documents verification failed').strip()
+
+        pr.status = 'Partially Approved'
+        pr.awaiting_verification = False
+        pr.end_user_uploaded_at = None
+        pr.rejection_reason = reason
+        pr.admin_notes = comment
+        pr.save()
+
+        # Delete all uploaded signed documents
+        deleted_count = pr.signed_approved_documents.all().count()
+        pr.signed_approved_documents.all().delete()
+
+        # Create approval record
+        RequestApproval.objects.create(
+            content_type='pr',
+            object_id=pr.id,
+            approved_by=request.user,
+            approval_level='verification_rejected',
+            comments=reason
+        )
+
+        # Create notification for end user
+        SystemNotification.objects.create(
+            recipient=pr.submitted_by,
+            title='PR Verification Rejected',
+            message=f'Your PR {pr.pr_number} verification was rejected. '
+                    f'Reason: {reason}. Please re-upload correct signed documents.',
+            content_type='pr',
+            object_id=pr.id
+        )
+
+        # Log audit trail
+        log_audit_trail(
+            request=request,
+            action='REJECT',
+            model_name='PurchaseRequest',
+            record_id=pr.id,
+            detail=f'PR {pr.pr_number} verification rejected by {request.user.get_full_name()}. Reason: {reason}'
+        )
+
+        messages.warning(
+            request,
+            f'PR {pr.pr_number} verification rejected. '
+            f'{deleted_count} documents deleted. End user must re-upload.'
+        )
+
+    return redirect('admin_preview_pr', pr_id=pr.id)
+
+
+@role_required('admin', login_url='/admin/')
+def admin_preview_pr_documents(request, pr_id):
+    """
+    Preview PR documents for admin (print-friendly view).
+    Shows original PR PDF and all supporting documents.
+    Allows admin to preview and print without downloading.
+    """
+    from apps.budgets.models import PurchaseRequest
+
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('dashboard')
+
+    pr = get_object_or_404(
+        PurchaseRequest.objects.select_related(
+            'budget_allocation',
+            'submitted_by'
+        ).prefetch_related(
+            'supporting_documents',
+            'signed_approved_documents'
+        ),
+        id=pr_id
+    )
+
+    supporting_documents = pr.supporting_documents.all().order_by('-uploaded_at')
+    signed_documents = pr.signed_approved_documents.all().order_by('-uploaded_at')
+
+    context = {
+        'pr': pr,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+    }
+
+    response = render(request, 'admin_panel/preview_pr_documents.html', context)
+    # Remove X-Frame-Options to allow PDF embedding
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    return response

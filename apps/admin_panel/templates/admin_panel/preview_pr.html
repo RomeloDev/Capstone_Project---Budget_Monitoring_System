@@ -26,6 +26,10 @@
                     <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                         {{ pr.status }}
                     </span>
+                {% elif pr.status == 'Awaiting Admin Verification' %}
+                    <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                        {{ pr.status }}
+                    </span>
                 {% else %}
                     <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-800">
                         {{ pr.status }}
@@ -93,8 +97,25 @@
 
             <!-- Documents -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Documents</h2>
-                
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900">Documents</h2>
+
+                    <!-- Preview & Print Button -->
+                    {% if pr.original_pr_pdf or pr.supporting_documents.all %}
+                    <a href="{% url 'admin_preview_pr_documents' pr_id=pr.id %}"
+                       class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition shadow-md gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        Preview & Print
+                    </a>
+                    {% endif %}
+                </div>
+
                 <!-- PR Document -->
                 {% if pr.uploaded_document %}
                 <div class="mb-4">
@@ -131,6 +152,36 @@
                             </div>
                             <a href="{{ doc.document.url }}" target="_blank" 
                                class="ml-4 text-blue-600 hover:text-blue-800 text-sm">
+                                View
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Signed Documents (Awaiting Verification or Approved) -->
+                {% if pr.signed_approved_documents.all %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        Signed Documents
+                        <span class="text-xs text-purple-600">(Uploaded by end user)</span>
+                    </h3>
+                    <div class="space-y-2">
+                        {% for doc in pr.signed_approved_documents.all %}
+                        <div class="flex items-center p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                            <svg class="w-6 h-6 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                            </svg>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900">{{ doc.file_name }}</p>
+                                <p class="text-xs text-gray-600">{{ doc.get_file_size_display }} • Uploaded {{ doc.uploaded_at|date:"M d, Y" }}</p>
+                            </div>
+                            <a href="{{ doc.document.url }}" target="_blank"
+                               class="ml-4 text-purple-600 hover:text-purple-800 text-sm font-medium">
                                 View
                             </a>
                         </div>
@@ -290,7 +341,94 @@
                 </div>
             </div>
             {% endif %}
-            
+
+            <!-- Verify & Approve Section (Awaiting Admin Verification) -->
+            {% if pr.status == 'Awaiting Admin Verification' %}
+            <div class="bg-white rounded-lg shadow-sm border border-indigo-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    Verify Documents
+                </h2>
+
+                <p class="text-sm text-gray-600 mb-4">
+                    End user has uploaded {{ pr.signed_approved_documents.count }} signed document(s). Review and verify signatures before final approval.
+                </p>
+
+                <!-- Verification Form -->
+                <form method="post" action="{% url 'admin_verify_and_approve_pr' pr_id=pr.id %}" class="space-y-4">
+                    {% csrf_token %}
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Verification Notes (Optional)</label>
+                        <textarea name="comment" rows="3"
+                                  class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                  placeholder="Add any verification notes or comments..."></textarea>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <!-- Verify & Approve Button -->
+                        <button type="submit" name="action" value="approve"
+                                class="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Verify & Approve
+                        </button>
+
+                        <!-- Reject Verification Button -->
+                        <button type="button" onclick="openVerificationRejectModal()"
+                                class="flex-1 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-medium flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Reject
+                        </button>
+                    </div>
+
+                    <!-- Rejection Modal (Hidden by default) -->
+                    <div id="verificationRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-lg max-w-md w-full p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Reject Verification</h3>
+                            <p class="text-sm text-gray-600 mb-4">Please provide a reason for rejecting the verification:</p>
+
+                            <textarea name="reason" rows="4" required
+                                      class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4"
+                                      placeholder="e.g., Signatures are not clear, missing required documents..."></textarea>
+
+                            <div class="flex gap-3">
+                                <button type="button" onclick="closeVerificationRejectModal()"
+                                        class="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300">
+                                    Cancel
+                                </button>
+                                <button type="submit" name="action" value="reject"
+                                        class="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                                    Reject Verification
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Info Message -->
+                <div class="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <div class="flex items-start">
+                        <svg class="w-5 h-5 text-indigo-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div class="text-sm text-indigo-800">
+                            <p class="font-medium">What happens next:</p>
+                            <ul class="mt-1 list-disc list-inside space-y-1">
+                                <li><strong>Approve:</strong> PR status → "Approved", budget deducted</li>
+                                <li><strong>Reject:</strong> Documents deleted, end user must re-upload</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Status Display for Approved/Rejected -->
             {% if pr.status == 'Approved' %}
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -420,10 +558,19 @@ function closeRejectModal() {
     document.getElementById('rejectModal').classList.remove('flex');
 }
 
-// Close modal on Escape key
+function openVerificationRejectModal() {
+    document.getElementById('verificationRejectModal').classList.remove('hidden');
+}
+
+function closeVerificationRejectModal() {
+    document.getElementById('verificationRejectModal').classList.add('hidden');
+}
+
+// Close modals on Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeRejectModal();
+        closeVerificationRejectModal();
     }
 });
 </script>

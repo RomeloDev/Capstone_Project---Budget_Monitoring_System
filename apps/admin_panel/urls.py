@@ -57,6 +57,8 @@ urlpatterns = [
     path('pre/<uuid:pre_id>/reject/', views.admin_reject_pre_with_reason, name='admin_reject_pre'),
     # Verify and Approve Signed Documents (Phase 4b - New Workflow)
     path('pre/<uuid:pre_id>/verify/', views.admin_verify_and_approve_pre, name='admin_verify_and_approve_pre'),
+    # Preview PRE Documents (Print-friendly view)
+    path('pre/<uuid:pre_id>/preview-documents/', views.admin_preview_pre_documents, name='admin_preview_pre_documents'),
     # Update PRE Status
     path('pre/<uuid:pre_id>/update-status/', views.admin_update_pre_status, name='admin_update_pre_status'),
     # PDF Generation
@@ -70,6 +72,10 @@ urlpatterns = [
     # PR Signed Copy Upload
     path('pr/<uuid:pr_id>/upload-signed-copy/', views.admin_upload_pr_signed_copy, name='admin_upload_pr_signed_copy'),
     path('pr/<uuid:pr_id>/manual-pdf-upload/', views.admin_manual_pdf_upload, name='admin_manual_pdf_upload'),
+
+    # PR New Workflow (Phase 4b - similar to PRE)
+    path('pr/<uuid:pr_id>/verify/', views.admin_verify_and_approve_pr, name='admin_verify_and_approve_pr'),
+    path('pr/<uuid:pr_id>/preview-documents/', views.admin_preview_pr_documents, name='admin_preview_pr_documents'),
 
     # User Management AJAX Endpoints
     path('users/create/', views.create_user_ajax, name='create_user_ajax'),

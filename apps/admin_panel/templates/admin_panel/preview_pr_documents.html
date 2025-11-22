@@ -1,0 +1,296 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Preview PR Documents - {{ pr.pr_number }}{% endblock title %}
+
+{% block main-content %}
+<div class="p-6 max-w-7xl mx-auto space-y-6">
+
+    <!-- Back Button and Print Button (Hidden when printing) -->
+    <div class="no-print flex justify-between items-center mb-4">
+        <a href="{% url 'admin_preview_pr' pr_id=pr.id %}"
+           class="inline-flex items-center text-sm text-gray-600 hover:text-blue-600 transition gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to PR Details
+        </a>
+
+        <button onclick="window.print()"
+                class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition gap-2 shadow-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Print Documents
+        </button>
+    </div>
+
+    <!-- Instructions (Hidden when printing) -->
+    <div class="no-print bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+            </svg>
+            <div>
+                <h3 class="font-semibold text-blue-900 mb-1">Admin Document Preview</h3>
+                <ul class="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                    <li>Review all documents directly in your browser</li>
+                    <li>Click "Print Documents" to print or save as PDF</li>
+                    <li>No need to download files individually</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header (Visible in print) -->
+    <div class="print-header bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+        <div class="text-center mb-4">
+            <h1 class="text-2xl font-bold text-gray-900">BISU Balilihan Campus</h1>
+            <h2 class="text-xl font-semibold text-gray-700 mt-2">Purchase Request</h2>
+            <p class="text-gray-600 mt-1">PR Number: {{ pr.pr_number }}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mt-4 text-sm">
+            <div>
+                <p class="text-gray-600">Department:</p>
+                <p class="font-semibold text-gray-900">{{ pr.department }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">PR Reference:</p>
+                <p class="font-semibold text-gray-900">#{{ pr.id|slice:":8"|upper }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Status:</p>
+                <p class="font-semibold
+                    {% if pr.status == 'Approved' %} text-green-600
+                    {% elif pr.status == 'Partially Approved' %} text-purple-600
+                    {% elif pr.status == 'Pending' %} text-yellow-600
+                    {% elif pr.status == 'Rejected' %} text-red-600
+                    {% elif pr.status == 'Awaiting Admin Verification' %} text-indigo-600
+                    {% else %} text-gray-600
+                    {% endif %}">{{ pr.status }}</p>
+            </div>
+            <div>
+                <p class="text-gray-600">Total Amount:</p>
+                <p class="font-bold text-lg text-blue-600">₱{{ pr.total_amount|floatformat:2|intcomma }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Original PR PDF Document -->
+    {% if pr.original_pr_pdf %}
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-6 page-break">
+        <div class="border-b border-gray-200 px-6 py-4 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                </svg>
+                Original PR Document
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">Official Purchase Request document</p>
+        </div>
+        <div class="p-6">
+            <div class="border-2 border-gray-300 rounded bg-gray-50 overflow-hidden" style="height: 800px;">
+                <object data="{{ pr.original_pr_pdf.url }}"
+                        type="application/pdf"
+                        width="100%"
+                        height="100%"
+                        class="rounded">
+                    <iframe src="{{ pr.original_pr_pdf.url }}"
+                            width="100%"
+                            height="100%"
+                            frameborder="0">
+                        <p class="p-4">
+                            PDF preview is not available in your browser.
+                            <a href="{{ pr.original_pr_pdf.url }}" target="_blank" class="text-blue-600 underline">
+                                Click here to open the PDF in a new tab
+                            </a>
+                        </p>
+                    </iframe>
+                </object>
+            </div>
+            <div class="mt-4 flex gap-3 no-print">
+                <a href="{{ pr.original_pr_pdf.url }}"
+                   target="_blank"
+                   class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    View Full Size
+                </a>
+                <a href="{{ pr.original_pr_pdf.url }}"
+                   download
+                   class="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Download PDF
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <div class="flex items-center gap-3">
+            <svg class="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+            </svg>
+            <div>
+                <p class="font-semibold text-yellow-800">No PR PDF Available</p>
+                <p class="text-sm text-yellow-700 mt-1">The PR PDF has not been generated yet.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Supporting Documents -->
+    {% if supporting_documents %}
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-6 page-break">
+        <div class="border-b border-gray-200 px-6 py-4 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path>
+                </svg>
+                Supporting Documents ({{ supporting_documents.count }})
+            </h3>
+        </div>
+        <div class="divide-y divide-gray-200">
+            {% for doc in supporting_documents %}
+            <div class="p-4 hover:bg-gray-50 transition">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+                        <p class="text-sm text-gray-500">{{ doc.get_file_size_display }} • Uploaded {{ doc.uploaded_at|date:"M d, Y" }}</p>
+                    </div>
+                    <div class="flex gap-2 no-print">
+                        <a href="{{ doc.document.url }}" target="_blank"
+                           class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">
+                            View
+                        </a>
+                        <a href="{{ doc.document.url }}" download
+                           class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm">
+                            Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Signed Documents (if awaiting verification or approved) -->
+    {% if signed_documents %}
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-6 page-break">
+        <div class="border-b border-gray-200 px-6 py-4 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+                Signed Documents ({{ signed_documents.count }})
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">Documents uploaded by end user after getting Approving Officer signature</p>
+        </div>
+        <div class="divide-y divide-gray-200">
+            {% for doc in signed_documents %}
+            <div class="p-4 hover:bg-gray-50 transition">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+                        <p class="text-sm text-gray-500">{{ doc.get_file_size_display }} • Uploaded {{ doc.uploaded_at|date:"M d, Y" }}</p>
+                    </div>
+                    <div class="flex gap-2 no-print">
+                        <a href="{{ doc.document.url }}" target="_blank"
+                           class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">
+                            View
+                        </a>
+                        <a href="{{ doc.document.url }}" download
+                           class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm">
+                            Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<style>
+/* Print-specific styles */
+@media print {
+    /* Hide all navigation and UI elements */
+    .no-print,
+    nav,
+    header,
+    aside,
+    .sidebar,
+    .navigation,
+    button,
+    .btn,
+    [class*="sidebar"],
+    [class*="nav"],
+    [class*="header"],
+    [id*="sidebar"],
+    [id*="nav"],
+    .max-w-7xl {
+        display: none !important;
+    }
+
+    /* Reset page margins and layout */
+    * {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Make main content full width */
+    main,
+    .main-content,
+    [role="main"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 1cm !important;
+    }
+
+    /* Page breaks */
+    .page-break {
+        page-break-after: always;
+        break-after: page;
+    }
+
+    /* Ensure print header is visible */
+    .print-header {
+        display: block !important;
+        page-break-inside: avoid;
+    }
+
+    /* PDF object/iframe - ensure it prints */
+    object, iframe {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 80vh !important;
+        page-break-inside: avoid;
+    }
+}
+
+/* Screen-only: max width for readability */
+@media screen {
+    .max-w-7xl {
+        max-width: 80rem;
+    }
+}
+</style>
+
+{% endblock main-content %}

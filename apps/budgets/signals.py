@@ -466,29 +466,11 @@ def log_allocation_changes(sender, instance, created, **kwargs):
         print(f"⚠️ Failed to log allocation transaction: {e}")
 
 
-@receiver(post_delete, sender=BudgetAllocation)
-def log_allocation_deletion(sender, instance, **kwargs):
-    """Log budget transaction when allocation is deleted"""
-    from .models import BudgetTransactionLog
-
-    try:
-        # Create a log entry for the deletion
-        # Note: Since the allocation is being deleted, we can't use FK
-        # This log will exist without an allocation reference
-        # We store the details in notes instead
-        BudgetTransactionLog.objects.create(
-            allocation=instance,  # This will be cascade deleted
-            transaction_type='ALLOCATION_DELETED',
-            amount_change=-instance.remaining_balance,
-            previous_balance=instance.remaining_balance,
-            new_balance=Decimal('0.00'),
-            related_document_type='ALLOCATION',
-            related_document_id=str(instance.id),
-            created_by=None,
-            notes=f"Budget allocation deleted for {instance.end_user.department if instance.end_user else 'N/A'}"
-        )
-    except Exception as e:
-        print(f"⚠️ Failed to log allocation deletion: {e}")
+# Removed: log_allocation_deletion signal
+# This signal was causing IntegrityError because it tried to create a transaction log
+# for an allocation that's being deleted. Since we use CASCADE on the foreign key,
+# all transaction logs will be automatically deleted when the allocation is deleted.
+# We don't need to create a new log entry that will immediately be deleted.
 
 
 # ============================================================================
