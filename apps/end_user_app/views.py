@@ -753,18 +753,27 @@ def get_pre_line_items(request):
 @role_required('end_user', login_url='/')
 def purchase_request_upload(request):
     """Handle PR document upload with supporting files"""
-    
+
     # Get or create draft
     draft, created = PRDraft.objects.get_or_create(
         user=request.user
     )
-    
-    # Get budget allocations for dropdown
+
+    # Get current fiscal year
+    from datetime import datetime
+    current_fiscal_year = str(datetime.now().year)
+
+    # Get budget allocations for current fiscal year only
     budget_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True,
-        remaining_balance__gt=0
-    ).select_related('approved_budget')
+        approved_budget__fiscal_year=current_fiscal_year
+    ).select_related('approved_budget').prefetch_related('pres')
+
+    # Auto-select allocation if only one exists for current year
+    auto_selected_allocation = None
+    if budget_allocations.count() == 1:
+        auto_selected_allocation = budget_allocations.first()
     
     # Get approved PRE line items as funding sources
     # source_of_fund_options = build_pre_source_options_v2(request.user)
@@ -1078,6 +1087,18 @@ def purchase_request_upload(request):
                         save=True
                     )
 
+                    # Convert PR document to PDF for admin preview
+                    if pr.uploaded_document:
+                        try:
+                            from apps.admin_panel.pr_to_pdf_converter import generate_pr_pdf
+                            pdf_url = generate_pr_pdf(pr)
+                            if pdf_url:
+                                print(f"✅ PR PDF generated successfully: {pdf_url}")
+                            else:
+                                print(f"⚠️ PR PDF generation failed (non-blocking)")
+                        except Exception as pdf_error:
+                            print(f"⚠️ PR PDF generation error: {pdf_error}")
+
                     # Copy supporting documents from draft
                     for draft_doc in draft.supporting_documents.all():
                         # Read the draft document
@@ -1098,7 +1119,20 @@ def purchase_request_upload(request):
                             ContentFile(file_content),
                             save=True
                         )
-                    
+
+                        # Convert Excel/Word supporting documents to PDF
+                        file_ext = pr_doc.get_file_extension()
+                        if file_ext in ['xlsx', 'xls', 'docx', 'doc']:
+                            try:
+                                from apps.admin_panel.supporting_doc_converter import convert_pre_supporting_doc
+                                pdf_url = convert_pre_supporting_doc(pr_doc)
+                                if pdf_url:
+                                    print(f"✅ PR supporting doc converted to PDF: {pdf_url}")
+                                else:
+                                    print(f"⚠️ Could not convert {draft_doc.file_name} to PDF (non-blocking)")
+                            except Exception as conv_error:
+                                print(f"⚠️ PDF conversion error for {draft_doc.file_name}: {conv_error}")
+
                     # ✅ Create allocation with quarter
                     NewPurchaseRequestAllocation.objects.create(
                         purchase_request=pr,
@@ -1150,9 +1184,11 @@ def purchase_request_upload(request):
     context = {
         'draft': draft,
         'budget_allocations': budget_allocations,
+        'auto_selected_allocation': auto_selected_allocation,
+        'current_fiscal_year': current_fiscal_year,
         #'source_of_fund_options': source_of_fund_options,
     }
-    
+
     return render(request, 'end_user_app/purchase_request_upload_form.html', context)
 
 @role_required('end_user', login_url='/')
@@ -4186,12 +4222,21 @@ def activity_design_upload(request):
         user=request.user
     )
 
-    # Get budget allocations for dropdown
+    # Get current fiscal year
+    from datetime import datetime
+    current_fiscal_year = str(datetime.now().year)
+
+    # Get budget allocations for current fiscal year only
     budget_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
         is_active=True,
-        remaining_balance__gt=0
-    ).select_related('approved_budget')
+        approved_budget__fiscal_year=current_fiscal_year
+    ).select_related('approved_budget').prefetch_related('pres')
+
+    # Auto-select allocation if only one exists for current year
+    auto_selected_allocation = None
+    if budget_allocations.count() == 1:
+        auto_selected_allocation = budget_allocations.first()
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -4584,6 +4629,8 @@ def activity_design_upload(request):
     context = {
         'draft': draft,
         'budget_allocations': budget_allocations,
+        'auto_selected_allocation': auto_selected_allocation,
+        'current_fiscal_year': current_fiscal_year,
     }
 
     return render(request, 'end_user_app/activity_design_upload_form.html', context)
@@ -4974,21 +5021,25 @@ def pre_budget_details(request):
             quarters_data = {}
             total_budgeted = Decimal('0')
             total_consumed = Decimal('0')
+            total_reserved = Decimal('0')
             total_available = Decimal('0')
 
             for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
                 q_amount = line_item.get_quarter_amount(quarter)
                 q_consumed = line_item.get_quarter_consumed(quarter)
+                q_reserved = line_item.get_quarter_reserved(quarter)
                 q_available = line_item.get_quarter_available(quarter)
 
                 quarters_data[quarter] = {
                     'budgeted': q_amount,
                     'consumed': q_consumed,
+                    'reserved': q_reserved,
                     'available': q_available
                 }
 
                 total_budgeted += q_amount
                 total_consumed += q_consumed
+                total_reserved += q_reserved
                 total_available += q_available
 
             line_items.append({
@@ -4997,6 +5048,7 @@ def pre_budget_details(request):
                 'quarters': quarters_data,
                 'total_budgeted': total_budgeted,
                 'total_consumed': total_consumed,
+                'total_reserved': total_reserved,
                 'total_available': total_available
             })
 
@@ -5073,6 +5125,7 @@ def quarterly_analysis(request):
     # Calculate quarter summary
     quarter_total = Decimal('0')
     quarter_consumed = Decimal('0')
+    quarter_reserved = Decimal('0')
     quarter_remaining = Decimal('0')
 
     # Get line items with budget in this quarter
@@ -5084,6 +5137,7 @@ def quarterly_analysis(request):
 
             if q_amount > 0:
                 q_consumed = line_item.get_quarter_consumed(selected_quarter)
+                q_reserved = line_item.get_quarter_reserved(selected_quarter)
                 q_available = line_item.get_quarter_available(selected_quarter)
 
                 category_name = line_item.category.name if line_item.category else 'Other'
@@ -5093,14 +5147,16 @@ def quarterly_analysis(request):
                     'category': category_name,
                     'budgeted': q_amount,
                     'consumed': q_consumed,
+                    'reserved': q_reserved,
                     'available': q_available
                 })
 
                 quarter_total += q_amount
                 quarter_consumed += q_consumed
+                quarter_reserved += q_reserved
                 quarter_remaining += q_available
 
-    quarter_utilization = (quarter_consumed / quarter_total * 100) if quarter_total > 0 else 0
+    quarter_utilization = ((quarter_consumed + quarter_reserved) / quarter_total * 100) if quarter_total > 0 else 0
 
     # Get transactions for this quarter
     pr_transactions = NewPurchaseRequestAllocation.objects.filter(
@@ -5147,6 +5203,7 @@ def quarterly_analysis(request):
         'quarters': ['Q1', 'Q2', 'Q3', 'Q4'],
         'quarter_total': quarter_total,
         'quarter_consumed': quarter_consumed,
+        'quarter_reserved': quarter_reserved,
         'quarter_remaining': quarter_remaining,
         'quarter_utilization': quarter_utilization,
         'quarter_line_items': quarter_line_items,
@@ -7135,14 +7192,14 @@ def end_user_upload_signed_pr(request, pr_id):
     # Can only upload signed docs for partially approved PRs
     if pr.status != 'Partially Approved':
         messages.error(request, "Can only upload signed documents for partially approved PRs")
-        return redirect('pr_detail', pr_id=pr.id)
+        return redirect('preview_submitted_pr', pr_id=pr.id)
 
     if request.method == 'POST':
         files = request.FILES.getlist('signed_documents')
 
         if not files:
             messages.error(request, "Please select at least one file to upload")
-            return redirect('pr_detail', pr_id=pr.id)
+            return redirect('preview_submitted_pr', pr_id=pr.id)
 
         # Validate file types
         allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
@@ -7150,12 +7207,12 @@ def end_user_upload_signed_pr(request, pr_id):
             ext = file.name.split('.')[-1].lower()
             if ext not in allowed_extensions:
                 messages.error(request, f"Invalid file type: {file.name}. Only PDF and images allowed.")
-                return redirect('pr_detail', pr_id=pr.id)
+                return redirect('preview_submitted_pr', pr_id=pr.id)
 
         # Upload files
         uploaded_count = 0
         for file in files:
-            PurchaseRequestApprovedDocument.objects.create(
+            signed_doc = PurchaseRequestApprovedDocument.objects.create(
                 purchase_request=pr,
                 document=file,
                 file_name=file.name,
@@ -7164,6 +7221,19 @@ def end_user_upload_signed_pr(request, pr_id):
                 document_type='signed_pr'
             )
             uploaded_count += 1
+
+            # Convert images to PDF for preview
+            file_ext = signed_doc.get_file_extension()
+            if file_ext in ['jpg', 'jpeg', 'png']:
+                try:
+                    from apps.admin_panel.signed_doc_converter import convert_signed_document
+                    pdf_url = convert_signed_document(signed_doc)
+                    if pdf_url:
+                        print(f"✅ Signed document converted to PDF: {pdf_url}")
+                    else:
+                        print(f"⚠️ Could not convert {file.name} to PDF (non-blocking)")
+                except Exception as conv_error:
+                    print(f"⚠️ PDF conversion error for {file.name}: {conv_error}")
 
         # Update PR status
         pr.status = 'Awaiting Admin Verification'
@@ -7175,7 +7245,7 @@ def end_user_upload_signed_pr(request, pr_id):
         from apps.budgets.models import SystemNotification
         from apps.users.models import User
 
-        admins = User.objects.filter(role='admin', is_active=True)
+        admins = User.objects.filter(is_admin=True, is_active=True)
         for admin in admins:
             SystemNotification.objects.create(
                 recipient=admin,
@@ -7189,9 +7259,9 @@ def end_user_upload_signed_pr(request, pr_id):
         messages.success(request, f"Successfully uploaded {uploaded_count} signed document(s). "
                                    "Your PR is now awaiting admin verification.")
 
-        return redirect('pr_detail', pr_id=pr.id)
+        return redirect('preview_submitted_pr', pr_id=pr.id)
 
-    return redirect('pr_detail', pr_id=pr.id)
+    return redirect('preview_submitted_pr', pr_id=pr.id)
 
 
 @role_required('end_user')

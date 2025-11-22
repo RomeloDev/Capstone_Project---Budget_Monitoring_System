@@ -132,20 +132,22 @@
                         <tr>
                             <th rowspan="2" class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Line Item</th>
                             <th rowspan="2" class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Category</th>
-                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q1</th>
-                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q2</th>
-                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q3</th>
-                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q4</th>
-                            <th colspan="3" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Total</th>
+                            <th colspan="4" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q1</th>
+                            <th colspan="4" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q2</th>
+                            <th colspan="4" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q3</th>
+                            <th colspan="4" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider border-r">Q4</th>
+                            <th colspan="4" class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Total</th>
                         </tr>
                         <tr>
                             {% for i in "1234" %}
                             <th class="px-2 py-2 text-xs text-gray-600 font-normal">Budget</th>
                             <th class="px-2 py-2 text-xs text-gray-600 font-normal">Used</th>
+                            <th class="px-2 py-2 text-xs text-yellow-600 font-normal">Pending</th>
                             <th class="px-2 py-2 text-xs text-gray-600 font-normal border-r">Avail</th>
                             {% endfor %}
                             <th class="px-2 py-2 text-xs text-gray-600 font-normal">Budget</th>
                             <th class="px-2 py-2 text-xs text-gray-600 font-normal">Used</th>
+                            <th class="px-2 py-2 text-xs text-yellow-600 font-normal">Pending</th>
                             <th class="px-2 py-2 text-xs text-gray-600 font-normal">Avail</th>
                         </tr>
                     </thead>
@@ -158,25 +160,30 @@
                             <!-- Q1 -->
                             <td class="px-2 py-3 text-right">₱{{ item.quarters.Q1.budgeted|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q1.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-yellow-600">₱{{ item.quarters.Q1.reserved|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q1.available|floatformat:2|intcomma }}</td>
 
                             <!-- Q2 -->
                             <td class="px-2 py-3 text-right">₱{{ item.quarters.Q2.budgeted|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q2.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-yellow-600">₱{{ item.quarters.Q2.reserved|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q2.available|floatformat:2|intcomma }}</td>
 
                             <!-- Q3 -->
                             <td class="px-2 py-3 text-right">₱{{ item.quarters.Q3.budgeted|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q3.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-yellow-600">₱{{ item.quarters.Q3.reserved|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q3.available|floatformat:2|intcomma }}</td>
 
                             <!-- Q4 -->
                             <td class="px-2 py-3 text-right">₱{{ item.quarters.Q4.budgeted|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-red-600">₱{{ item.quarters.Q4.consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-yellow-600">₱{{ item.quarters.Q4.reserved|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-green-600 border-r font-medium">₱{{ item.quarters.Q4.available|floatformat:2|intcomma }}</td>
 
                             <td class="px-2 py-3 text-right font-bold">₱{{ item.total_budgeted|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-red-600 font-bold">₱{{ item.total_consumed|floatformat:2|intcomma }}</td>
+                            <td class="px-2 py-3 text-right text-yellow-600 font-bold">₱{{ item.total_reserved|floatformat:2|intcomma }}</td>
                             <td class="px-2 py-3 text-right text-green-600 font-bold">₱{{ item.total_available|floatformat:2|intcomma }}</td>
                         </tr>
                         {% endfor %}

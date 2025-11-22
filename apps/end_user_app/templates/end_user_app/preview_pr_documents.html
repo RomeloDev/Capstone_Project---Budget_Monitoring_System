@@ -1,4 +1,4 @@
-{% extends "user_base_template/dashboard.html" %}
+{% extends "end_user_base_template/dashboard.html" %}
 {% load humanize %}
 
 {% block title %}Preview PR Documents - {{ pr.pr_number }}{% endblock title %}
@@ -147,34 +147,127 @@
 
     <!-- Supporting Documents -->
     {% if supporting_documents %}
-    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-6 page-break">
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden page-break mb-6">
         <div class="border-b border-gray-200 px-6 py-4 bg-gray-50">
             <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path>
+                    <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z"></path>
                 </svg>
                 Supporting Documents ({{ supporting_documents.count }})
             </h3>
+            <p class="text-sm text-gray-600 mt-1">Your uploaded supporting documents - verify before submission</p>
         </div>
-        <div class="divide-y divide-gray-200">
+        <div class="p-6 space-y-6">
             {% for doc in supporting_documents %}
-            <div class="p-4 hover:bg-gray-50 transition">
-                <div class="flex items-center justify-between">
-                    <div class="flex-1">
-                        <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
-                        <p class="text-sm text-gray-500">{{ doc.get_file_size_display }} • Uploaded {{ doc.uploaded_at|date:"M d, Y" }}</p>
-                    </div>
-                    <div class="flex gap-2 no-print">
-                        <a href="{{ doc.document.url }}" target="_blank"
-                           class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">
-                            View
-                        </a>
-                        <a href="{{ doc.document.url }}" download
-                           class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm">
-                            Download
-                        </a>
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-semibold text-gray-900">{{ doc.file_name }}</h4>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Uploaded: {{ doc.uploaded_at|date:"F d, Y g:i A" }}
+                                {% if doc.file_size %}
+                                • Size: {{ doc.file_size|filesizeformat }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="no-print flex gap-2">
+                            <!-- PRIMARY: View Full Size Button -->
+                            <a href="{{ doc.document.url }}"
+                               target="_blank"
+                               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                                View Full Size
+                            </a>
+                            <!-- SECONDARY: Download Button -->
+                            <a href="{{ doc.document.url }}"
+                               download
+                               class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition text-sm gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                Download
+                            </a>
+                        </div>
                     </div>
                 </div>
+                <!-- Embedded Preview for Each Document -->
+                {% if doc.converted_pdf %}
+                    <!-- Show converted PDF for Excel/Word files -->
+                    <div class="p-6">
+                        <div class="mb-3 flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span>Converted to PDF for preview (Original: {{ doc.file_name }})</span>
+                        </div>
+                        <div class="border-2 border-gray-300 rounded bg-gray-50 overflow-hidden" style="height: 800px;">
+                            <object data="{{ doc.converted_pdf.url }}"
+                                    type="application/pdf"
+                                    width="100%"
+                                    height="100%"
+                                    class="rounded">
+                                <iframe src="{{ doc.converted_pdf.url }}"
+                                        width="100%"
+                                        height="100%"
+                                        frameborder="0">
+                                    <p class="p-4">
+                                        PDF preview not available.
+                                        <a href="{{ doc.converted_pdf.url }}" target="_blank" class="text-blue-600 underline">
+                                            Click here to open PDF
+                                        </a>
+                                    </p>
+                                </iframe>
+                            </object>
+                        </div>
+                    </div>
+                {% elif doc.document.url|slice:"-4:" == ".pdf" or doc.document.url|slice:"-4:" == ".PDF" %}
+                    <!-- Show original PDF -->
+                    <div class="p-6">
+                        <div class="border-2 border-gray-300 rounded bg-gray-50 overflow-hidden" style="height: 800px;">
+                            <object data="{{ doc.document.url }}"
+                                    type="application/pdf"
+                                    width="100%"
+                                    height="100%"
+                                    class="rounded">
+                                <iframe src="{{ doc.document.url }}"
+                                        width="100%"
+                                        height="100%"
+                                        frameborder="0">
+                                    <p class="p-4">
+                                        PDF preview not available.
+                                        <a href="{{ doc.document.url }}" target="_blank" class="text-blue-600 underline">
+                                            Click here to open PDF
+                                        </a>
+                                    </p>
+                                </iframe>
+                            </object>
+                        </div>
+                    </div>
+                {% elif doc.document.url|slice:"-4:" == ".jpg" or doc.document.url|slice:"-4:" == ".JPG" or doc.document.url|slice:"-4:" == "jpeg" or doc.document.url|slice:"-4:" == ".png" or doc.document.url|slice:"-4:" == ".PNG" %}
+                    <!-- Show image preview -->
+                    <div class="p-6">
+                        <img src="{{ doc.document.url }}"
+                             alt="{{ doc.file_name }}"
+                             class="max-w-full h-auto border border-gray-300 rounded">
+                    </div>
+                {% else %}
+                    <!-- No preview available -->
+                    <div class="p-6 bg-yellow-50 border border-yellow-200 rounded">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-6 h-6 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                            </svg>
+                            <div>
+                                <p class="font-semibold text-yellow-900">PDF conversion pending or failed</p>
+                                <p class="text-sm text-yellow-700 mt-1">This Excel/Word document is being converted to PDF for preview. Please refresh the page in a moment, or download the original file.</p>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>

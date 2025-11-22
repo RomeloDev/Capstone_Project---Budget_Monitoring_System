@@ -163,27 +163,127 @@
                 <!-- Signed Documents (Awaiting Verification or Approved) -->
                 {% if pr.signed_approved_documents.all %}
                 <div class="mt-4">
-                    <h3 class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                         <svg class="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                         </svg>
-                        Signed Documents
+                        Signed Documents ({{ pr.signed_approved_documents.count }})
                         <span class="text-xs text-purple-600">(Uploaded by end user)</span>
                     </h3>
-                    <div class="space-y-2">
+                    <div class="space-y-4">
                         {% for doc in pr.signed_approved_documents.all %}
-                        <div class="flex items-center p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                            <svg class="w-6 h-6 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                            </svg>
-                            <div class="flex-1">
-                                <p class="text-sm font-medium text-gray-900">{{ doc.file_name }}</p>
-                                <p class="text-xs text-gray-600">{{ doc.get_file_size_display }} • Uploaded {{ doc.uploaded_at|date:"M d, Y" }}</p>
+                        <div class="border border-purple-200 rounded-lg overflow-hidden bg-white">
+                            <div class="bg-purple-50 px-4 py-3 border-b border-purple-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="font-semibold text-gray-900">{{ doc.file_name }}</h4>
+                                        <p class="text-xs text-gray-500 mt-1">
+                                            Uploaded: {{ doc.uploaded_at|date:"F d, Y g:i A" }}
+                                            {% if doc.file_size %}
+                                            • Size: {{ doc.file_size|filesizeformat }}
+                                            {% endif %}
+                                            {% if doc.uploaded_by %}
+                                            • By: {{ doc.uploaded_by.get_full_name }}
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <!-- View Full Size Button -->
+                                        <a href="{{ doc.document.url }}"
+                                           target="_blank"
+                                           class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium shadow-sm gap-2">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            </svg>
+                                            View Full Size
+                                        </a>
+                                        <!-- Download Button -->
+                                        <a href="{{ doc.document.url }}"
+                                           download
+                                           class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition text-sm gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                            </svg>
+                                            Download
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
-                            <a href="{{ doc.document.url }}" target="_blank"
-                               class="ml-4 text-purple-600 hover:text-purple-800 text-sm font-medium">
-                                View
-                            </a>
+                            <!-- Embedded Preview for Each Signed Document -->
+                            {% if doc.converted_pdf %}
+                                <!-- Show converted PDF for image files -->
+                                <div class="p-6">
+                                    <div class="mb-3 flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        <span>Converted to PDF for preview (Original: {{ doc.file_name }})</span>
+                                    </div>
+                                    <div class="border-2 border-gray-300 rounded bg-gray-50 overflow-hidden" style="height: 800px;">
+                                        <object data="{{ doc.converted_pdf.url }}"
+                                                type="application/pdf"
+                                                width="100%"
+                                                height="100%"
+                                                class="rounded">
+                                            <iframe src="{{ doc.converted_pdf.url }}"
+                                                    width="100%"
+                                                    height="100%"
+                                                    frameborder="0">
+                                                <p class="p-4">
+                                                    PDF preview not available.
+                                                    <a href="{{ doc.converted_pdf.url }}" target="_blank" class="text-blue-600 underline">
+                                                        Click here to open PDF
+                                                    </a>
+                                                </p>
+                                            </iframe>
+                                        </object>
+                                    </div>
+                                </div>
+                            {% elif doc.document.url|slice:"-4:" == ".pdf" or doc.document.url|slice:"-4:" == ".PDF" %}
+                                <!-- Show original PDF -->
+                                <div class="p-6">
+                                    <div class="border-2 border-gray-300 rounded bg-gray-50 overflow-hidden" style="height: 800px;">
+                                        <object data="{{ doc.document.url }}"
+                                                type="application/pdf"
+                                                width="100%"
+                                                height="100%"
+                                                class="rounded">
+                                            <iframe src="{{ doc.document.url }}"
+                                                    width="100%"
+                                                    height="100%"
+                                                    frameborder="0">
+                                                <p class="p-4">
+                                                    PDF preview not available.
+                                                    <a href="{{ doc.document.url }}" target="_blank" class="text-blue-600 underline">
+                                                        Click here to open PDF
+                                                    </a>
+                                                </p>
+                                            </iframe>
+                                        </object>
+                                    </div>
+                                </div>
+                            {% elif doc.document.url|slice:"-4:" == ".jpg" or doc.document.url|slice:"-4:" == ".JPG" or doc.document.url|slice:"-4:" == "jpeg" or doc.document.url|slice:"-4:" == ".png" or doc.document.url|slice:"-4:" == ".PNG" %}
+                                <!-- Show image preview -->
+                                <div class="p-6">
+                                    <img src="{{ doc.document.url }}"
+                                         alt="{{ doc.file_name }}"
+                                         class="max-w-full h-auto border border-gray-300 rounded">
+                                </div>
+                            {% else %}
+                                <!-- No preview available -->
+                                <div class="p-6 bg-yellow-50 border border-yellow-200 rounded">
+                                    <div class="flex items-start gap-3">
+                                        <svg class="w-6 h-6 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        <div>
+                                            <p class="font-semibold text-yellow-900">PDF conversion pending or failed</p>
+                                            <p class="text-sm text-yellow-700 mt-1">This image document is being converted to PDF for preview. Please refresh the page in a moment, or download the original file.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -356,7 +456,7 @@
                     End user has uploaded {{ pr.signed_approved_documents.count }} signed document(s). Review and verify signatures before final approval.
                 </p>
 
-                <!-- Verification Form -->
+                <!-- Verification Form - Approve -->
                 <form method="post" action="{% url 'admin_verify_and_approve_pr' pr_id=pr.id %}" class="space-y-4">
                     {% csrf_token %}
 
@@ -386,10 +486,13 @@
                             Reject
                         </button>
                     </div>
+                </form>
 
-                    <!-- Rejection Modal (Hidden by default) -->
-                    <div id="verificationRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                        <div class="bg-white rounded-lg max-w-md w-full p-6">
+                <!-- Rejection Modal (Separate Form) -->
+                <div id="verificationRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-lg max-w-md w-full p-6">
+                        <form method="post" action="{% url 'admin_verify_and_approve_pr' pr_id=pr.id %}">
+                            {% csrf_token %}
                             <h3 class="text-lg font-semibold text-gray-900 mb-4">Reject Verification</h3>
                             <p class="text-sm text-gray-600 mb-4">Please provide a reason for rejecting the verification:</p>
 
@@ -407,9 +510,9 @@
                                     Reject Verification
                                 </button>
                             </div>
-                        </div>
+                        </form>
                     </div>
-                </form>
+                </div>
 
                 <!-- Info Message -->
                 <div class="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">

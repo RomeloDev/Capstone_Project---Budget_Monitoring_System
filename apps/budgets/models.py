@@ -803,7 +803,7 @@ class PurchaseRequest(models.Model):
         errors = []
 
         # Get all allocations for this PR
-        allocations = self.allocations.all()
+        allocations = self.pre_allocations.all()
 
         if not allocations.exists():
             errors.append("PR has no allocations to validate")
@@ -1209,42 +1209,77 @@ class PRELineItem(models.Model):
     def get_quarter_consumed(self, quarter):
         """
         Calculate consumed amount for a specific quarter.
-        Includes Pending, Partially Approved, and Approved statuses.
-        Excludes Draft, Rejected, and Cancelled.
+        ONLY includes APPROVED status.
 
-        This ensures accurate budget tracking by counting budget as "consumed"
-        as soon as a PR/AD is submitted (Pending status), not just when fully approved.
+        Budget is only truly "consumed" when PR/AD is fully approved by admin.
+        Pending requests are tracked separately but don't consume budget yet.
         """
         from django.db.models import Sum
         from django.db.models.functions import Coalesce
 
-        # Count PR allocations (exclude only Draft, Rejected, Cancelled)
+        # Count PR allocations (ONLY Approved status)
         pr_consumed = PurchaseRequestAllocation.objects.filter(
             pre_line_item=self,
-            quarter=quarter
-        ).exclude(
-            purchase_request__status__in=['Draft', 'Rejected', 'Cancelled']
+            quarter=quarter,
+            purchase_request__status='Approved'
         ).aggregate(
             total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
         )['total']
 
-        # Count AD allocations (exclude only Draft, Rejected, Cancelled)
+        # Count AD allocations (ONLY Approved status)
         ad_consumed = ActivityDesignAllocation.objects.filter(
             pre_line_item=self,
-            quarter=quarter
-        ).exclude(
-            activity_design__status__in=['Draft', 'Rejected', 'Cancelled']
+            quarter=quarter,
+            activity_design__status='Approved'
         ).aggregate(
             total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
         )['total']
 
         return pr_consumed + ad_consumed
 
+    def get_quarter_reserved(self, quarter):
+        """
+        Calculate reserved amount for a specific quarter.
+        Reserved = Pending and Partially Approved PRs/ADs (not yet fully approved).
+
+        This represents budget that's "on hold" for pending requests.
+        """
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+
+        # Count PR allocations that are pending/partially approved
+        pr_reserved = PurchaseRequestAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            purchase_request__status__in=['Pending', 'Partially Approved']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        # Count AD allocations that are pending/partially approved
+        ad_reserved = ActivityDesignAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            activity_design__status__in=['Pending', 'Partially Approved']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        return pr_reserved + ad_reserved
+
     def get_quarter_available(self, quarter):
-        """Calculate available amount for a specific quarter"""
+        """
+        Calculate available amount for a specific quarter.
+        Available = Total - Consumed - Reserved
+
+        This prevents over-requesting by accounting for both:
+        - Consumed: Approved PRs/ADs (official usage)
+        - Reserved: Pending/Partially Approved PRs/ADs (temporary hold)
+        """
         quarter_amount = self.get_quarter_amount(quarter)
         consumed = self.get_quarter_consumed(quarter)
-        return quarter_amount - consumed
+        reserved = self.get_quarter_reserved(quarter)
+        return quarter_amount - consumed - reserved
 
     def get_quarter_pr_consumed(self, quarter):
         """
@@ -1305,13 +1340,55 @@ class PRELineItem(models.Model):
     def get_quarter_breakdown(self, quarter):
         """
         Get detailed breakdown of budget usage for a specific quarter.
-        Returns a dictionary with original, consumed (PR + AD), and available amounts.
+        Returns a dictionary with:
+        - Original allocation
+        - Reserved (Pending/Partially Approved)
+        - Consumed (Approved only)
+        - Available (Original - Reserved - Consumed)
         """
         original = self.get_quarter_amount(quarter)
-        pr_consumed = self.get_quarter_pr_consumed(quarter)
-        ad_consumed = self.get_quarter_ad_consumed(quarter)
-        total_consumed = pr_consumed + ad_consumed
-        available = original - total_consumed
+
+        # Get approved amounts only (official consumption)
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+
+        pr_approved = PurchaseRequestAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            purchase_request__status='Approved'
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        ad_approved = ActivityDesignAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            activity_design__status='Approved'
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        # Get reserved amounts (pending/partially approved)
+        pr_reserved = PurchaseRequestAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            purchase_request__status__in=['Pending', 'Partially Approved']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        ad_reserved = ActivityDesignAllocation.objects.filter(
+            pre_line_item=self,
+            quarter=quarter,
+            activity_design__status__in=['Pending', 'Partially Approved']
+        ).aggregate(
+            total=Coalesce(Sum('allocated_amount'), Decimal('0.00'))
+        )['total']
+
+        # Calculate totals
+        total_consumed = pr_approved + ad_approved
+        total_reserved = pr_reserved + ad_reserved
+        available = original - total_consumed - total_reserved
 
         pr_count = self.get_quarter_pr_count(quarter)
         ad_count = self.get_quarter_ad_count(quarter)
@@ -1319,13 +1396,16 @@ class PRELineItem(models.Model):
         return {
             'quarter': quarter,
             'original': original,
-            'pr_consumed': pr_consumed,
+            'pr_consumed': pr_approved,
+            'pr_reserved': pr_reserved,
             'pr_count': pr_count,
-            'ad_consumed': ad_consumed,
+            'ad_consumed': ad_approved,
+            'ad_reserved': ad_reserved,
             'ad_count': ad_count,
             'total_consumed': total_consumed,
+            'total_reserved': total_reserved,
             'available': available,
-            'utilization_percent': (total_consumed / original * 100) if original > 0 else 0
+            'utilization_percent': ((total_consumed + total_reserved) / original * 100) if original > 0 else 0
         }
 
 
@@ -1660,6 +1740,14 @@ class PurchaseRequestSupportingDocument(models.Model):
         help_text="User who uploaded this document (admin for signed copies)"
     )
 
+    # Converted PDF for preview (Excel/Word files)
+    converted_pdf = models.FileField(
+        upload_to='pr_supporting_docs_pdf/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Auto-converted PDF version for preview (Excel/Word files)'
+    )
+
     class Meta:
         db_table = 'purchase_request_supporting_documents'
         ordering = ['-uploaded_at']
@@ -1728,6 +1816,14 @@ class PurchaseRequestApprovedDocument(models.Model):
     description = models.TextField(
         blank=True,
         help_text='Optional description or notes'
+    )
+
+    # Converted PDF for preview (image files)
+    converted_pdf = models.FileField(
+        upload_to='pr_approved_docs_pdf/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Auto-converted PDF version for preview (image files)'
     )
 
     class Meta:

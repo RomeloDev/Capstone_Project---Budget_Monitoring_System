@@ -70,7 +70,7 @@
         </div>
 
         <!-- Quarter Summary Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-6">
             <div class="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
                 <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Total Budget</p>
                 <p class="text-2xl font-bold text-blue-700 mt-2">₱{{ quarter_total|floatformat:2|intcomma }}</p>
@@ -79,8 +79,12 @@
                 <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Consumed</p>
                 <p class="text-2xl font-bold text-red-700 mt-2">₱{{ quarter_consumed|floatformat:2|intcomma }}</p>
             </div>
+            <div class="bg-yellow-50 p-6 rounded-lg border-l-4 border-yellow-500">
+                <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Pending</p>
+                <p class="text-2xl font-bold text-yellow-700 mt-2">₱{{ quarter_reserved|floatformat:2|intcomma }}</p>
+            </div>
             <div class="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
-                <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Remaining</p>
+                <p class="text-sm font-medium text-gray-600">{{ selected_quarter }} Available</p>
                 <p class="text-2xl font-bold text-green-700 mt-2">₱{{ quarter_remaining|floatformat:2|intcomma }}</p>
             </div>
             <div class="bg-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
@@ -101,6 +105,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Budgeted</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Consumed</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Pending</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Available</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Utilization %</th>
                     </tr>
@@ -112,6 +117,7 @@
                         <td class="px-6 py-4 text-sm text-gray-600">{{ item.category }}</td>
                         <td class="px-6 py-4 text-sm text-right text-gray-900">₱{{ item.budgeted|floatformat:2|intcomma }}</td>
                         <td class="px-6 py-4 text-sm text-right text-red-600">₱{{ item.consumed|floatformat:2|intcomma }}</td>
+                        <td class="px-6 py-4 text-sm text-right text-yellow-600">₱{{ item.reserved|floatformat:2|intcomma }}</td>
                         <td class="px-6 py-4 text-sm text-right text-green-600 font-medium">₱{{ item.available|floatformat:2|intcomma }}</td>
                         <td class="px-6 py-4 text-sm text-right">
                             {% widthratio item.consumed item.budgeted 100 %}%
@@ -119,7 +125,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-6 py-4 text-center text-gray-500 italic">No line items for this quarter</td>
+                        <td colspan="7" class="px-6 py-4 text-center text-gray-500 italic">No line items for this quarter</td>
                     </tr>
                     {% endfor %}
                 </tbody>

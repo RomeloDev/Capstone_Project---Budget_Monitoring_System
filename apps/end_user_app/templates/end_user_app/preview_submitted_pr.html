@@ -67,8 +67,8 @@
                     Back to List
                 </a>
 
-                <!-- Preview & Print Documents Button (For Partially Approved/Approved/Awaiting Verification) -->
-                {% if pr.status == 'Partially Approved' or pr.status == 'Approved' or pr.status == 'Awaiting Admin Verification' %}
+                <!-- Preview & Print Documents Button (Available for all statuses to verify uploads) -->
+                {% if pr.status == 'Pending' or pr.status == 'Partially Approved' or pr.status == 'Approved' or pr.status == 'Awaiting Admin Verification' %}
                     {% if pr.original_pr_pdf or pr.supporting_documents.all %}
                     <a href="{% url 'end_user_preview_pr_documents' pr_id=pr.id %}"
                     class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-md hover:from-blue-700 hover:to-indigo-700 transition-colors font-medium shadow-md gap-2">
