@@ -4558,6 +4558,18 @@ def activity_design_upload(request):
                         save=True
                     )
 
+                    # Convert AD document to PDF for admin preview
+                    if activity_design.uploaded_document:
+                        try:
+                            from apps.admin_panel.ad_to_pdf_converter import generate_ad_pdf
+                            pdf_url = generate_ad_pdf(activity_design)
+                            if pdf_url:
+                                print(f"✅ AD PDF generated successfully: {pdf_url}")
+                            else:
+                                print(f"⚠️ AD PDF generation failed (non-blocking)")
+                        except Exception as pdf_error:
+                            print(f"⚠️ AD PDF generation error: {pdf_error}")
+
                     # Create allocations for each line item
                     for alloc_data in allocations_to_create:
                         ActivityDesignAllocation.objects.create(
@@ -4590,9 +4602,22 @@ def activity_design_upload(request):
                             save=True
                         )
 
-                    # Update budget allocation
-                    budget_allocation.ad_amount_used += total_amount
-                    budget_allocation.update_remaining_balance()
+                        # Convert Excel/Word supporting documents to PDF
+                        file_ext = ad_doc.get_file_extension()
+                        if file_ext in ['xlsx', 'xls', 'docx', 'doc']:
+                            try:
+                                from apps.admin_panel.supporting_doc_converter import convert_pre_supporting_doc
+                                pdf_url = convert_pre_supporting_doc(ad_doc)
+                                if pdf_url:
+                                    print(f"✅ AD supporting doc converted to PDF: {pdf_url}")
+                                else:
+                                    print(f"⚠️ Could not convert {draft_doc.file_name} to PDF (non-blocking)")
+                            except Exception as conv_error:
+                                print(f"⚠️ PDF conversion error for {draft_doc.file_name}: {conv_error}")
+
+                    # NOTE: Budget consumption is handled by signal when AD is approved
+                    # Do NOT consume budget here for Pending status - matches PR behavior
+                    # See signals.py:update_budget_on_ad_approval (line 102-130)
 
                     # Clear draft
                     draft.is_submitted = True
@@ -7295,5 +7320,137 @@ def end_user_preview_pr_documents(request, pr_id):
     }
 
     response = render(request, 'end_user_app/preview_pr_documents.html', context)
+    response['X-Frame-Options'] = 'SAMEORIGIN'  # Allow PDF embedding
+    return response
+
+
+@role_required('end_user')
+def end_user_upload_signed_ad(request, ad_id):
+    """
+    End user uploads signed AD documents after getting Approving Officer signature.
+    Similar to end_user_upload_signed_pr function.
+
+    Workflow:
+    1. AD is Partially Approved by admin → PDF generated
+    2. End user downloads/prints documents
+    3. End user gets Approving Officer signature
+    4. End user uploads signed documents using this view
+    5. AD status changes to 'Awaiting Admin Verification'
+    """
+    from apps.budgets.models import ActivityDesign, ActivityDesignApprovedDocument
+    from django.utils import timezone
+
+    ad = get_object_or_404(
+        ActivityDesign.objects.select_related('budget_allocation', 'submitted_by'),
+        id=ad_id,
+        submitted_by=request.user
+    )
+
+    # Can only upload signed docs for partially approved ADs
+    if ad.status != 'Partially Approved':
+        messages.error(request, "Can only upload signed documents for partially approved Activity Designs")
+        return redirect('preview_submitted_ad', ad_id=ad.id)
+
+    if request.method == 'POST':
+        files = request.FILES.getlist('signed_documents')
+
+        if not files:
+            messages.error(request, "Please select at least one file to upload")
+            return redirect('preview_submitted_ad', ad_id=ad.id)
+
+        # Validate file types
+        allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
+        for file in files:
+            ext = file.name.split('.')[-1].lower()
+            if ext not in allowed_extensions:
+                messages.error(request, f"Invalid file type: {file.name}. Only PDF and images allowed.")
+                return redirect('preview_submitted_ad', ad_id=ad.id)
+
+        # Upload files
+        uploaded_count = 0
+        for file in files:
+            signed_doc = ActivityDesignApprovedDocument.objects.create(
+                activity_design=ad,
+                document=file,
+                file_name=file.name,
+                file_size=file.size,
+                uploaded_by=request.user,
+                document_type='signed_ad'
+            )
+            uploaded_count += 1
+
+            # Convert images to PDF for preview
+            file_ext = signed_doc.get_file_extension()
+            if file_ext in ['jpg', 'jpeg', 'png']:
+                try:
+                    from apps.admin_panel.signed_doc_converter import convert_signed_document
+                    pdf_url = convert_signed_document(signed_doc)
+                    if pdf_url:
+                        print(f"✅ Signed AD document converted to PDF: {pdf_url}")
+                    else:
+                        print(f"⚠️ Could not convert {file.name} to PDF (non-blocking)")
+                except Exception as conv_error:
+                    print(f"⚠️ PDF conversion error for {file.name}: {conv_error}")
+
+        # Update AD status
+        ad.status = 'Awaiting Admin Verification'
+        ad.awaiting_verification = True
+        ad.end_user_uploaded_at = timezone.now()
+        ad.save()
+
+        # Create notification for admin
+        from apps.budgets.models import SystemNotification
+        from apps.users.models import User
+
+        admins = User.objects.filter(is_admin=True, is_active=True)
+        for admin in admins:
+            SystemNotification.objects.create(
+                recipient=admin,
+                title='AD Awaiting Verification',
+                message=f'AD {ad.ad_number} has uploaded signed documents and is awaiting verification. '
+                        f'Submitted by: {request.user.get_full_name()}',
+                content_type='ad',
+                object_id=ad.id
+            )
+
+        messages.success(request, f"Successfully uploaded {uploaded_count} signed document(s). "
+                                   "Your Activity Design is now awaiting admin verification.")
+
+        return redirect('preview_submitted_ad', ad_id=ad.id)
+
+    return redirect('preview_submitted_ad', ad_id=ad.id)
+
+
+@role_required('end_user')
+def end_user_preview_ad_documents(request, ad_id):
+    """
+    Preview AD documents for end user (print-friendly view).
+    Shows original AD PDF and all supporting documents.
+    Allows end user to preview and print without downloading.
+    """
+    from apps.budgets.models import ActivityDesign
+
+    ad = get_object_or_404(
+        ActivityDesign.objects.select_related(
+            'budget_allocation',
+            'submitted_by'
+        ).prefetch_related(
+            'supporting_documents',
+            'signed_approved_documents'
+        ),
+        id=ad_id,
+        submitted_by=request.user
+    )
+
+    supporting_documents = ad.supporting_documents.all().order_by('-uploaded_at')
+    signed_documents = ad.signed_approved_documents.all().order_by('-uploaded_at')
+
+    context = {
+        'ad': ad,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+    }
+
+    response = render(request, 'end_user_app/preview_ad_documents.html', context)
     response['X-Frame-Options'] = 'SAMEORIGIN'  # Allow PDF embedding
     return response

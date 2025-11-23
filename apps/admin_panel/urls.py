@@ -77,6 +77,11 @@ urlpatterns = [
     path('pr/<uuid:pr_id>/verify/', views.admin_verify_and_approve_pr, name='admin_verify_and_approve_pr'),
     path('pr/<uuid:pr_id>/preview-documents/', views.admin_preview_pr_documents, name='admin_preview_pr_documents'),
 
+    # Activity Design Workflow URLs (similar to PR)
+    path('ad/<uuid:ad_id>/preview/', views.admin_preview_ad, name='admin_preview_ad'),
+    path('ad/<uuid:ad_id>/verify/', views.admin_verify_and_approve_ad, name='admin_verify_and_approve_ad'),
+    path('ad/<uuid:ad_id>/preview-documents/', views.admin_preview_ad_documents, name='admin_preview_ad_documents'),
+
     # User Management AJAX Endpoints
     path('users/create/', views.create_user_ajax, name='create_user_ajax'),
     path('users/<int:user_id>/details/', views.get_user_details_ajax, name='get_user_details_ajax'),

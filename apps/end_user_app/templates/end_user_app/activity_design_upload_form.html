@@ -162,8 +162,8 @@
                                     <span class="font-bold text-green-600 text-lg ml-2">₱{{ auto_selected_allocation.get_pre_approved_total|floatformat:2|intcomma }}</span>
                                 </p>
                             </div>
-                            <input type="hidden" name="budget_allocation" id="budget_allocation" value="{{ auto_selected_allocation.id }}">
                         </div>
+                        <input type="hidden" name="budget_allocation" id="budget_allocation" value="{{ auto_selected_allocation.id }}">
                     {% else %}
                         <!-- No allocation found for current year -->
                         <div class="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
@@ -191,8 +191,7 @@
                     <select name="source_of_fund" id="source_of_fund"
                             class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                             multiple
-                            required
-                            disabled>
+                            required>
                         <option value="">First select a budget allocation</option>
                     </select>
                     <p class="mt-1 text-sm text-gray-500" id="source_of_fund_help">
@@ -287,14 +286,6 @@ let selectedLineItems = new Map(); // key: value (pre_id|line_item_id|quarter), 
 let lineItemsData = []; // All available line items from AJAX
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Choices.js for Budget Allocation
-    const budgetAllocationChoice = new Choices('#budget_allocation', {
-        searchEnabled: true,
-        searchPlaceholderValue: 'Search budget allocations...',
-        itemSelectText: 'Click to select',
-        shouldSort: false,
-    });
-
     // Initialize Choices.js for Source of Fund (Multi-Select)
     const sourceOfFundChoice = new Choices('#source_of_fund', {
         searchEnabled: true,
@@ -302,6 +293,8 @@ document.addEventListener('DOMContentLoaded', function() {
         itemSelectText: 'Click to select',
         removeItemButton: true, // Allow removing selected items
         shouldSort: false,
+        removeItems: true,
+        removeItemButton: true,
     });
 
     // Disable source of fund initially

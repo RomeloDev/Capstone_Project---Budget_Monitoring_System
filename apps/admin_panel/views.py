@@ -944,77 +944,72 @@ def admin_preview_pr(request, pr_id):
 def admin_preview_ad(request, ad_id):
     """
     Admin preview of Activity Design details with multiple line items
+    Shows all details, supporting documents, and signed documents
+    Allows verification and approval
     """
-    from apps.budgets.models import ActivityDesign, ActivityDesignAllocation
-    from decimal import Decimal
-    import os
+    from apps.budgets.models import ActivityDesign
 
     ad = get_object_or_404(
         ActivityDesign.objects.select_related(
-            'submitted_by',
             'budget_allocation',
             'budget_allocation__approved_budget',
+            'submitted_by',
             'admin_approved_by'
         ).prefetch_related(
             'supporting_documents',
-            'pre_allocations',
-            'pre_allocations__pre_line_item',
+            'signed_approved_documents',
             'pre_allocations__pre_line_item__category',
-            'pre_allocations__pre_line_item__pre'  # ✅ Changed from 'department_pre' to 'pre'
+            'pre_allocations__pre_line_item__subcategory'
         ),
         id=ad_id
     )
 
-    # Check if the uploaded document file exists
-    ad_file_exists = False
-    if ad.uploaded_document:
-        try:
-            ad_file_exists = os.path.exists(ad.uploaded_document.path)
-        except (ValueError, AttributeError):
-            ad_file_exists = False
-
-    # Get all allocations with quarter remaining calculations
-    allocations_data = []
-    total_pre_remaining = Decimal('0.00')
-    processed_pres = set()  # Track which PREs we've already counted
-    
-    for allocation in ad.pre_allocations.all():
-        line_item = allocation.pre_line_item
-        quarter = allocation.quarter
-
-        # Get quarter-specific available amount AFTER this allocation
-        quarter_total = line_item.get_quarter_amount(quarter)
-        quarter_consumed = line_item.get_quarter_consumed(quarter)
-        quarter_remaining = quarter_total - quarter_consumed
-
-        allocations_data.append({
-            'allocation': allocation,
-            'quarter_remaining': quarter_remaining
-        })
-        
-        # Calculate PRE total remaining (avoid counting same PRE multiple times)
-        pre = line_item.pre  # ✅ Changed from 'department_pre' to 'pre'
-        if pre and pre.id not in processed_pres:
-            processed_pres.add(pre.id)
-            pre_total_amount = pre.total_amount
-            pre_total_consumed = pre.total_consumed if hasattr(pre, 'total_consumed') else Decimal('0')
-            pre_remaining = pre_total_amount - pre_total_consumed
-            total_pre_remaining += pre_remaining
-
-    # Budget summary
-    budget_summary = {
-        'line_items_count': ad.pre_allocations.count(),
-        'total_pre_remaining': total_pre_remaining,
-    }
+    supporting_documents = ad.supporting_documents.all().order_by('-uploaded_at')
+    signed_documents = ad.signed_approved_documents.all().order_by('-uploaded_at')
+    pre_allocations = ad.pre_allocations.all()
 
     context = {
         'ad': ad,
-        'ad_file_exists': ad_file_exists,
-        'allocations': allocations_data,
-        'budget_summary': budget_summary,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+        'pre_allocations': pre_allocations,
     }
 
-    return render(request, 'admin_panel/admin_preview_ad.html', context)
+    return render(request, 'admin_panel/preview_ad.html', context)
+
+@role_required('admin', login_url='/admin/')
+def admin_preview_ad_documents(request, ad_id):
+    """
+    Preview AD documents for admin (print-friendly view).
+    Shows original AD PDF and all supporting documents.
+    Allows admin to preview and print without downloading.
+    """
+    from apps.budgets.models import ActivityDesign
+
+    ad = get_object_or_404(
+        ActivityDesign.objects.select_related(
+            'budget_allocation',
+            'budget_allocation__approved_budget',
+            'submitted_by'
+        ).prefetch_related(
+            'supporting_documents',
+            'signed_approved_documents'
+        ),
+        id=ad_id
+    )
+
+    supporting_documents = ad.supporting_documents.all().order_by('-uploaded_at')
+    signed_documents = ad.signed_approved_documents.all().order_by('-uploaded_at')
+
+    context = {
+        'ad': ad,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+    }
+
+    response = render(request, 'admin_panel/preview_ad_documents.html', context)
+    response['X-Frame-Options'] = 'SAMEORIGIN'  # Allow PDF embedding
+    return response
 
 @role_required('admin', login_url='/admin/')
 def admin_upload_ad_signed_copy(request, ad_id):
@@ -5827,3 +5822,145 @@ def admin_preview_pr_documents(request, pr_id):
     # Remove X-Frame-Options to allow PDF embedding
     response['X-Frame-Options'] = 'SAMEORIGIN'
     return response
+
+
+@role_required('admin', login_url='/admin/')
+def admin_verify_and_approve_ad(request, ad_id):
+    """
+    Verify uploaded signed AD documents and give final approval.
+    This is the final step in the new AD workflow (Phase 4b).
+
+    Workflow:
+    1. End user uploads signed documents → AD status: "Awaiting Admin Verification"
+    2. Admin verifies signatures → Uses this view
+    3. If approved → AD status: "Approved", budget deducted from PRE line items
+    4. If rejected → Documents deleted, status back to "Partially Approved"
+    """
+    from apps.budgets.models import ActivityDesign, SystemNotification, BudgetTransactionLog
+    from django.utils import timezone
+
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('dashboard')
+
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('admin_preview_ad', ad_id=ad_id)
+
+    ad = get_object_or_404(
+        ActivityDesign.objects.select_related(
+            'budget_allocation',
+            'submitted_by'
+        ).prefetch_related(
+            'signed_approved_documents',
+            'pre_allocations__pre_line_item'
+        ),
+        id=ad_id
+    )
+
+    # Can only verify ADs that are awaiting verification
+    if ad.status != 'Awaiting Admin Verification':
+        messages.error(request, f"This Activity Design is not awaiting verification. Current status: {ad.status}")
+        return redirect('admin_preview_ad', ad_id=ad.id)
+
+    action = request.POST.get('action')
+
+    if action == 'approve':
+        # Verify & Approve
+        comment = request.POST.get('comment', '').strip()
+
+        # Update AD status
+        ad.status = 'Approved'
+        ad.awaiting_verification = False
+        ad.admin_approved_by = request.user
+        ad.admin_approved_at = timezone.now()
+        ad.final_approved_at = timezone.now()
+        if comment:
+            ad.admin_notes = comment
+        ad.save()
+
+        # Deduct budget from allocations
+        budget_allocation = ad.budget_allocation
+
+        # NOTE: Budget consumption is handled by the signal in signals.py:update_budget_on_ad_approval
+        # PRE line items don't have amount_used field - they track quarterly consumption via allocations
+        # No need to manually update here
+
+        # Create audit log
+        previous_balance = budget_allocation.remaining_balance + ad.total_amount
+        BudgetTransactionLog.objects.create(
+            allocation=budget_allocation,
+            transaction_type='AD_APPROVED',
+            amount_change=-ad.total_amount,
+            previous_balance=previous_balance,
+            new_balance=budget_allocation.remaining_balance,
+            related_document_type='AD',
+            related_document_id=str(ad.id),
+            created_by=request.user,
+            notes=f'Activity Design {ad.ad_number} approved - Budget deducted'
+        )
+
+        # Send notification to end user
+        SystemNotification.objects.create(
+            recipient=ad.submitted_by,
+            title='Activity Design Approved',
+            message=f'Your Activity Design {ad.ad_number} has been verified and approved! '
+                    f'Budget has been deducted from your allocation.',
+            content_type='ad',
+            object_id=ad.id
+        )
+
+        # Log audit trail
+        log_audit_trail(
+            request=request,
+            action='APPROVE',
+            model_name='ActivityDesign',
+            record_id=ad.id,
+            detail=f'AD {ad.ad_number} verified and fully approved by {request.user.get_full_name()}'
+        )
+
+        messages.success(request, f"Activity Design {ad.ad_number} has been verified and approved! Budget deducted.")
+        return redirect('admin_preview_ad', ad_id=ad.id)
+
+    elif action == 'reject':
+        # Reject verification
+        reason = request.POST.get('reason', '').strip()
+
+        if not reason:
+            messages.error(request, "Please provide a reason for rejection")
+            return redirect('admin_preview_ad', ad_id=ad.id)
+
+        # Delete uploaded signed documents
+        deleted_count = ad.signed_approved_documents.all().count()
+        ad.signed_approved_documents.all().delete()
+
+        # Revert status
+        ad.status = 'Partially Approved'
+        ad.awaiting_verification = False
+        ad.end_user_uploaded_at = None
+        ad.rejection_reason = reason
+        ad.save()
+
+        # Send notification to end user
+        SystemNotification.objects.create(
+            recipient=ad.submitted_by,
+            title='AD Documents Rejected',
+            message=f'Your signed documents for AD {ad.ad_number} were rejected. '
+                    f'Reason: {reason}. Please re-upload corrected documents.',
+            content_type='ad',
+            object_id=ad.id
+        )
+
+        # Log audit trail
+        log_audit_trail(
+            request=request,
+            action='REJECT',
+            model_name='ActivityDesign',
+            record_id=ad.id,
+            detail=f'AD {ad.ad_number} verification rejected by {request.user.get_full_name()}. Reason: {reason}'
+        )
+
+        messages.warning(request, f"Verification rejected. {deleted_count} documents deleted. End user will be notified to re-upload.")
+        return redirect('admin_preview_ad', ad_id=ad.id)
+
+    return redirect('admin_preview_ad', ad_id=ad.id)

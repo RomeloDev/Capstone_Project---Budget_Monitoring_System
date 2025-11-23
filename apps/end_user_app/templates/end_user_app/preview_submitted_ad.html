@@ -64,6 +64,23 @@
                     Back to List
                 </a>
 
+                <!-- Preview & Print Documents Button (Available for all statuses to verify uploads) -->
+                {% if ad.status == 'Pending' or ad.status == 'Partially Approved' or ad.status == 'Approved' or ad.status == 'Awaiting Admin Verification' %}
+                    {% if ad.original_ad_pdf or ad.supporting_documents.all %}
+                    <a href="{% url 'end_user_preview_ad_documents' ad_id=ad.id %}"
+                    class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-md hover:from-blue-700 hover:to-indigo-700 transition-colors font-medium shadow-md gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        Preview & Print
+                    </a>
+                    {% endif %}
+                {% endif %}
+
                 <!-- Download PDF Button (For Partially Approved/Approved) -->
                 {% if ad.status == 'Partially Approved' or ad.status == 'Approved' %}
                     {% if ad.partially_approved_pdf %}
@@ -124,6 +141,134 @@
                     <p class="text-gray-700 whitespace-pre-wrap">{{ ad.purpose }}</p>
                 </div>
             </div>
+
+            <!-- Upload Signed Documents Section (Only for Partially Approved) -->
+            {% if ad.status == 'Partially Approved' %}
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border-2 border-blue-200 p-6">
+                <div class="flex items-center mb-4">
+                    <div class="flex-shrink-0">
+                        <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-xl font-bold text-gray-900">📄 Documents Ready for Signing</h2>
+                        <p class="text-sm text-gray-600 mt-1">
+                            Your Activity Design has been partially approved. Follow the steps below to complete the approval process.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Instructions Card -->
+                <div class="bg-white border-2 border-blue-300 rounded-lg p-5 mb-4">
+                    <div class="flex items-start">
+                        <svg class="w-6 h-6 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="flex-1">
+                            <h4 class="text-sm font-semibold text-blue-900 mb-2">📝 Next Steps:</h4>
+                            <ol class="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                                <li>Click <strong>"Preview & Print"</strong> button at the top to view all documents</li>
+                                <li>Print the documents directly from the preview page</li>
+                                <li>Bring the printed documents to the <strong>Approving Officer</strong> for signature</li>
+                                <li>After getting the signature, use the form below to <strong>upload the signed documents</strong></li>
+                                <li>Wait for admin verification and final approval</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Form -->
+                <div class="bg-white border border-blue-200 rounded-lg p-5">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        Upload Signed Documents
+                    </h3>
+                    <form method="post" action="{% url 'end_user_upload_signed_ad' ad_id=ad.id %}" enctype="multipart/form-data" id="uploadSignedForm">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Select signed documents (PDF, JPG, PNG)
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <input type="file" name="signed_documents" id="signed_documents" multiple accept=".pdf,.jpg,.jpeg,.png" required
+                                class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:border-blue-500 p-2">
+                            <p class="text-xs text-gray-500 mt-1">You can select multiple files. Maximum size: 10MB per file.</p>
+                        </div>
+
+                        <div id="filePreview" class="mb-4 space-y-2"></div>
+
+                        <button type="submit" id="uploadBtn"
+                            class="w-full inline-flex justify-center items-center px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 transition shadow-md">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            Upload Signed Documents
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Awaiting Verification Status Card -->
+            {% if ad.status == 'Awaiting Admin Verification' %}
+            <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg shadow-sm border-2 border-indigo-200 p-6">
+                <div class="flex items-center mb-4">
+                    <div class="flex-shrink-0">
+                        <svg class="w-10 h-10 text-indigo-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-xl font-bold text-gray-900">⏳ Awaiting Admin Verification</h2>
+                        <p class="text-sm text-gray-600 mt-1">
+                            Your signed documents have been uploaded successfully. Admin is reviewing them now.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-indigo-200 rounded-lg p-5">
+                    <div class="flex items-start">
+                        <svg class="w-6 h-6 text-indigo-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div class="flex-1">
+                            <h4 class="text-sm font-semibold text-indigo-900 mb-2">What happens next?</h4>
+                            <ul class="text-sm text-indigo-800 space-y-1 list-disc list-inside">
+                                <li>Admin will verify your uploaded signed documents</li>
+                                <li>If approved, budget will be deducted from your allocation</li>
+                                <li>If rejected, you'll be notified to re-upload corrected documents</li>
+                            </ul>
+                            <p class="text-xs text-indigo-600 mt-3">
+                                📅 Uploaded: {{ ad.end_user_uploaded_at|date:"F d, Y g:i A" }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Show uploaded signed documents -->
+                {% if ad.signed_approved_documents.all %}
+                <div class="mt-4 bg-white border border-indigo-200 rounded-lg p-5">
+                    <h4 class="text-sm font-semibold text-gray-900 mb-3">Uploaded Signed Documents ({{ ad.signed_approved_documents.count }})</h4>
+                    <div class="space-y-2">
+                        {% for doc in ad.signed_approved_documents.all %}
+                        <div class="flex items-center justify-between p-3 bg-indigo-50 rounded-lg">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-indigo-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm text-gray-900">{{ doc.file_name }}</span>
+                            </div>
+                            <span class="text-xs text-gray-500">{{ doc.file_size|filesizeformat }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
 
             <!-- PDF Download Section (For Partially Approved/Approved) -->
             {% if ad.status == 'Partially Approved' or ad.status == 'Approved' %}
@@ -750,4 +895,42 @@
         </div>
     </div>
 </main>
+
+<script>
+// File preview for signed documents upload
+const signedDocsInput = document.getElementById('signed_documents');
+if (signedDocsInput) {
+    signedDocsInput.addEventListener('change', function(e) {
+        const preview = document.getElementById('filePreview');
+        preview.innerHTML = '';
+
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            files.forEach((file, index) => {
+                const fileSize = (file.size / 1024).toFixed(2);
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg';
+                fileDiv.innerHTML = `
+                    <div class="flex items-center flex-1 min-w-0">
+                        <svg class="w-8 h-8 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                        <div class="min-w-0">
+                            <p class="font-medium text-gray-900 truncate">${file.name}</p>
+                            <p class="text-sm text-gray-600">${fileSize} KB</p>
+                        </div>
+                    </div>
+                    <span class="ml-4 text-green-600 flex-shrink-0">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                    </span>
+                `;
+                preview.appendChild(fileDiv);
+            });
+        }
+    });
+}
+</script>
+
 {% endblock %}

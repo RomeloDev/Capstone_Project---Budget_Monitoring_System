@@ -915,38 +915,73 @@ class ActivityDesign(models.Model):
         help_text="Upload Activity Design document (.docx format)"
     )
 
-    # Status and workflow (same as PRE)
-    STATUS_CHOICES = DepartmentPRE.STATUS_CHOICES
-    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Draft')
+    # Status and workflow (same as PR)
+    STATUS_CHOICES = [
+        ('Draft', 'Draft'),
+        ('Pending', 'Pending Review'),
+        ('Partially Approved', 'Partially Approved'),
+        ('Awaiting Admin Verification', 'Awaiting Admin Verification'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
+    status = models.CharField(
+        max_length=50,
+        choices=STATUS_CHOICES,
+        default='Draft'
+    )
 
     # Workflow files
-    partially_approved_pdf = models.FileField(upload_to='ad_pdfs/%Y/%m/', null=True, blank=True)
-    final_approved_scan = models.FileField(upload_to='ad_scanned/%Y/%m/', null=True, blank=True)
+    original_ad_pdf = models.FileField(
+        upload_to='ad/original_pdfs/',
+        null=True,
+        blank=True,
+        help_text="Original AD document (converted to PDF if uploaded as DOCX)"
+    )
 
-    # Approval tracking
+    partially_approved_pdf = models.FileField(
+        upload_to='ad/partially_approved_pdfs/',
+        null=True,
+        blank=True,
+        help_text="Auto-generated PDF when admin partially approves"
+    )
+
     approved_documents = models.FileField(
-        upload_to='ad_approved_docs/%Y/%m/',
+        upload_to='ad/approved_documents/',
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(
-            allowed_extensions=['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx']
-        )],
-        help_text="Scanned approved documents uploaded by admin"
+        help_text="Scanned signed copy uploaded by admin (DEPRECATED - use signed_approved_documents)"
     )
 
-    admin_approved_at = models.DateTimeField(
+    final_approved_scan = models.FileField(
+        upload_to='ad_scanned/%Y/%m/',
         null=True,
         blank=True,
-        help_text="Timestamp when admin uploaded approved documents"
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text="Scanned copy of signed AD (DEPRECATED)"
     )
 
+    # New Workflow Fields (Phase 4b - similar to PR workflow)
+    awaiting_verification = models.BooleanField(
+        default=False,
+        help_text="True when AD is awaiting admin verification of signed documents"
+    )
+    end_user_uploaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When end user uploaded signed documents"
+    )
     admin_approved_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='admin_approved_ads',
-        help_text="Admin who uploaded the approved documents"
+        related_name='ad_final_approvals',
+        help_text="Admin who gave final approval"
+    )
+    admin_approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When admin gave final approval"
     )
 
     # Validation
@@ -1057,7 +1092,7 @@ class ActivityDesign(models.Model):
         errors = []
 
         # Get all allocations for this AD
-        allocations = self.allocations.all()
+        allocations = self.pre_allocations.all()
 
         if not allocations.exists():
             errors.append("AD has no allocations to validate")
@@ -2093,6 +2128,14 @@ class ActivityDesignSupportingDocument(models.Model):
         help_text="User who uploaded this document (admin for signed copies)"
     )
 
+    # Converted PDF for preview (Excel/Word files)
+    converted_pdf = models.FileField(
+        upload_to='ad_supporting_docs_pdf/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Auto-converted PDF version for preview (Excel/Word files)'
+    )
+
     class Meta:
         db_table = 'activity_design_supporting_documents'
         ordering = ['-uploaded_at']
@@ -2100,15 +2143,104 @@ class ActivityDesignSupportingDocument(models.Model):
     def __str__(self):
         return f"{self.file_name} for AD {self.activity_design.ad_number}"
 
+    def get_file_extension(self):
+        """Get file extension in lowercase"""
+        return self.file_name.split('.')[-1].lower() if '.' in self.file_name else ''
+
     def get_file_size_display(self):
         """Return human-readable file size"""
         size = self.file_size
-        if size < 1024:
-            return f"{size} B"
-        elif size < 1024 * 1024:
-            return f"{size / 1024:.2f} KB"
-        else:
-            return f"{size / (1024 * 1024):.2f} MB"
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
+
+
+class ActivityDesignApprovedDocument(models.Model):
+    """
+    Approved/signed AD documents uploaded by end users after getting signatures
+    from the Approving Officer (similar to PurchaseRequestApprovedDocument)
+
+    New Workflow:
+    1. Admin partially approves AD → PDF generated
+    2. End user prints PDF → gets it signed by Approving Officer
+    3. End user uploads signed documents using this model
+    4. Admin verifies and gives final approval
+    """
+    activity_design = models.ForeignKey(
+        'ActivityDesign',
+        on_delete=models.CASCADE,
+        related_name='signed_approved_documents',
+        help_text='Link to AD submission'
+    )
+    document = models.FileField(
+        upload_to='ad_approved_uploads/%Y/%m/',
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'jpg', 'jpeg', 'png']
+        )],
+        help_text='Signed/approved document (PDF or image scan)'
+    )
+    file_name = models.CharField(max_length=255)
+    file_size = models.BigIntegerField(help_text='File size in bytes', editable=False)
+    document_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('signed_ad', 'Signed AD Document'),
+            ('signed_supporting', 'Signed Supporting Document'),
+        ],
+        default='signed_ad',
+        help_text='Type of approved document'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_ad_approved_documents',
+        help_text='End user who uploaded this document'
+    )
+    description = models.TextField(
+        blank=True,
+        help_text='Optional description or notes'
+    )
+
+    # Converted PDF for preview (image files)
+    converted_pdf = models.FileField(
+        upload_to='ad_approved_docs_pdf/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Auto-converted PDF version for preview (image files)'
+    )
+
+    class Meta:
+        db_table = 'activity_design_approved_documents'
+        ordering = ['-uploaded_at']
+        verbose_name = 'AD Approved Document'
+        verbose_name_plural = 'AD Approved Documents'
+
+    def __str__(self):
+        return f"{self.file_name} for AD {self.activity_design.ad_number}"
+
+    def get_file_extension(self):
+        """Get file extension in lowercase"""
+        return self.file_name.split('.')[-1].lower() if '.' in self.file_name else ''
+
+    def get_file_size_display(self):
+        """Return human-readable file size"""
+        size = self.file_size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate file size before saving"""
+        if self.document and not self.file_size:
+            self.file_size = self.document.size
+        super().save(*args, **kwargs)
 
 
 class BudgetSavings(models.Model):

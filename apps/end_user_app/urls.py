@@ -47,6 +47,9 @@ urlpatterns = [
     path('pr-ad-request/activity_design_upload/', views.activity_design_upload, name='activity_design_upload'),
     path('get-pre-line-items-for-ad/', views.get_pre_line_items_for_ad, name='get_pre_line_items_for_ad'),
     path('ad/preview/<uuid:ad_id>/', views.preview_submitted_ad, name='preview_submitted_ad'),
+    # AD New Workflow (Phase 4b - similar to PR)
+    path('ad/<uuid:ad_id>/upload-signed/', views.end_user_upload_signed_ad, name='end_user_upload_signed_ad'),
+    path('ad/<uuid:ad_id>/preview-documents/', views.end_user_preview_ad_documents, name='end_user_preview_ad_documents'),
 
     # Budget Monitoring Dashboard
     path('budget/overview/', views.budget_overview, name='budget_overview'),
