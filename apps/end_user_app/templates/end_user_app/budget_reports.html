@@ -29,25 +29,37 @@
                 <div class="flex-1">
                     <h3 class="text-lg font-semibold text-gray-800">Budget Summary Report</h3>
                     <p class="text-sm text-gray-600 mt-1">Complete overview of budget allocations, PRE details, and transaction summaries</p>
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        <a href="{% url 'export_budget_excel' %}?type=summary" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                    <div class="mt-4 space-y-2">
+                        <!-- Preview Button -->
+                        <a href="{% url 'preview_budget_report' %}?type=summary" target="_blank"
+                           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm w-full justify-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                             </svg>
-                            Excel
+                            Preview Report
                         </a>
-                        <a href="{% url 'export_budget_pdf' %}?type=summary" class="inline-flex items-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
-                            </svg>
-                            PDF
-                        </a>
-                        <a href="{% url 'export_budget_csv' %}?type=summary" class="inline-flex items-center px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
-                            </svg>
-                            CSV
-                        </a>
+                        <!-- Download Buttons -->
+                        <div class="flex flex-wrap gap-2">
+                            <a href="{% url 'export_budget_excel' %}?type=summary" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                Excel
+                            </a>
+                            <a href="{% url 'export_budget_pdf' %}?type=summary" class="inline-flex items-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                PDF
+                            </a>
+                            <a href="{% url 'export_budget_csv' %}?type=summary" class="inline-flex items-center px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                CSV
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -71,6 +83,16 @@
                             <option value="{{ q }}">{{ q }}</option>
                             {% endfor %}
                         </select>
+
+                        <!-- Preview Button -->
+                        <button onclick="previewQuarterly()" class="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm mb-2">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            Preview Report
+                        </button>
+
                         <div class="grid grid-cols-3 gap-2">
                             <button onclick="exportQuarterly('excel')" class="inline-flex items-center justify-center px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,25 +129,38 @@
                 <div class="flex-1">
                     <h3 class="text-lg font-semibold text-gray-800">Category-wise Report</h3>
                     <p class="text-sm text-gray-600 mt-1">Budget breakdown by category (Personnel, MOOE, Capital)</p>
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        <a href="{% url 'export_budget_excel' %}?type=category" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                    <div class="mt-4 space-y-2">
+                        <!-- Preview Button -->
+                        <a href="{% url 'preview_budget_report' %}?type=category" target="_blank"
+                           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm w-full justify-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                             </svg>
-                            Excel
+                            Preview Report
                         </a>
-                        <a href="{% url 'export_budget_pdf' %}?type=category" class="inline-flex items-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
-                            </svg>
-                            PDF
-                        </a>
-                        <a href="{% url 'export_budget_csv' %}?type=category" class="inline-flex items-center px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
-                            </svg>
-                            CSV
-                        </a>
+
+                        <!-- Download Buttons -->
+                        <div class="flex flex-wrap gap-2">
+                            <a href="{% url 'export_budget_excel' %}?type=category" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                Excel
+                            </a>
+                            <a href="{% url 'export_budget_pdf' %}?type=category" class="inline-flex items-center px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                PDF
+                            </a>
+                            <a href="{% url 'export_budget_csv' %}?type=category" class="inline-flex items-center px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"></path>
+                                </svg>
+                                CSV
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -154,6 +189,17 @@
                                     <input type="date" id="transaction_date_to" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                                 </div>
                             </div>
+
+                            <!-- Preview Button -->
+                            <a href="{% url 'preview_budget_report' %}?type=transaction" target="_blank"
+                               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm w-full justify-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                                Preview Report
+                            </a>
+
                             <div class="grid grid-cols-3 gap-2">
                                 <button onclick="exportTransaction('excel')" class="inline-flex items-center justify-center px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,6 +347,12 @@ function exportTransaction(format) {
     if (dateTo) url += `&date_to=${dateTo}`;
 
     window.location.href = url;
+}
+
+function previewQuarterly() {
+    const quarter = document.getElementById('quarterly_quarter').value;
+    const url = `{% url 'preview_budget_report' %}?type=quarterly&quarter=${quarter}`;
+    window.open(url, '_blank');
 }
 </script>
 {% endblock main-content %}

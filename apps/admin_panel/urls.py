@@ -42,10 +42,19 @@ urlpatterns = [
     path('pre_budget_realignment/<int:pk>/action/', views.handle_pre_realignment_admin_action, name='handle_pre_realignment_admin_action'),
     path('pre_budget_realignment/<int:pk>/download-pdf/', views.download_realignment_pdf, name='download_realignment_pdf'),
     path('download-document/<int:document_id>/', views.download_document, name='download_document'),
-    path('export-budget-excel/<int:budget_id>/', views.export_budget_excel, name='export_budget_excel'),
-    path('bulk-export-budgets/', views.bulk_export_budgets, name='bulk_export_budgets'),
-    path('export-allocation-excel/<int:allocation_id>/', views.export_allocation_excel, name='export_allocation_excel'),
-    path('bulk-export-allocations/', views.bulk_export_allocations, name='bulk_export_allocations'),
+
+    # Budget & Allocation Reports (Preview, PDF, Excel)
+    path('budget/<int:budget_id>/preview/', views.preview_budget_report_admin, name='preview_budget_report_admin'),
+    path('budget/<int:budget_id>/pdf/', views.export_budget_pdf_admin, name='export_budget_pdf_admin'),
+    path('budget/export/excel/<int:budget_id>/', views.export_budget_excel, name='export_budget_excel'),
+    path('allocation/<int:allocation_id>/preview/', views.preview_allocation_report_admin, name='preview_allocation_report_admin'),
+    path('allocation/<int:allocation_id>/pdf/', views.export_allocation_pdf_admin, name='export_allocation_pdf_admin'),
+    path('budget/export/allocation/<int:allocation_id>/', views.export_allocation_excel, name='export_allocation_excel'),
+
+    # Bulk Allocation Reports (Preview, PDF, Excel)
+    path('allocations/bulk/preview/', views.preview_bulk_allocations_report, name='preview_bulk_allocations_report'),
+    path('allocations/bulk/pdf/', views.export_bulk_allocations_pdf, name='export_bulk_allocations_pdf'),
+    path('allocations/bulk/excel/', views.export_bulk_allocations_excel, name='export_bulk_allocations_excel'),
     # Main PRE List Page
     path('pre/', views.admin_pre_list, name='admin_pre_list'),
     path('pre/<uuid:pre_id>/', views.admin_pre_detail, name='admin_pre_detail'),

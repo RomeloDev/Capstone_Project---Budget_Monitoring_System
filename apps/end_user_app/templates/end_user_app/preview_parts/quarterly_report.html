@@ -1,0 +1,33 @@
+{% load humanize %}
+
+<!-- Quarterly Summary -->
+<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">{{ quarter }} Summary</h2>
+
+    {% if data.quarter_totals %}
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th class="text-left">Description</th>
+                <th class="text-right">Amount (₱)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="font-medium">Allocated for {{ quarter }}</td>
+                <td class="text-right">₱{{ data.quarter_totals.allocated|floatformat:2|intcomma }}</td>
+            </tr>
+            <tr>
+                <td class="font-medium">Consumed</td>
+                <td class="text-right">₱{{ data.quarter_totals.consumed|floatformat:2|intcomma }}</td>
+            </tr>
+            <tr class="font-bold bg-blue-50">
+                <td>Remaining</td>
+                <td class="text-right text-blue-600">₱{{ data.quarter_totals.remaining|floatformat:2|intcomma }}</td>
+            </tr>
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-gray-500 text-center py-4">No quarterly data available.</p>
+    {% endif %}
+</div>

@@ -1,0 +1,126 @@
+{% load humanize %}
+
+<!-- Budget Allocation Summary -->
+<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Budget Allocation Summary</h2>
+
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th class="text-left">Description</th>
+                <th class="text-right">Amount (₱)</th>
+                <th class="text-right">Percentage</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="font-medium">Total Allocated</td>
+                <td class="text-right">₱{{ data.totals.allocated|floatformat:2|intcomma }}</td>
+                <td class="text-right">100.00%</td>
+            </tr>
+            <tr>
+                <td class="font-medium">Total Used</td>
+                <td class="text-right">₱{{ data.totals.total_used|floatformat:2|intcomma }}</td>
+                <td class="text-right">
+                    {% widthratio data.totals.total_used data.totals.allocated 100 %}%
+                </td>
+            </tr>
+            <tr class="font-bold bg-blue-50">
+                <td>Total Remaining</td>
+                <td class="text-right text-blue-600">₱{{ data.totals.remaining|floatformat:2|intcomma }}</td>
+                <td class="text-right text-blue-600">
+                    {% widthratio data.totals.remaining data.totals.allocated 100 %}%
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- PRE Summary -->
+{% if data.pres %}
+<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">PRE Summary</h2>
+
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th class="text-left">PRE</th>
+                <th class="text-center">Status</th>
+                <th class="text-right">Total Amount (₱)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pre in data.pres %}
+            <tr>
+                <td>{{ pre.department }} - FY {{ pre.fiscal_year }}</td>
+                <td class="text-center">
+                    <span class="px-2 py-1 text-xs font-medium rounded
+                        {% if pre.status == 'Approved' %}bg-green-100 text-green-800
+                        {% elif pre.status == 'Partially Approved' %}bg-purple-100 text-purple-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ pre.status }}
+                    </span>
+                </td>
+                <td class="text-right">₱{{ pre.total_amount|floatformat:2|intcomma }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Recent Transactions -->
+{% if data.prs or data.ads %}
+<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th class="text-left">Date</th>
+                <th class="text-center">Type</th>
+                <th class="text-left">Document #</th>
+                <th class="text-right">Amount (₱)</th>
+                <th class="text-center">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pr in data.prs|slice:":5" %}
+            <tr>
+                <td>{{ pr.submitted_at|date:"Y-m-d" }}</td>
+                <td class="text-center">
+                    <span class="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">PR</span>
+                </td>
+                <td>{{ pr.pr_number }}</td>
+                <td class="text-right">₱{{ pr.total_amount|floatformat:2|intcomma }}</td>
+                <td class="text-center">
+                    <span class="px-2 py-1 text-xs font-medium rounded
+                        {% if pr.status == 'Approved' %}bg-green-100 text-green-800
+                        {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                        {{ pr.status }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+
+            {% for ad in data.ads|slice:":5" %}
+            <tr>
+                <td>{{ ad.submitted_at|date:"Y-m-d" }}</td>
+                <td class="text-center">
+                    <span class="px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-800">AD</span>
+                </td>
+                <td>{{ ad.ad_number }}</td>
+                <td class="text-right">₱{{ ad.total_amount|floatformat:2|intcomma }}</td>
+                <td class="text-center">
+                    <span class="px-2 py-1 text-xs font-medium rounded
+                        {% if ad.status == 'Approved' %}bg-green-100 text-green-800
+                        {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                        {{ ad.status }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}

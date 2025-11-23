@@ -1,0 +1,37 @@
+{% load humanize %}
+
+<!-- Category Breakdown -->
+<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Category Breakdown</h2>
+
+    {% if data.categories %}
+    <table class="w-full">
+        <thead>
+            <tr>
+                <th class="text-left">Category</th>
+                <th class="text-right">Total Allocated (₱)</th>
+                <th class="text-right">Total Consumed (₱)</th>
+                <th class="text-right">Remaining (₱)</th>
+                <th class="text-right">Utilization %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for category_name, cat_data in data.categories.items %}
+            <tr>
+                <td class="font-medium">{{ category_name }}</td>
+                <td class="text-right">₱{{ cat_data.total|floatformat:2|intcomma }}</td>
+                <td class="text-right">₱{{ cat_data.consumed|floatformat:2|intcomma }}</td>
+                <td class="text-right">₱{{ cat_data.remaining|floatformat:2|intcomma }}</td>
+                <td class="text-right">
+                    <span class="{% if cat_data.utilization > 80 %}text-red-600{% elif cat_data.utilization > 50 %}text-yellow-600{% else %}text-green-600{% endif %} font-medium">
+                        {{ cat_data.utilization|floatformat:1 }}%
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-gray-500 text-center py-8">No category data available.</p>
+    {% endif %}
+</div>

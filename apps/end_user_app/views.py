@@ -5400,6 +5400,68 @@ def budget_reports(request):
 
 
 @role_required('end_user', login_url='/')
+def preview_budget_report(request):
+    """
+    Preview budget report in HTML format with BISU header
+    Allows user to see report before downloading
+    Similar to preview_ad_documents but for budget reports
+    """
+    from apps.end_user_app.utils.report_helpers import get_budget_data, get_quarterly_data, get_category_data, get_transaction_data
+    from apps.end_user_app.utils.bisu_header import get_bisu_header_context
+    from datetime import datetime
+
+    # Get parameters
+    report_type = request.GET.get('type', 'summary')
+    quarter = request.GET.get('quarter', 'Q1')
+    year_filter = request.GET.get('year', 'all')
+
+    # Build year suffix for title
+    if year_filter and year_filter != 'all':
+        year_suffix = f" - Year {year_filter}"
+    else:
+        year_suffix = " - All Years" if year_filter == 'all' else ""
+
+    # Get data based on report type
+    if report_type == 'quarterly':
+        data = get_quarterly_data(request.user, quarter, year_filter)
+        report_title = f'QUARTERLY BUDGET REPORT - {quarter}{year_suffix}'
+    elif report_type == 'category':
+        data = get_category_data(request.user, year_filter)
+        report_title = f'CATEGORY-WISE BUDGET REPORT{year_suffix}'
+    elif report_type == 'transaction':
+        data = get_transaction_data(request.user, year_filter)
+        report_title = f'TRANSACTION REPORT{year_suffix}'
+    else:  # summary
+        data = get_budget_data(request.user, year_filter)
+        report_title = f'BUDGET SUMMARY REPORT{year_suffix}'
+
+    # Get BISU header context
+    bisu_context = get_bisu_header_context()
+
+    # Build export URLs
+    export_params = f'?type={report_type}&year={year_filter}'
+    if report_type == 'quarterly':
+        export_params += f'&quarter={quarter}'
+
+    context = {
+        'report_type': report_type,
+        'report_title': report_title,
+        'quarter': quarter,
+        'year': year_filter,
+        'year_suffix': year_suffix,
+        'generated_at': datetime.now().strftime('%B %d, %Y at %I:%M %p'),
+        'data': data,
+        **bisu_context,  # Add BISU header context
+        # Export URLs (with end_user/ prefix)
+        'excel_url': f'/end_user/budget/export/excel/{export_params}',
+        'pdf_url': f'/end_user/budget/export/pdf/{export_params}',
+        'csv_url': f'/end_user/budget/export/csv/{export_params}',
+    }
+
+    return render(request, 'end_user_app/preview_budget_report.html', context)
+
+
+@role_required('end_user', login_url='/')
 def export_budget_excel(request):
     """
     Export budget data to Excel
@@ -5409,6 +5471,7 @@ def export_budget_excel(request):
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from openpyxl.utils import get_column_letter
     from datetime import datetime
+    from apps.end_user_app.utils.bisu_header import add_bisu_header_to_excel
 
     report_type = request.GET.get('type', 'summary')
     quarter = request.GET.get('quarter', 'Q1')
@@ -5435,17 +5498,23 @@ def export_budget_excel(request):
         # Create PRE Details report
         ws = wb.create_sheet('PRE Budget Details')
 
+        # ADD BISU HEADER
+        current_row = add_bisu_header_to_excel(ws, start_row=1)
+        current_row += 1  # Blank row after header
+
         # Header styling
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
         header_font = Font(bold=True, color='FFFFFF', size=12)
 
         # Title
-        ws['A1'] = f'PRE BUDGET DETAILS REPORT{year_suffix}'
-        ws['A1'].font = Font(bold=True, size=14)
-        ws.merge_cells('A1:L1')
+        ws[f'A{current_row}'] = f'PRE BUDGET DETAILS REPORT{year_suffix}'
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        ws.merge_cells(f'A{current_row}:L{current_row}')
+        current_row += 1
 
-        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
-        ws.merge_cells('A2:L2')
+        ws[f'A{current_row}'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells(f'A{current_row}:L{current_row}')
+        current_row += 1
 
         # Get all approved PREs
         approved_pres = NewDepartmentPRE.objects.filter(
@@ -5453,7 +5522,8 @@ def export_budget_excel(request):
             status__in=['Approved', 'Partially Approved']
         ).prefetch_related('line_items__category', 'line_items__subcategory').order_by('-created_at')
 
-        row = 4
+        current_row += 1  # Blank row before data
+        row = current_row
 
         for pre in approved_pres:
             # PRE Header
@@ -5549,17 +5619,23 @@ def export_budget_excel(request):
         # Create Summary sheet
         ws = wb.create_sheet('Budget Summary')
 
+        # ADD BISU HEADER
+        current_row = add_bisu_header_to_excel(ws, start_row=1)
+        current_row += 1  # Blank row after header
+
         # Header styling
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
         header_font = Font(bold=True, color='FFFFFF', size=12)
 
         # Title
-        ws['A1'] = f'BUDGET SUMMARY REPORT{year_suffix}'
-        ws['A1'].font = Font(bold=True, size=14)
-        ws.merge_cells('A1:F1')
+        ws[f'A{current_row}'] = f'BUDGET SUMMARY REPORT{year_suffix}'
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        ws.merge_cells(f'A{current_row}:F{current_row}')
+        current_row += 1
 
-        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
-        ws.merge_cells('A2:F2')
+        ws[f'A{current_row}'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells(f'A{current_row}:F{current_row}')
+        current_row += 1
 
         # Get approved PREs
         approved_pres = NewDepartmentPRE.objects.filter(
@@ -5574,7 +5650,8 @@ def export_budget_excel(request):
         utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
 
         # Budget Allocation Summary
-        row = 4
+        current_row += 1  # Blank row before data
+        row = current_row
         ws[f'A{row}'] = 'BUDGET ALLOCATION SUMMARY'
         ws[f'A{row}'].font = header_font
         ws[f'A{row}'].fill = header_fill
@@ -5787,17 +5864,23 @@ def export_budget_excel(request):
         # Create Category-wise report
         ws = wb.create_sheet('Category Report')
 
+        # ADD BISU HEADER
+        current_row = add_bisu_header_to_excel(ws, start_row=1)
+        current_row += 1  # Blank row after header
+
         # Header styling
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
         header_font = Font(bold=True, color='FFFFFF', size=12)
 
         # Title
-        ws['A1'] = 'CATEGORY-WISE BUDGET REPORT'
-        ws['A1'].font = Font(bold=True, size=14)
-        ws.merge_cells('A1:G1')
+        ws[f'A{current_row}'] = 'CATEGORY-WISE BUDGET REPORT'
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        ws.merge_cells(f'A{current_row}:G{current_row}')
+        current_row += 1
 
-        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
-        ws.merge_cells('A2:G2')
+        ws[f'A{current_row}'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells(f'A{current_row}:G{current_row}')
+        current_row += 1
 
         # Get all PREs with line items
         approved_pres = NewDepartmentPRE.objects.filter(
@@ -5832,7 +5915,8 @@ def export_budget_excel(request):
                 })
 
         # Headers
-        row = 4
+        current_row += 1  # Blank row before data
+        row = current_row
         headers = ['Category', 'Total Allocated', 'Total Consumed', 'Remaining', 'Utilization %', 'Item Count']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row, col, header)
@@ -5909,20 +5993,27 @@ def export_budget_excel(request):
     elif report_type == 'quarterly':
         ws = wb.create_sheet(f'{quarter} Report')
 
+        # ADD BISU HEADER
+        current_row = add_bisu_header_to_excel(ws, start_row=1)
+        current_row += 1  # Blank row after header
+
         # Header styling
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
         header_font = Font(bold=True, color='FFFFFF', size=12)
 
         # Title
-        ws['A1'] = f'QUARTERLY BUDGET REPORT - {quarter}'
-        ws['A1'].font = Font(bold=True, size=14)
-        ws.merge_cells('A1:F1')
+        ws[f'A{current_row}'] = f'QUARTERLY BUDGET REPORT - {quarter}'
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        ws.merge_cells(f'A{current_row}:F{current_row}')
+        current_row += 1
 
-        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
-        ws.merge_cells('A2:F2')
+        ws[f'A{current_row}'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells(f'A{current_row}:F{current_row}')
+        current_row += 1
 
         # Quarter summary
-        row = 4
+        current_row += 1  # Blank row before data
+        row = current_row
         ws[f'A{row}'] = f'{quarter} SUMMARY'
         ws[f'A{row}'].font = header_font
         ws[f'A{row}'].fill = header_fill
@@ -6017,17 +6108,23 @@ def export_budget_excel(request):
         # Create Transaction report
         ws = wb.create_sheet('Transaction Report')
 
+        # ADD BISU HEADER
+        current_row = add_bisu_header_to_excel(ws, start_row=1)
+        current_row += 1  # Blank row after header
+
         # Header styling
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
         header_font = Font(bold=True, color='FFFFFF', size=12)
 
         # Title
-        ws['A1'] = 'TRANSACTION REPORT'
-        ws['A1'].font = Font(bold=True, size=14)
-        ws.merge_cells('A1:G1')
+        ws[f'A{current_row}'] = 'TRANSACTION REPORT'
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        ws.merge_cells(f'A{current_row}:G{current_row}')
+        current_row += 1
 
-        ws['A2'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
-        ws.merge_cells('A2:G2')
+        ws[f'A{current_row}'] = f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+        ws.merge_cells(f'A{current_row}:G{current_row}')
+        current_row += 1
 
         # Collect all transactions (PREs, PRs, ADs) - matching transaction_history logic
         transactions = []
@@ -6099,7 +6196,8 @@ def export_budget_excel(request):
         transactions.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
 
         # Headers
-        row = 4
+        current_row += 1  # Blank row before data
+        row = current_row
         headers = ['Date', 'Type', 'Number', 'Line Item', 'Quarter', 'Amount', 'Status']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row, col, header)
@@ -6172,27 +6270,88 @@ def export_budget_excel(request):
 @role_required('end_user', login_url='/')
 def export_budget_pdf(request):
     """
-    Export budget data to PDF
-    Supports different report types
+    Export budget data to PDF with BISU header template
+    Supports different report types with official BISU header and logos
     """
     from reportlab.lib.pagesizes import letter, A4
     from reportlab.lib import colors
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    import os
 
     report_type = request.GET.get('type', 'summary')
     quarter = request.GET.get('quarter', 'Q1')
+    year_filter = request.GET.get('year', 'all')
 
     response = HttpResponse(content_type='application/pdf')
     filename = f'Budget_Report_{report_type}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = f'inline; filename="{filename}"'  # Changed to inline for preview
 
     # Create PDF
-    doc = SimpleDocTemplate(response, pagesize=A4)
+    doc = SimpleDocTemplate(response, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
     story = []
     styles = getSampleStyleSheet()
+
+    # Add BISU Header
+    def add_bisu_header():
+        """Add BISU header with logos to the PDF"""
+        header_elements = []
+
+        # Logo paths
+        logo_dir = os.path.join(settings.BASE_DIR, 'apps', 'end_user_app', 'static', 'logos')
+        bisu_seal_path = os.path.join(logo_dir, 'bisu_seal.png')
+        bagong_pilipinas_path = os.path.join(logo_dir, 'bagong_pilipinas.png')
+        iso_cert_path = os.path.join(logo_dir, 'iso_cert.png')
+
+        # Create header table with logos and text
+        header_data = []
+
+        # Row 1: Logos and institutional text
+        left_logo = Image(bisu_seal_path, width=0.8*inch, height=0.8*inch) if os.path.exists(bisu_seal_path) else ""
+        right_logo_1 = Image(bagong_pilipinas_path, width=0.8*inch, height=0.8*inch) if os.path.exists(bagong_pilipinas_path) else ""
+        right_logo_2 = Image(iso_cert_path, width=0.7*inch, height=0.8*inch) if os.path.exists(iso_cert_path) else ""
+
+        # BISU institutional text (centered)
+        bisu_text_style = ParagraphStyle(
+            'BISUText',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_CENTER,
+            leading=12
+        )
+
+        bisu_text = Paragraph("""
+            <para align="center">
+            Republic of the Philippines<br/>
+            <b>BOHOL ISLAND STATE UNIVERSITY</b><br/>
+            Magsija, Balilihan, 6342, Bohol, Philippines<br/>
+            <b>Office of the Administration and Finance</b><br/>
+            <i>Balance I Integrity I Stewardship I Uprightness</i>
+            </para>
+        """, bisu_text_style)
+
+        # Build header table: [Left Logo | Center Text | Right Logo 1 | Right Logo 2]
+        header_table_data = [[left_logo, bisu_text, right_logo_1, right_logo_2]]
+
+        header_table = Table(header_table_data, colWidths=[1*inch, 4.5*inch, 0.9*inch, 0.8*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),      # Left logo
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),    # Center text
+            ('ALIGN', (2, 0), (3, 0), 'RIGHT'),     # Right logos
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('LINEBELOW', (0, 0), (-1, -1), 2, colors.black),  # Bottom border
+        ]))
+
+        header_elements.append(header_table)
+        header_elements.append(Spacer(1, 0.2*inch))
+
+        return header_elements
+
+    # Add BISU header to story
+    story.extend(add_bisu_header())
 
     # Title
     title_style = ParagraphStyle(
@@ -6219,8 +6378,15 @@ def export_budget_pdf(request):
         is_active=True
     )
 
+    # Apply year filter if provided
+    if year_filter and year_filter != 'all':
+        budget_allocations = budget_allocations.filter(approved_budget__fiscal_year=year_filter)
+        year_suffix = f" - Year {year_filter}"
+    else:
+        year_suffix = " - All Years" if year_filter == 'all' else ""
+
     if report_type == 'summary':
-        story.append(Paragraph('BUDGET SUMMARY REPORT', title_style))
+        story.append(Paragraph(f'BUDGET SUMMARY REPORT{year_suffix}', title_style))
         story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
         story.append(Spacer(1, 20))
 
@@ -6292,7 +6458,7 @@ def export_budget_pdf(request):
         story.append(t2)
 
     elif report_type == 'category':
-        story.append(Paragraph('CATEGORY-WISE BUDGET REPORT', title_style))
+        story.append(Paragraph(f'CATEGORY-WISE BUDGET REPORT{year_suffix}', title_style))
         story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
         story.append(Spacer(1, 20))
 
@@ -6391,7 +6557,7 @@ def export_budget_pdf(request):
             story.append(t)
 
     elif report_type == 'quarterly':
-        story.append(Paragraph(f'QUARTERLY BUDGET REPORT - {quarter}', title_style))
+        story.append(Paragraph(f'QUARTERLY BUDGET REPORT - {quarter}{year_suffix}', title_style))
         story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
         story.append(Spacer(1, 20))
 
@@ -6474,7 +6640,7 @@ def export_budget_pdf(request):
         story.append(t)
 
     elif report_type == 'transaction':
-        story.append(Paragraph('TRANSACTION REPORT', title_style))
+        story.append(Paragraph(f'TRANSACTION REPORT{year_suffix}', title_style))
         story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
         story.append(Spacer(1, 20))
 
@@ -6588,10 +6754,13 @@ def export_budget_pdf(request):
         from reportlab.lib.pagesizes import landscape
 
         # Recreate doc with landscape orientation
-        doc = SimpleDocTemplate(response, pagesize=landscape(A4))
+        doc = SimpleDocTemplate(response, pagesize=landscape(A4), topMargin=0.5*inch, bottomMargin=0.5*inch)
         story = []
 
-        story.append(Paragraph('PRE BUDGET DETAILS REPORT', title_style))
+        # Add BISU header for landscape as well
+        story.extend(add_bisu_header())
+
+        story.append(Paragraph(f'PRE BUDGET DETAILS REPORT{year_suffix}', title_style))
         story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
         story.append(Spacer(1, 20))
 

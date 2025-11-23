@@ -1,0 +1,99 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Preview Allocation Report{% endblock %}
+
+{% block main-content %}
+<div class="flex flex-col w-full px-6 py-8 bg-gray-100">
+    <!-- Back Button and Action Buttons -->
+    <div class="flex justify-between items-center mb-4">
+        <a href="{% url 'budget_allocation' %}"
+           class="inline-flex items-center text-sm text-gray-600 hover:text-blue-600 transition gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to Budget Allocations
+        </a>
+
+        <div class="flex gap-3">
+            <a href="{{ excel_url }}"
+               class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Download Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+            </svg>
+            <div>
+                <h3 class="font-semibold text-blue-900 mb-1">Allocation Report Preview with BISU Header</h3>
+                <ul class="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                    <li>Preview shows the report with official BISU header and logos</li>
+                    <li>Use your browser's print function (Ctrl+P) or the buttons below to save as PDF</li>
+                    <li>Click "Download Excel" for Excel format with BISU header</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Report Preview with BISU Header -->
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-6">
+        <div class="border-b border-gray-200 px-6 py-4 bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                </svg>
+                {{ report_title }}
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">Report with official BISU header template - Generated: {{ generated_at }}</p>
+        </div>
+        <div class="p-6">
+            <div class="border-2 border-gray-300 rounded bg-gray-50 overflow-hidden" style="height: 800px;">
+                <object data="{{ pdf_url }}"
+                        type="application/pdf"
+                        width="100%"
+                        height="100%"
+                        class="rounded">
+                    <iframe src="{{ pdf_url }}"
+                            width="100%"
+                            height="100%"
+                            frameborder="0">
+                        <p class="p-4">
+                            PDF preview is not available in your browser.
+                            <a href="{{ pdf_url }}" target="_blank" class="text-blue-600 underline">
+                                Click here to open the PDF in a new tab
+                            </a>
+                        </p>
+                    </iframe>
+                </object>
+            </div>
+            <div class="mt-4 flex gap-3">
+                <a href="{{ pdf_url }}"
+                   target="_blank"
+                   class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    View Full Size
+                </a>
+                <a href="{{ pdf_url }}"
+                   download
+                   class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Download PDF
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

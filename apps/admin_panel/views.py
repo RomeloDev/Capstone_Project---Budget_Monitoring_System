@@ -1448,21 +1448,26 @@ def budget_allocation(request):
 
 @role_required('admin', login_url='/admin/')
 def export_allocation_excel(request, allocation_id):
-    """Export single budget allocation to Excel"""
+    """Export single budget allocation to Excel with BISU header"""
+    from apps.end_user_app.utils.bisu_header import add_bisu_header_to_excel
+
     allocation = get_object_or_404(
-        NewBudgetAllocation.objects.select_related('approved_budget', 'end_user'), 
+        NewBudgetAllocation.objects.select_related('approved_budget', 'end_user'),
         id=allocation_id
     )
-    
+
     # Create workbook
     wb = Workbook()
     ws = wb.active
     ws.title = f"Allocation {allocation_id}"
-    
+
     # Set column widths
     ws.column_dimensions['A'].width = 30
     ws.column_dimensions['B'].width = 40
-    
+
+    # Add BISU Header
+    current_row = add_bisu_header_to_excel(ws, title="BUDGET ALLOCATION REPORT")
+
     # Styling
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=12)
@@ -1472,17 +1477,9 @@ def export_allocation_excel(request, allocation_id):
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
-    
-    # Title
-    ws.merge_cells('A1:B1')
-    title_cell = ws['A1']
-    title_cell.value = "BUDGET ALLOCATION REPORT"
-    title_cell.font = Font(bold=True, size=14, color="FFFFFF")
-    title_cell.alignment = Alignment(horizontal='center', vertical='center')
-    title_cell.fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
-    ws.row_dimensions[1].height = 30
-    
-    current_row = 3
+
+    # Add some spacing
+    current_row += 1
     
     # Allocation ID
     ws[f'A{current_row}'] = "Allocation ID"
@@ -2118,22 +2115,27 @@ def download_document(request, document_id):
 
 @role_required('admin', login_url='/admin/')
 def export_budget_excel(request, budget_id):
-    """Export single approved budget to Excel"""
+    """Export single approved budget to Excel with BISU header"""
+    from apps.end_user_app.utils.bisu_header import add_bisu_header_to_excel
+
     budget = get_object_or_404(NewApprovedBudget, id=budget_id)
-    
+
     # Create workbook and worksheet
     wb = Workbook()
     ws = wb.active
     ws.title = f"Budget {budget.fiscal_year}"
-    
+
     # Set column widths
     ws.column_dimensions['A'].width = 25
     ws.column_dimensions['B'].width = 40
-    
+
+    # Add BISU Header
+    current_row = add_bisu_header_to_excel(ws, title="APPROVED BUDGET REPORT")
+
     # Header styling
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=12)
-    
+
     # Border styling
     thin_border = Border(
         left=Side(style='thin'),
@@ -2141,18 +2143,9 @@ def export_budget_excel(request, budget_id):
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
-    
-    # Title
-    ws.merge_cells('A1:B1')
-    title_cell = ws['A1']
-    title_cell.value = "APPROVED BUDGET REPORT"
-    title_cell.font = Font(bold=True, size=14)
-    title_cell.alignment = Alignment(horizontal='center', vertical='center')
-    title_cell.fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
-    title_cell.font = Font(bold=True, color="FFFFFF", size=14)
-    
+
     # Add some spacing
-    current_row = 3
+    current_row += 1
     
     # Budget Information Section
     ws[f'A{current_row}'] = "Budget Information"
@@ -5964,3 +5957,782 @@ def admin_verify_and_approve_ad(request, ad_id):
         return redirect('admin_preview_ad', ad_id=ad.id)
 
     return redirect('admin_preview_ad', ad_id=ad.id)
+
+
+# ==================== BUDGET & ALLOCATION PREVIEW REPORTS ====================
+
+@role_required('admin', login_url='/admin/')
+def preview_budget_report_admin(request, budget_id):
+    """Preview approved budget report with PDF and Excel export options"""
+    budget = get_object_or_404(NewApprovedBudget, id=budget_id)
+
+    # Build export URLs with admin prefix
+    export_params = f'?budget_id={budget_id}'
+    pdf_url = f'/admin/budget/{budget_id}/pdf/'
+    excel_url = f'/admin/budget/export/excel/{budget_id}/'
+
+    context = {
+        'budget': budget,
+        'report_title': f'Approved Budget Report - FY {budget.fiscal_year}',
+        'generated_at': datetime.now().strftime('%B %d, %Y at %I:%M %p'),
+        'pdf_url': pdf_url,
+        'excel_url': excel_url,
+    }
+
+    return render(request, 'admin_panel/preview_budget_report.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+def export_budget_pdf_admin(request, budget_id):
+    """Export approved budget to PDF with BISU header"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from django.conf import settings
+    import os
+
+    budget = get_object_or_404(NewApprovedBudget, id=budget_id)
+
+    response = HttpResponse(content_type='application/pdf')
+    filename = f'Approved_Budget_FY{budget.fiscal_year}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+    # Create PDF
+    doc = SimpleDocTemplate(response, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Add BISU Header
+    def add_bisu_header():
+        """Add BISU header with logos to the PDF"""
+        header_elements = []
+
+        # Logo paths
+        logo_dir = os.path.join(settings.BASE_DIR, 'apps', 'end_user_app', 'static', 'logos')
+        bisu_seal_path = os.path.join(logo_dir, 'bisu_seal.png')
+        bagong_pilipinas_path = os.path.join(logo_dir, 'bagong_pilipinas.png')
+        iso_cert_path = os.path.join(logo_dir, 'iso_cert.png')
+
+        # Create header table with logos and text
+        left_logo = Image(bisu_seal_path, width=0.8*inch, height=0.8*inch) if os.path.exists(bisu_seal_path) else ""
+        right_logo_1 = Image(bagong_pilipinas_path, width=0.8*inch, height=0.8*inch) if os.path.exists(bagong_pilipinas_path) else ""
+        right_logo_2 = Image(iso_cert_path, width=0.7*inch, height=0.8*inch) if os.path.exists(iso_cert_path) else ""
+
+        # BISU institutional text (centered)
+        bisu_text_style = ParagraphStyle(
+            'BISUText',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_CENTER,
+            leading=12
+        )
+
+        bisu_text = Paragraph("""
+            <para align="center">
+            Republic of the Philippines<br/>
+            <b>BOHOL ISLAND STATE UNIVERSITY</b><br/>
+            Magsija, Balilihan, 6342, Bohol, Philippines<br/>
+            <b>Office of the Administration and Finance</b><br/>
+            <i>Balance I Integrity I Stewardship I Uprightness</i>
+            </para>
+        """, bisu_text_style)
+
+        # Build header table: [Left Logo | Center Text | Right Logo 1 | Right Logo 2]
+        header_table_data = [[left_logo, bisu_text, right_logo_1, right_logo_2]]
+
+        header_table = Table(header_table_data, colWidths=[1*inch, 4.5*inch, 0.9*inch, 0.8*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('ALIGN', (2, 0), (3, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('LINEBELOW', (0, 0), (-1, -1), 2, colors.black),
+        ]))
+
+        header_elements.append(header_table)
+        header_elements.append(Spacer(1, 0.2*inch))
+
+        return header_elements
+
+    # Add BISU header to story
+    story.extend(add_bisu_header())
+
+    # Title style
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+
+    # Report title
+    story.append(Paragraph(f'APPROVED BUDGET REPORT - FY {budget.fiscal_year}', title_style))
+    story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
+    story.append(Spacer(1, 20))
+
+    # Budget Details Table
+    data = [
+        ['Budget Title:', budget.title],
+        ['Fiscal Year:', str(budget.fiscal_year)],
+        ['Approved Amount:', f'₱{budget.amount:,.2f}'],
+        ['Allocated Amount:', f'₱{(budget.amount - budget.remaining_budget):,.2f}'],
+        ['Remaining Balance:', f'₱{budget.remaining_budget:,.2f}'],
+        ['Created By:', budget.created_by.get_full_name() if budget.created_by else 'N/A'],
+        ['Created At:', budget.created_at.strftime("%B %d, %Y %I:%M %p")],
+        ['Description:', budget.description or 'N/A'],
+    ]
+
+    table = Table(data, colWidths=[2*inch, 4.5*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+
+    story.append(table)
+    story.append(Spacer(1, 20))
+
+    # Supporting Documents Section
+    story.append(Paragraph('Supporting Documents', styles['Heading2']))
+    story.append(Spacer(1, 10))
+
+    documents = budget.supporting_documents.all()
+    if documents.exists():
+        doc_data = [['File Name', 'File Type', 'Upload Date']]
+        for document in documents:
+            doc_data.append([
+                document.file_name,
+                document.file_format.upper(),
+                document.uploaded_at.strftime("%b %d, %Y")
+            ])
+
+        doc_table = Table(doc_data, colWidths=[3*inch, 1.5*inch, 2*inch])
+        doc_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        story.append(doc_table)
+    else:
+        story.append(Paragraph('<i>No supporting documents attached</i>', styles['Normal']))
+
+    # Build PDF
+    doc.build(story)
+    return response
+
+
+@role_required('admin', login_url='/admin/')
+def preview_allocation_report_admin(request, allocation_id):
+    """Preview budget allocation report with PDF and Excel export options"""
+    allocation = get_object_or_404(
+        NewBudgetAllocation.objects.select_related('approved_budget', 'end_user'),
+        id=allocation_id
+    )
+
+    # Build export URLs with admin prefix
+    pdf_url = f'/admin/allocation/{allocation_id}/pdf/'
+    excel_url = f'/admin/budget/export/allocation/{allocation_id}/'
+
+    # Calculate total used (PR + AD, excluding PRE)
+    total_used = allocation.pr_amount_used + allocation.ad_amount_used
+    utilization_rate = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+
+    context = {
+        'allocation': allocation,
+        'report_title': f'Budget Allocation Report - ID #{allocation_id}',
+        'generated_at': datetime.now().strftime('%B %d, %Y at %I:%M %p'),
+        'pdf_url': pdf_url,
+        'excel_url': excel_url,
+        'total_used': total_used,
+        'utilization_rate': utilization_rate,
+    }
+
+    return render(request, 'admin_panel/preview_allocation_report.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+def export_allocation_pdf_admin(request, allocation_id):
+    """Export budget allocation to PDF with BISU header"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from django.conf import settings
+    import os
+
+    allocation = get_object_or_404(
+        NewBudgetAllocation.objects.select_related('approved_budget', 'end_user'),
+        id=allocation_id
+    )
+
+    response = HttpResponse(content_type='application/pdf')
+    filename = f'Budget_Allocation_{allocation_id}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+    # Create PDF
+    doc = SimpleDocTemplate(response, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Add BISU Header
+    def add_bisu_header():
+        """Add BISU header with logos to the PDF"""
+        header_elements = []
+
+        # Logo paths
+        logo_dir = os.path.join(settings.BASE_DIR, 'apps', 'end_user_app', 'static', 'logos')
+        bisu_seal_path = os.path.join(logo_dir, 'bisu_seal.png')
+        bagong_pilipinas_path = os.path.join(logo_dir, 'bagong_pilipinas.png')
+        iso_cert_path = os.path.join(logo_dir, 'iso_cert.png')
+
+        # Create header table with logos and text
+        left_logo = Image(bisu_seal_path, width=0.8*inch, height=0.8*inch) if os.path.exists(bisu_seal_path) else ""
+        right_logo_1 = Image(bagong_pilipinas_path, width=0.8*inch, height=0.8*inch) if os.path.exists(bagong_pilipinas_path) else ""
+        right_logo_2 = Image(iso_cert_path, width=0.7*inch, height=0.8*inch) if os.path.exists(iso_cert_path) else ""
+
+        # BISU institutional text (centered)
+        bisu_text_style = ParagraphStyle(
+            'BISUText',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_CENTER,
+            leading=12
+        )
+
+        bisu_text = Paragraph("""
+            <para align="center">
+            Republic of the Philippines<br/>
+            <b>BOHOL ISLAND STATE UNIVERSITY</b><br/>
+            Magsija, Balilihan, 6342, Bohol, Philippines<br/>
+            <b>Office of the Administration and Finance</b><br/>
+            <i>Balance I Integrity I Stewardship I Uprightness</i>
+            </para>
+        """, bisu_text_style)
+
+        # Build header table: [Left Logo | Center Text | Right Logo 1 | Right Logo 2]
+        header_table_data = [[left_logo, bisu_text, right_logo_1, right_logo_2]]
+
+        header_table = Table(header_table_data, colWidths=[1*inch, 4.5*inch, 0.9*inch, 0.8*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('ALIGN', (2, 0), (3, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('LINEBELOW', (0, 0), (-1, -1), 2, colors.black),
+        ]))
+
+        header_elements.append(header_table)
+        header_elements.append(Spacer(1, 0.2*inch))
+
+        return header_elements
+
+    # Add BISU header to story
+    story.extend(add_bisu_header())
+
+    # Title style
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+
+    # Report title
+    story.append(Paragraph(f'BUDGET ALLOCATION REPORT - ID #{allocation_id}', title_style))
+    story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}', styles['Normal']))
+    story.append(Spacer(1, 20))
+
+    # Approved Budget Information
+    story.append(Paragraph('Approved Budget Information', styles['Heading2']))
+    story.append(Spacer(1, 10))
+
+    budget_data = [
+        ['Budget Title:', allocation.approved_budget.title],
+        ['Fiscal Year:', str(allocation.approved_budget.fiscal_year)],
+        ['Total Budget Amount:', f'₱{allocation.approved_budget.amount:,.2f}'],
+        ['Budget Remaining:', f'₱{allocation.approved_budget.remaining_budget:,.2f}'],
+    ]
+
+    budget_table = Table(budget_data, colWidths=[2*inch, 4.5*inch])
+    budget_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+
+    story.append(budget_table)
+    story.append(Spacer(1, 20))
+
+    # End User Information
+    story.append(Paragraph('End User Information', styles['Heading2']))
+    story.append(Spacer(1, 10))
+
+    user_data = [
+        ['Full Name:', allocation.end_user.fullname],
+        ['Username:', allocation.end_user.username],
+        ['Email:', allocation.end_user.email],
+        ['MFO:', allocation.end_user.mfo or 'N/A'],
+        ['Department:', allocation.department],
+        ['Position:', allocation.end_user.position or 'N/A'],
+    ]
+
+    user_table = Table(user_data, colWidths=[2*inch, 4.5*inch])
+    user_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+
+    story.append(user_table)
+    story.append(Spacer(1, 20))
+
+    # Financial Summary
+    story.append(Paragraph('Financial Summary', styles['Heading2']))
+    story.append(Spacer(1, 10))
+
+    total_used = allocation.pr_amount_used + allocation.ad_amount_used
+    utilization_rate = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+
+    financial_data = [
+        ['Allocated Amount:', f'₱{allocation.allocated_amount:,.2f}'],
+        ['Remaining Balance:', f'₱{allocation.remaining_balance:,.2f}'],
+        ['PRE Amount Used:', f'₱{allocation.pre_amount_used:,.2f}'],
+        ['PR Amount Used:', f'₱{allocation.pr_amount_used:,.2f}'],
+        ['AD Amount Used:', f'₱{allocation.ad_amount_used:,.2f}'],
+        ['Total Amount Used:', f'₱{total_used:,.2f}'],
+        ['Utilization Rate:', f'{utilization_rate:.2f}%'],
+    ]
+
+    financial_table = Table(financial_data, colWidths=[2*inch, 4.5*inch])
+    financial_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        # Highlight total row
+        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor('#E7E6E6')),
+    ]))
+
+    story.append(financial_table)
+    story.append(Spacer(1, 20))
+
+    # Timeline
+    story.append(Paragraph('Timeline', styles['Heading2']))
+    story.append(Spacer(1, 10))
+
+    timeline_data = [
+        ['Allocated At:', allocation.allocated_at.strftime("%B %d, %Y %I:%M %p")],
+    ]
+
+    timeline_table = Table(timeline_data, colWidths=[2*inch, 4.5*inch])
+    timeline_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+
+    story.append(timeline_table)
+
+    # Build PDF
+    doc.build(story)
+    return response
+
+
+# ==================== BULK ALLOCATION REPORT PREVIEW ====================
+
+@role_required('admin', login_url='/admin/')
+def preview_bulk_allocations_report(request):
+    """Preview bulk budget allocations report with PDF and Excel export options"""
+
+    # Get year filter
+    summary_year = request.GET.get('summary_year', 'all')
+
+    # Build export URLs with filter
+    pdf_url = f'/admin/allocations/bulk/pdf/?summary_year={summary_year}'
+    excel_url = f'/admin/allocations/bulk/excel/?summary_year={summary_year}'
+
+    # Get count for display
+    allocations = NewBudgetAllocation.objects.all()
+    if summary_year != 'all':
+        allocations = allocations.filter(approved_budget__fiscal_year=summary_year)
+
+    context = {
+        'report_title': f'Bulk Budget Allocations Report{" - FY " + summary_year if summary_year != "all" else " - All Years"}',
+        'generated_at': datetime.now().strftime('%B %d, %Y at %I:%M %p'),
+        'pdf_url': pdf_url,
+        'excel_url': excel_url,
+        'total_count': allocations.count(),
+        'summary_year': summary_year,
+    }
+
+    return render(request, 'admin_panel/preview_bulk_allocations_report.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+def export_bulk_allocations_pdf(request):
+    """Export bulk budget allocations to PDF with BISU header"""
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from django.conf import settings
+    import os
+
+    # Get filter parameter
+    summary_year = request.GET.get('summary_year', 'all')
+
+    # Get allocations with calculated remaining
+    from django.db.models import F, ExpressionWrapper, DecimalField
+    allocations = NewBudgetAllocation.objects.select_related(
+        'approved_budget', 'end_user'
+    ).annotate(
+        calculated_remaining=ExpressionWrapper(
+            F('allocated_amount') - F('pr_amount_used') - F('ad_amount_used'),
+            output_field=DecimalField()
+        )
+    ).order_by('-allocated_at')
+
+    if summary_year != 'all':
+        allocations = allocations.filter(approved_budget__fiscal_year=summary_year)
+
+    response = HttpResponse(content_type='application/pdf')
+    year_text = f'FY_{summary_year}' if summary_year != 'all' else 'All_Years'
+    filename = f'Bulk_Allocations_Report_{year_text}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+    # Create PDF with landscape orientation
+    pdf_doc = SimpleDocTemplate(response, pagesize=landscape(A4), topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Add BISU Header
+    def add_bisu_header():
+        """Add BISU header with logos to the PDF"""
+        header_elements = []
+
+        # Logo paths
+        logo_dir = os.path.join(settings.BASE_DIR, 'apps', 'end_user_app', 'static', 'logos')
+        bisu_seal_path = os.path.join(logo_dir, 'bisu_seal.png')
+        bagong_pilipinas_path = os.path.join(logo_dir, 'bagong_pilipinas.png')
+        iso_cert_path = os.path.join(logo_dir, 'iso_cert.png')
+
+        # Create header table with logos and text
+        left_logo = Image(bisu_seal_path, width=0.7*inch, height=0.7*inch) if os.path.exists(bisu_seal_path) else ""
+        right_logo_1 = Image(bagong_pilipinas_path, width=0.7*inch, height=0.7*inch) if os.path.exists(bagong_pilipinas_path) else ""
+        right_logo_2 = Image(iso_cert_path, width=0.6*inch, height=0.7*inch) if os.path.exists(iso_cert_path) else ""
+
+        # BISU institutional text (centered)
+        bisu_text_style = ParagraphStyle(
+            'BISUText',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_CENTER,
+            leading=11
+        )
+
+        bisu_text = Paragraph("""
+            <para align="center">
+            Republic of the Philippines<br/>
+            <b>BOHOL ISLAND STATE UNIVERSITY</b><br/>
+            Magsija, Balilihan, 6342, Bohol, Philippines<br/>
+            <b>Office of the Administration and Finance</b><br/>
+            <i>Balance I Integrity I Stewardship I Uprightness</i>
+            </para>
+        """, bisu_text_style)
+
+        # Build header table: [Left Logo | Center Text | Right Logo 1 | Right Logo 2]
+        header_table_data = [[left_logo, bisu_text, right_logo_1, right_logo_2]]
+
+        header_table = Table(header_table_data, colWidths=[0.8*inch, 8*inch, 0.8*inch, 0.7*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('ALIGN', (2, 0), (3, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('LINEBELOW', (0, 0), (-1, -1), 2, colors.black),
+        ]))
+
+        header_elements.append(header_table)
+        header_elements.append(Spacer(1, 0.15*inch))
+
+        return header_elements
+
+    # Add BISU header to story
+    story.extend(add_bisu_header())
+
+    # Title style
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=14,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+
+    # Report title
+    year_display = f' - FY {summary_year}' if summary_year != 'all' else ' - All Years'
+    story.append(Paragraph(f'BUDGET ALLOCATIONS REPORT{year_display}', title_style))
+    story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")} | Total Records: {allocations.count()}', styles['Normal']))
+    story.append(Spacer(1, 15))
+
+    # Create allocations table
+    table_data = [[
+        'ID', 'Budget Title', 'FY', 'Department', 'End User',
+        'Allocated', 'Remaining', 'PR Used', 'AD Used', 'Utilization %'
+    ]]
+
+    for allocation in allocations:
+        total_used = allocation.pr_amount_used + allocation.ad_amount_used
+        utilization = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+
+        table_data.append([
+            str(allocation.id),
+            allocation.approved_budget.title[:25],
+            str(allocation.approved_budget.fiscal_year),
+            allocation.department[:20],
+            allocation.end_user.fullname[:20],
+            f'₱{allocation.allocated_amount:,.0f}',
+            f'₱{allocation.calculated_remaining:,.0f}',
+            f'₱{allocation.pr_amount_used:,.0f}',
+            f'₱{allocation.ad_amount_used:,.0f}',
+            f'{utilization:.1f}%'
+        ])
+
+    # Column widths for landscape
+    col_widths = [0.4*inch, 1.4*inch, 0.4*inch, 1.2*inch, 1.2*inch,
+                  0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.8*inch]
+
+    allocation_table = Table(table_data, colWidths=col_widths)
+
+    # Build style list dynamically
+    table_style_commands = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]
+
+    # Add color coding for utilization column
+    for i, allocation in enumerate(allocations, start=1):
+        total_used = allocation.pr_amount_used + allocation.ad_amount_used
+        utilization = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+
+        if utilization < 50:
+            bg_color = colors.HexColor('#C6EFCE')
+            text_color = colors.HexColor('#006100')
+        elif utilization < 80:
+            bg_color = colors.HexColor('#FFEB9C')
+            text_color = colors.HexColor('#9C6500')
+        else:
+            bg_color = colors.HexColor('#FFC7CE')
+            text_color = colors.HexColor('#9C0006')
+
+        table_style_commands.append(('BACKGROUND', (9, i), (9, i), bg_color))
+        table_style_commands.append(('TEXTCOLOR', (9, i), (9, i), text_color))
+
+    allocation_table.setStyle(TableStyle(table_style_commands))
+    story.append(allocation_table)
+
+    # Build PDF
+    pdf_doc.build(story)
+    return response
+
+
+@role_required('admin', login_url='/admin/')
+def export_bulk_allocations_excel(request):
+    """Export bulk budget allocations to Excel with BISU header"""
+    from apps.end_user_app.utils.bisu_header import add_bisu_header_to_excel
+
+    # Get filter parameter
+    summary_year = request.GET.get('summary_year', 'all')
+
+    # Get allocations with calculated remaining
+    from django.db.models import F, ExpressionWrapper, DecimalField
+    allocations = NewBudgetAllocation.objects.select_related(
+        'approved_budget', 'end_user'
+    ).annotate(
+        calculated_remaining=ExpressionWrapper(
+            F('allocated_amount') - F('pr_amount_used') - F('ad_amount_used'),
+            output_field=DecimalField()
+        )
+    ).order_by('-allocated_at')
+
+    if summary_year != 'all':
+        allocations = allocations.filter(approved_budget__fiscal_year=summary_year)
+
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Budget Allocations"
+
+    # Set column widths
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 12
+    ws.column_dimensions['D'].width = 25
+    ws.column_dimensions['E'].width = 25
+    ws.column_dimensions['F'].width = 30
+    ws.column_dimensions['G'].width = 18
+    ws.column_dimensions['H'].width = 18
+    ws.column_dimensions['I'].width = 15
+    ws.column_dimensions['J'].width = 15
+    ws.column_dimensions['K'].width = 15
+    ws.column_dimensions['L'].width = 15
+    ws.column_dimensions['M'].width = 22
+
+    # Add BISU Header
+    year_display = f' - FY {summary_year}' if summary_year != 'all' else ' - All Years'
+    current_row = add_bisu_header_to_excel(ws, title=f"BUDGET ALLOCATIONS REPORT{year_display}")
+
+    # Export info
+    from django.utils import timezone
+    ws.merge_cells(f'A{current_row}:M{current_row}')
+    info_cell = ws[f'A{current_row}']
+    info_cell.value = f"Generated on: {timezone.now().strftime('%B %d, %Y %I:%M %p')} | Total Records: {allocations.count()}"
+    info_cell.font = Font(italic=True, size=10, color="666666")
+    info_cell.alignment = Alignment(horizontal='center')
+    current_row += 2
+
+    # Headers
+    headers = [
+        'ID', 'Approved Budget', 'FY', 'MFO', 'Department', 'End User',
+        'Allocated (₱)', 'Remaining (₱)', 'PRE Used (₱)', 'PR Used (₱)',
+        'AD Used (₱)', 'Utilization %', 'Allocated At'
+    ]
+
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=current_row, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = thin_border
+
+    ws.row_dimensions[current_row].height = 25
+    current_row += 1
+
+    # Data rows
+    for allocation in allocations:
+        # Calculate total used (PR + AD, excluding PRE)
+        total_used = allocation.pr_amount_used + allocation.ad_amount_used
+        utilization = (total_used / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0
+
+        row_data = [
+            allocation.id,
+            allocation.approved_budget.title,
+            allocation.approved_budget.fiscal_year,
+            allocation.end_user.mfo or 'N/A',
+            allocation.department,
+            f"{allocation.end_user.fullname} ({allocation.end_user.username})",
+            float(allocation.allocated_amount),
+            float(allocation.calculated_remaining),
+            float(allocation.pre_amount_used),
+            float(allocation.pr_amount_used),
+            float(allocation.ad_amount_used),
+            round(utilization, 2),
+            allocation.allocated_at.strftime('%b %d, %Y %I:%M %p')
+        ]
+
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=current_row, column=col_num)
+            cell.value = value
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
+
+            # Format currency columns
+            if col_num in [7, 8, 9, 10, 11]:
+                cell.number_format = '#,##0.00'
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+
+            # Format percentage column with color coding
+            if col_num == 12:
+                cell.number_format = '0.00"%"'
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+
+                # Color code utilization
+                if utilization < 50:
+                    cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                    cell.font = Font(color="006100")
+                elif utilization < 80:
+                    cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+                    cell.font = Font(color="9C6500")
+                else:
+                    cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                    cell.font = Font(color="9C0006")
+
+            # Alternate row colors (don't override utilization coloring)
+            if current_row % 2 == 0 and col_num != 12:
+                cell.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+
+        current_row += 1
+
+    # Prepare response
+    year_text = f'FY_{summary_year}' if summary_year != 'all' else 'All_Years'
+    filename = f"Bulk_Allocations_Report_{year_text}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
+    return response
