@@ -3206,12 +3206,13 @@ def handle_activity_design_request(request, pk):
 
 @role_required('admin', login_url='/admin/')
 def export_ad_requests_excel(request):
-    """Export Activity Design requests to Excel with optional year filter"""
+    """Export Activity Design requests to Excel with BISU header and optional year filter"""
     from apps.budgets.models import ActivityDesign
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from django.http import HttpResponse
     from datetime import datetime
+    from apps.end_user_app.utils.bisu_header import add_bisu_header_to_excel
 
     # Get year filter from query params
     year_filter = request.GET.get('year')
@@ -3238,6 +3239,13 @@ def export_ad_requests_excel(request):
     ws = wb.active
     ws.title = "Activity Designs"
 
+    # Add BISU Header
+    try:
+        current_row = add_bisu_header_to_excel(ws, start_row=1)
+    except Exception as e:
+        print(f"Warning: Could not add BISU header: {e}")
+        current_row = 1
+
     # Styling
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -3250,19 +3258,21 @@ def export_ad_requests_excel(request):
         bottom=Side(style='thin')
     )
 
-    # Title
-    ws.merge_cells('A1:H1')
-    title_cell = ws['A1']
+    # Title (after BISU header)
+    title_row = current_row + 1
+    ws.merge_cells(f'A{title_row}:H{title_row}')
+    title_cell = ws[f'A{title_row}']
     title_cell.value = f"ACTIVITY DESIGN REQUESTS REPORT{title_suffix}"
     title_cell.font = title_font
     title_cell.alignment = Alignment(horizontal='center', vertical='center')
     title_cell.fill = title_fill
-    ws.row_dimensions[1].height = 30
+    ws.row_dimensions[title_row].height = 30
 
     # Headers
+    header_row = title_row + 2
     headers = ['AD Number', 'Department', 'Submitted By', 'Purpose', 'Total Amount', 'Funding Sources', 'Date Submitted', 'Status']
     for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=3, column=col_num)
+        cell = ws.cell(row=header_row, column=col_num)
         cell.value = header
         cell.font = header_font
         cell.fill = header_fill
@@ -3280,7 +3290,7 @@ def export_ad_requests_excel(request):
     ws.column_dimensions['H'].width = 18
 
     # Data rows
-    row_num = 4
+    row_num = header_row + 1
     for ad in ads:
         ws.cell(row=row_num, column=1, value=ad.ad_number).border = thin_border
         ws.cell(row=row_num, column=2, value=ad.department).border = thin_border
@@ -3332,13 +3342,225 @@ def export_ad_requests_excel(request):
 
 
 @role_required('admin', login_url='/admin/')
+def export_ad_pdf(request):
+    """Export Activity Design requests to PDF with BISU header"""
+    from apps.budgets.models import ActivityDesign
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+    from django.conf import settings
+    import os
+
+    # Get year filter from query params
+    year_filter = request.GET.get('year')
+
+    # Get all Activity Designs
+    ads = ActivityDesign.objects.select_related(
+        'submitted_by',
+        'budget_allocation',
+        'budget_allocation__approved_budget'
+    ).prefetch_related(
+        'pre_allocations',
+        'pre_allocations__pre_line_item'
+    ).order_by('-submitted_at')
+
+    # Apply year filter if provided
+    if year_filter and year_filter != 'all':
+        ads = ads.filter(submitted_at__year=year_filter)
+        title_suffix = f' - Year {year_filter}'
+        year_text = f'FY_{year_filter}'
+    else:
+        title_suffix = ' - All Years'
+        year_text = 'All_Years'
+
+    response = HttpResponse(content_type='application/pdf')
+    filename = f'Activity_Design_Requests_{year_text}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+    # Create PDF with landscape orientation
+    pdf_doc = SimpleDocTemplate(response, pagesize=landscape(A4), topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Add BISU Header
+    def add_bisu_header():
+        """Add BISU header with logos to the PDF"""
+        header_elements = []
+
+        # Logo paths
+        logo_dir = os.path.join(settings.BASE_DIR, 'apps', 'end_user_app', 'static', 'logos')
+        bisu_seal_path = os.path.join(logo_dir, 'bisu_seal.png')
+        bagong_pilipinas_path = os.path.join(logo_dir, 'bagong_pilipinas.png')
+        iso_cert_path = os.path.join(logo_dir, 'iso_cert.png')
+
+        # Create header table with logos and text
+        left_logo = Image(bisu_seal_path, width=0.7*inch, height=0.7*inch) if os.path.exists(bisu_seal_path) else ""
+        right_logo_1 = Image(bagong_pilipinas_path, width=0.7*inch, height=0.7*inch) if os.path.exists(bagong_pilipinas_path) else ""
+        right_logo_2 = Image(iso_cert_path, width=0.6*inch, height=0.7*inch) if os.path.exists(iso_cert_path) else ""
+
+        # BISU institutional text (centered)
+        bisu_text_style = ParagraphStyle(
+            'BISUText',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_CENTER,
+            leading=11
+        )
+
+        bisu_text = Paragraph("""
+            <para align="center">
+            Republic of the Philippines<br/>
+            <b>BOHOL ISLAND STATE UNIVERSITY</b><br/>
+            Magsija, Balilihan, 6342, Bohol, Philippines<br/>
+            <b>Office of the Administration and Finance</b><br/>
+            <i>Balance I Integrity I Stewardship I Uprightness</i>
+            </para>
+        """, bisu_text_style)
+
+        # Build header table: [Left Logo | Center Text | Right Logo 1 | Right Logo 2]
+        header_table_data = [[left_logo, bisu_text, right_logo_1, right_logo_2]]
+
+        header_table = Table(header_table_data, colWidths=[0.8*inch, 8*inch, 0.8*inch, 0.7*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('ALIGN', (2, 0), (3, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('LINEBELOW', (0, 0), (-1, -1), 2, colors.black),
+        ]))
+
+        header_elements.append(header_table)
+        header_elements.append(Spacer(1, 0.15*inch))
+
+        return header_elements
+
+    # Add BISU header to story
+    story.extend(add_bisu_header())
+
+    # Title style
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=14,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+
+    # Report title
+    story.append(Paragraph(f'ACTIVITY DESIGN REQUESTS REPORT{title_suffix}', title_style))
+    story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")} | Total Records: {ads.count()}', styles['Normal']))
+    story.append(Spacer(1, 15))
+
+    # Create AD table
+    table_data = [[
+        'AD Number', 'Department', 'Submitted By', 'Purpose',
+        'Total Amount', 'Funding Sources', 'Date Submitted', 'Status'
+    ]]
+
+    for ad in ads:
+        funding_count = ad.pre_allocations.count()
+        table_data.append([
+            ad.ad_number,
+            ad.department[:20],
+            ad.submitted_by.get_full_name()[:20],
+            ad.purpose[:35],
+            f'₱{ad.total_amount:,.0f}',
+            f'{funding_count} Line Item(s)',
+            ad.submitted_at.strftime("%b %d, %Y"),
+            ad.status
+        ])
+
+    # Column widths for landscape
+    col_widths = [0.9*inch, 1.2*inch, 1.2*inch, 2.5*inch, 0.9*inch, 1*inch, 1*inch, 1.1*inch]
+
+    ad_table = Table(table_data, colWidths=col_widths)
+
+    # Build style list dynamically
+    table_style_commands = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]
+
+    # Add color coding for status column
+    for i, ad in enumerate(ads, start=1):
+        if ad.status == 'Approved':
+            bg_color = colors.HexColor('#C6EFCE')
+            text_color = colors.HexColor('#006100')
+        elif ad.status == 'Pending':
+            bg_color = colors.HexColor('#FFEB9C')
+            text_color = colors.HexColor('#9C6500')
+        elif ad.status == 'Rejected':
+            bg_color = colors.HexColor('#FFC7CE')
+            text_color = colors.HexColor('#9C0006')
+        elif ad.status == 'Partially Approved':
+            bg_color = colors.HexColor('#BDD7EE')
+            text_color = colors.HexColor('#1F4E78')
+        else:
+            continue
+
+        table_style_commands.append(('BACKGROUND', (7, i), (7, i), bg_color))
+        table_style_commands.append(('TEXTCOLOR', (7, i), (7, i), text_color))
+
+    ad_table.setStyle(TableStyle(table_style_commands))
+    story.append(ad_table)
+
+    # Build PDF
+    pdf_doc.build(story)
+    return response
+
+
+@role_required('admin', login_url='/admin/')
+def preview_ad_report(request):
+    """Preview Activity Design report with PDF and Excel download options"""
+    from apps.budgets.models import ActivityDesign
+
+    year_filter = request.GET.get('year', 'all')
+
+    # Build URLs with year filter
+    if year_filter != 'all':
+        pdf_url = f"/admin/ad/report/pdf/?year={year_filter}"
+        excel_url = f"/admin/export-ad-excel/?year={year_filter}"
+        year_display = f"FY {year_filter}"
+    else:
+        pdf_url = "/admin/ad/report/pdf/"
+        excel_url = "/admin/export-ad-excel/"
+        year_display = "All Years"
+
+    context = {
+        'pdf_url': pdf_url,
+        'excel_url': excel_url,
+        'report_title': f'Activity Design Requests Report - {year_display}',
+        'generated_at': timezone.now().strftime('%B %d, %Y %I:%M %p'),
+        'selected_year': year_filter,
+        'total_count': ActivityDesign.objects.filter(
+            submitted_at__year=year_filter
+        ).count() if year_filter != 'all' else ActivityDesign.objects.count(),
+    }
+
+    return render(request, 'admin_panel/preview_ad_report.html', context)
+
+
+@role_required('admin', login_url='/admin/')
 def export_pr_requests_excel(request):
-    """Export Purchase Requests to Excel with optional year filter"""
+    """Export Purchase Requests to Excel with BISU header and optional year filter"""
     from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from django.http import HttpResponse
     from datetime import datetime
+    from apps.end_user_app.utils.bisu_header import add_bisu_header_to_excel
 
     # Get year filter from query params
     year_filter = request.GET.get('year')
@@ -3366,6 +3588,13 @@ def export_pr_requests_excel(request):
     ws = wb.active
     ws.title = "Purchase Requests"
 
+    # Add BISU Header
+    try:
+        current_row = add_bisu_header_to_excel(ws, start_row=1)
+    except Exception as e:
+        print(f"Warning: Could not add BISU header: {e}")
+        current_row = 1
+
     # Styling
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -3378,19 +3607,21 @@ def export_pr_requests_excel(request):
         bottom=Side(style='thin')
     )
 
-    # Title
-    ws.merge_cells('A1:G1')
-    title_cell = ws['A1']
+    # Title (after BISU header)
+    title_row = current_row + 1
+    ws.merge_cells(f'A{title_row}:G{title_row}')
+    title_cell = ws[f'A{title_row}']
     title_cell.value = f"PURCHASE REQUESTS REPORT{title_suffix}"
     title_cell.font = title_font
     title_cell.alignment = Alignment(horizontal='center', vertical='center')
     title_cell.fill = title_fill
-    ws.row_dimensions[1].height = 30
+    ws.row_dimensions[title_row].height = 30
 
     # Headers
+    header_row = title_row + 2
     headers = ['PR Number', 'Department', 'Submitted By', 'Purpose', 'Date Submitted', 'Status', 'Funding Sources']
     for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=3, column=col_num)
+        cell = ws.cell(row=header_row, column=col_num)
         cell.value = header
         cell.font = header_font
         cell.fill = header_fill
@@ -3407,7 +3638,7 @@ def export_pr_requests_excel(request):
     ws.column_dimensions['G'].width = 20
 
     # Data rows
-    row_num = 4
+    row_num = header_row + 1
     for pr in prs:
         ws.cell(row=row_num, column=1, value=pr.pr_number or 'N/A').border = thin_border
         ws.cell(row=row_num, column=2, value=pr.department).border = thin_border
@@ -3449,6 +3680,217 @@ def export_pr_requests_excel(request):
 
     wb.save(response)
     return response
+
+
+@role_required('admin', login_url='/admin/')
+def export_pr_pdf(request):
+    """Export Purchase Requests to PDF with BISU header"""
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+    from django.conf import settings
+    import os
+
+    # Get year filter from query params
+    year_filter = request.GET.get('year')
+
+    # Get all Purchase Requests
+    prs = NewPurchaseRequest.objects.select_related(
+        'submitted_by',
+        'budget_allocation__approved_budget',
+        'source_pre',
+        'source_line_item'
+    ).prefetch_related(
+        'supporting_documents',
+        'pre_allocations'
+    ).order_by('-created_at')
+
+    # Apply year filter if provided
+    if year_filter and year_filter != 'all':
+        prs = prs.filter(created_at__year=year_filter)
+        title_suffix = f' - Year {year_filter}'
+        year_text = f'FY_{year_filter}'
+    else:
+        title_suffix = ' - All Years'
+        year_text = 'All_Years'
+
+    response = HttpResponse(content_type='application/pdf')
+    filename = f'Purchase_Requests_{year_text}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+    # Create PDF with landscape orientation
+    pdf_doc = SimpleDocTemplate(response, pagesize=landscape(A4), topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Add BISU Header
+    def add_bisu_header():
+        """Add BISU header with logos to the PDF"""
+        header_elements = []
+
+        # Logo paths
+        logo_dir = os.path.join(settings.BASE_DIR, 'apps', 'end_user_app', 'static', 'logos')
+        bisu_seal_path = os.path.join(logo_dir, 'bisu_seal.png')
+        bagong_pilipinas_path = os.path.join(logo_dir, 'bagong_pilipinas.png')
+        iso_cert_path = os.path.join(logo_dir, 'iso_cert.png')
+
+        # Create header table with logos and text
+        left_logo = Image(bisu_seal_path, width=0.7*inch, height=0.7*inch) if os.path.exists(bisu_seal_path) else ""
+        right_logo_1 = Image(bagong_pilipinas_path, width=0.7*inch, height=0.7*inch) if os.path.exists(bagong_pilipinas_path) else ""
+        right_logo_2 = Image(iso_cert_path, width=0.6*inch, height=0.7*inch) if os.path.exists(iso_cert_path) else ""
+
+        # BISU institutional text (centered)
+        bisu_text_style = ParagraphStyle(
+            'BISUText',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_CENTER,
+            leading=11
+        )
+
+        bisu_text = Paragraph("""
+            <para align="center">
+            Republic of the Philippines<br/>
+            <b>BOHOL ISLAND STATE UNIVERSITY</b><br/>
+            Magsija, Balilihan, 6342, Bohol, Philippines<br/>
+            <b>Office of the Administration and Finance</b><br/>
+            <i>Balance I Integrity I Stewardship I Uprightness</i>
+            </para>
+        """, bisu_text_style)
+
+        # Build header table: [Left Logo | Center Text | Right Logo 1 | Right Logo 2]
+        header_table_data = [[left_logo, bisu_text, right_logo_1, right_logo_2]]
+
+        header_table = Table(header_table_data, colWidths=[0.8*inch, 8*inch, 0.8*inch, 0.7*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('ALIGN', (2, 0), (3, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('LINEBELOW', (0, 0), (-1, -1), 2, colors.black),
+        ]))
+
+        header_elements.append(header_table)
+        header_elements.append(Spacer(1, 0.15*inch))
+
+        return header_elements
+
+    # Add BISU header to story
+    story.extend(add_bisu_header())
+
+    # Title style
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=14,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+
+    # Report title
+    story.append(Paragraph(f'PURCHASE REQUESTS REPORT{title_suffix}', title_style))
+    story.append(Paragraph(f'Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")} | Total Records: {prs.count()}', styles['Normal']))
+    story.append(Spacer(1, 15))
+
+    # Create PR table
+    table_data = [[
+        'PR Number', 'Department', 'Submitted By', 'Purpose',
+        'Date Submitted', 'Status', 'Funding Sources'
+    ]]
+
+    for pr in prs:
+        funding_count = pr.pre_allocations.count()
+        table_data.append([
+            pr.pr_number or 'N/A',
+            pr.department[:20],
+            pr.submitted_by.fullname[:20],
+            pr.purpose[:35],
+            pr.created_at.strftime("%b %d, %Y"),
+            pr.status,
+            f'{funding_count} Line Item(s)'
+        ])
+
+    # Column widths for landscape
+    col_widths = [1.1*inch, 1.3*inch, 1.3*inch, 2.5*inch, 1*inch, 1.1*inch, 1.1*inch]
+
+    pr_table = Table(table_data, colWidths=col_widths)
+
+    # Build style list dynamically
+    table_style_commands = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]
+
+    # Add color coding for status column
+    for i, pr in enumerate(prs, start=1):
+        if pr.status == 'Approved':
+            bg_color = colors.HexColor('#C6EFCE')
+            text_color = colors.HexColor('#006100')
+        elif pr.status == 'Pending':
+            bg_color = colors.HexColor('#FFEB9C')
+            text_color = colors.HexColor('#9C6500')
+        elif pr.status == 'Rejected':
+            bg_color = colors.HexColor('#FFC7CE')
+            text_color = colors.HexColor('#9C0006')
+        elif pr.status == 'Partially Approved':
+            bg_color = colors.HexColor('#BDD7EE')
+            text_color = colors.HexColor('#1F4E78')
+        else:
+            continue
+
+        table_style_commands.append(('BACKGROUND', (5, i), (5, i), bg_color))
+        table_style_commands.append(('TEXTCOLOR', (5, i), (5, i), text_color))
+
+    pr_table.setStyle(TableStyle(table_style_commands))
+    story.append(pr_table)
+
+    # Build PDF
+    pdf_doc.build(story)
+    return response
+
+
+@role_required('admin', login_url='/admin/')
+def preview_pr_report(request):
+    """Preview Purchase Request report with PDF and Excel download options"""
+    from apps.budgets.models import PurchaseRequest as NewPurchaseRequest
+
+    year_filter = request.GET.get('year', 'all')
+
+    # Build URLs with year filter
+    if year_filter != 'all':
+        pdf_url = f"/admin/pr/report/pdf/?year={year_filter}"
+        excel_url = f"/admin/export-pr-excel/?year={year_filter}"
+        year_display = f"FY {year_filter}"
+    else:
+        pdf_url = "/admin/pr/report/pdf/"
+        excel_url = "/admin/export-pr-excel/"
+        year_display = "All Years"
+
+    context = {
+        'pdf_url': pdf_url,
+        'excel_url': excel_url,
+        'report_title': f'Purchase Requests Report - {year_display}',
+        'generated_at': timezone.now().strftime('%B %d, %Y %I:%M %p'),
+        'selected_year': year_filter,
+        'total_count': NewPurchaseRequest.objects.filter(
+            created_at__year=year_filter
+        ).count() if year_filter != 'all' else NewPurchaseRequest.objects.count(),
+    }
+
+    return render(request, 'admin_panel/preview_pr_report.html', context)
 
 
 @role_required('admin', login_url='/admin/')
@@ -5427,11 +5869,12 @@ def bulk_user_action_ajax(request):
 
 @role_required('admin', login_url='/admin/')
 def export_users_excel(request):
-    """Export users to Excel file"""
+    """Export users to Excel file with BISU header"""
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
         from openpyxl.utils import get_column_letter
+        from apps.end_user_app.utils.bisu_header import add_bisu_header_to_excel
 
         # Get all non-staff users
         users = User.objects.filter(is_staff=False).order_by('department', 'fullname')
@@ -5441,9 +5884,18 @@ def export_users_excel(request):
         ws = wb.active
         ws.title = "Users"
 
+        # Add BISU Header
+        try:
+            current_row = add_bisu_header_to_excel(ws, start_row=1)
+        except Exception as e:
+            print(f"Warning: Could not add BISU header: {e}")
+            current_row = 1
+
         # Define styles
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         header_font = Font(bold=True, color="FFFFFF", size=12)
+        title_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+        title_font = Font(bold=True, size=14, color="FFFFFF")
         border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
@@ -5451,10 +5903,21 @@ def export_users_excel(request):
             bottom=Side(style='thin')
         )
 
+        # Title (after BISU header)
+        title_row = current_row + 1
+        ws.merge_cells(f'A{title_row}:J{title_row}')
+        title_cell = ws[f'A{title_row}']
+        title_cell.value = "USER MANAGEMENT REPORT"
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        title_cell.fill = title_fill
+        ws.row_dimensions[title_row].height = 30
+
         # Headers
+        header_row = title_row + 2
         headers = ['Full Name', 'Username', 'Email', 'Department', 'MFO', 'Position', 'Role', 'Status', 'Last Login', 'Created At']
         for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_num)
+            cell = ws.cell(row=header_row, column=col_num)
             cell.value = header
             cell.fill = header_fill
             cell.font = header_font
@@ -5462,7 +5925,8 @@ def export_users_excel(request):
             cell.border = border
 
         # Data rows
-        for row_num, user in enumerate(users, 2):
+        row_num = header_row + 1
+        for user in users:
             role = 'Approving Officer' if user.is_approving_officer else 'End User'
             status = 'Active' if user.is_active else 'Inactive'
             last_login = user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never'
@@ -5487,18 +5951,36 @@ def export_users_excel(request):
                 cell.border = border
                 cell.alignment = Alignment(horizontal='left', vertical='center')
 
+                # Color code status column
+                if col_num == 8:  # Status column
+                    if value == 'Active':
+                        cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                    else:
+                        cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
+            row_num += 1
+
+        # Summary row
+        summary_row = row_num + 1
+        ws.cell(row=summary_row, column=1, value="TOTAL USERS:").font = Font(bold=True)
+        ws.cell(row=summary_row, column=2, value=users.count()).font = Font(bold=True)
+
+        # Footer
+        from datetime import datetime
+        footer_row = summary_row + 2
+        ws.cell(row=footer_row, column=1, value=f"Generated on: {datetime.now().strftime('%B %d, %Y %I:%M %p')}")
+
         # Adjust column widths
-        for column in ws.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
+        ws.column_dimensions['A'].width = 25
+        ws.column_dimensions['B'].width = 20
+        ws.column_dimensions['C'].width = 30
+        ws.column_dimensions['D'].width = 25
+        ws.column_dimensions['E'].width = 15
+        ws.column_dimensions['F'].width = 25
+        ws.column_dimensions['G'].width = 20
+        ws.column_dimensions['H'].width = 15
+        ws.column_dimensions['I'].width = 20
+        ws.column_dimensions['J'].width = 20
 
         # Prepare response
         response = HttpResponse(

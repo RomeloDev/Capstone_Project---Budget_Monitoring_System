@@ -13,6 +13,9 @@ urlpatterns = [
     path('pr/<uuid:pr_id>/preview/', views.admin_preview_pr, name='admin_preview_pr'),
     path('pr/<uuid:request_id>/handle/', views.handle_departments_request, name='handle_purchase_request'),
     path('pr/export-excel/', views.export_pr_requests_excel, name='export_pr_requests_excel'),
+    path('pr/report/preview/', views.preview_pr_report, name='preview_pr_report'),
+    path('pr/report/pdf/', views.export_pr_pdf, name='export_pr_pdf'),
+    path('export-pr-excel/', views.export_pr_requests_excel, name='export_pr_excel'),
     path('institutional-funds/', views.institutional_funds, name='institutional_funds'),
     path('admin_logout/', views.admin_logout, name='admin_logout'),
     path('registration/', views.register_account, name='register_account'),
@@ -30,6 +33,9 @@ urlpatterns = [
     path('ad/<uuid:pk>/handle/', views.handle_activity_design_request, name='handle_activity_design_request'),
     path('ad/<uuid:ad_id>/upload-signed-copy/', views.admin_upload_ad_signed_copy, name='admin_upload_ad_signed_copy'),
     path('ad/export-excel/', views.export_ad_requests_excel, name='export_ad_requests_excel'),
+    path('ad/report/preview/', views.preview_ad_report, name='preview_ad_report'),
+    path('ad/report/pdf/', views.export_ad_pdf, name='export_ad_pdf'),
+    path('export-ad-excel/', views.export_ad_requests_excel, name='export_ad_excel'),
 
     # Legacy AD URLs (keep for backwards compatibility)
     path('department_activity_design/', views.departments_ad_request, name='department_activity_design'),
