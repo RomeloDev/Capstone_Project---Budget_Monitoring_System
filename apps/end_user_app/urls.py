@@ -25,6 +25,9 @@ urlpatterns = [
     path('pre_budget_realignment/', views.pre_budget_realignment, name='pre_budget_realignment'),
     path('realignment_history/', views.realignment_history, name='realignment_history'),
     path('realignment/<int:pk>/download-pdf/', views.download_realignment_pdf_enduser, name='download_realignment_pdf_enduser'),
+    # Budget Realignment - New workflow endpoints
+    path('api/get-realtime-amounts/', views.get_realtime_line_item_amounts, name='get_realtime_line_item_amounts'),
+    path('realignment/upload-signed-document/<int:pk>/', views.upload_realignment_signed_document, name='upload_realignment_signed_document'),
     path('download_activity_design/<int:pk>/', views.download_activity_design_word, name='download_activity_design_word'),
     path('inspect_excel_template/', views.inspect_excel_template, name='inspect_excel_template'), 
     path('download_pre_excel/<int:pk>/', views.download_pre_excel, name='download_pre_excel'),

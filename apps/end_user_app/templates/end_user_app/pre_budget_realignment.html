@@ -281,23 +281,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let sourceQuarters = {};
 
-    // Handle source category change
-    sourceSelect.addEventListener('change', function() {
-        const selectedOption = this.selectedOptions[0];
+    // Handle source category change (WITH REALTIME AJAX)
+    sourceSelect.addEventListener('change', async function() {
+        const selectedValue = this.value;
 
-        if (selectedOption && selectedOption.value) {
+        if (selectedValue) {
+            // Split the value to get pre_id and item_key
+            const [preId, itemKey] = selectedValue.split('|');
+
+            // Show loading state
+            sourceQuartersDisplay.innerHTML = '<div class="col-span-4 text-center text-gray-500">Loading realtime amounts...</div>';
+            sourceQuarterlyInfo.classList.remove('hidden');
+
             try {
-                sourceQuarters = JSON.parse(selectedOption.dataset.quarters || '{}');
-                displaySourceQuarters();
-                updateQuarterlyInputs();
-                sourceQuarterlyInfo.classList.remove('hidden');
+                // Fetch real-time amounts via AJAX
+                const response = await fetch(`/end_user/api/get-realtime-amounts/?pre_id=${preId}&item_key=${itemKey}`);
+                const data = await response.json();
 
-                if (targetSelect.value) {
-                    quarterlySection.classList.remove('hidden');
+                if (data.success) {
+                    sourceQuarters = data.quarters;
+                    displaySourceQuarters();
+                    updateQuarterlyInputs();
+
+                    if (targetSelect.value) {
+                        quarterlySection.classList.remove('hidden');
+                    }
+                } else {
+                    console.error('Error fetching amounts:', data.error);
+                    alert('Failed to load current available amounts. Please try again.');
+                    sourceQuarterlyInfo.classList.add('hidden');
                 }
-            } catch (e) {
-                console.error('Error parsing quarters data:', e);
-                sourceQuarters = {};
+            } catch (error) {
+                console.error('AJAX Error:', error);
+                alert('Network error while fetching amounts. Please refresh the page.');
+                sourceQuarterlyInfo.classList.add('hidden');
             }
         } else {
             sourceQuarterlyInfo.classList.add('hidden');

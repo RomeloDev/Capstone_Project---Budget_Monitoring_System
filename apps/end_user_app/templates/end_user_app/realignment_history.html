@@ -181,6 +181,8 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                     {% if request.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                                    {% elif request.status == 'Partially Approved' %}bg-blue-100 text-blue-800
+                                    {% elif request.status == 'Awaiting Admin Verification' %}bg-purple-100 text-purple-800
                                     {% elif request.status == 'Approved' %}bg-green-100 text-green-800
                                     {% elif request.status == 'Rejected' %}bg-red-100 text-red-800
                                     {% else %}bg-gray-100 text-gray-800{% endif %}">
@@ -230,6 +232,66 @@
                                         <h5 class="font-medium text-gray-700 mb-2">Reason</h5>
                                         <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded">{{ request.reason }}</p>
                                     </div>
+
+                                    <!-- Partially Approved - Upload UI -->
+                                    {% if request.status == 'Partially Approved' and request.partially_approved_pdf %}
+                                    <div class="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                                        <div class="flex items-start">
+                                            <div class="flex-shrink-0">
+                                                <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                                </svg>
+                                            </div>
+                                            <div class="ml-3 flex-1">
+                                                <h3 class="text-sm font-medium text-yellow-800">Action Required</h3>
+                                                <div class="mt-2 text-sm text-yellow-700">
+                                                    <p>Your realignment has been partially approved. Please:</p>
+                                                    <ol class="list-decimal list-inside mt-2 space-y-1">
+                                                        <li>Download the partially approved PDF</li>
+                                                        <li>Get it signed by the approving officer</li>
+                                                        <li>Upload the signed document below</li>
+                                                    </ol>
+                                                </div>
+                                                <div class="mt-4 flex gap-3">
+                                                    <a href="{% url 'download_realignment_pdf_enduser' request.id %}"
+                                                       class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 transition">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                                        </svg>
+                                                        Download PDF
+                                                    </a>
+                                                    <button onclick="openUploadModal({{ request.id }})"
+                                                            class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                                        </svg>
+                                                        Upload Signed Document
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Awaiting Admin Verification - Show Uploaded Document -->
+                                    {% if request.status == 'Awaiting Admin Verification' and request.end_user_uploaded_document %}
+                                    <div class="mt-4 bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                                        <div class="flex items-start">
+                                            <div class="flex-shrink-0">
+                                                <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                </svg>
+                                            </div>
+                                            <div class="ml-3">
+                                                <h3 class="text-sm font-medium text-blue-800">Document Submitted</h3>
+                                                <p class="mt-1 text-sm text-blue-700">
+                                                    Your signed document has been uploaded on {{ request.end_user_uploaded_at|date:"M d, Y H:i" }}.
+                                                    Awaiting admin verification and final approval.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>
@@ -308,7 +370,47 @@
     </div>
 </main>
 
+<!-- Upload Modal -->
+<div id="uploadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-gray-900">Upload Signed Document</h3>
+            <button onclick="closeUploadModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <form id="uploadForm" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Select Signed Document <span class="text-red-500">*</span>
+                </label>
+                <input type="file" name="signed_document" id="signedDocument"
+                       accept=".pdf,.jpg,.jpeg,.png"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       required>
+                <p class="text-xs text-gray-500 mt-1">Accepted formats: PDF, JPG, JPEG, PNG (Max 10MB)</p>
+                <div id="fileInfo" class="mt-2 text-sm text-gray-600"></div>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="closeUploadModal()"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                    Upload Document
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+let currentRealignmentId = null;
+
 function showDetails(requestId) {
     const detailsRow = document.getElementById(`details-${requestId}`);
     if (detailsRow.classList.contains('hidden')) {
@@ -322,5 +424,44 @@ function showDetails(requestId) {
         detailsRow.classList.add('hidden');
     }
 }
+
+function openUploadModal(realignmentId) {
+    currentRealignmentId = realignmentId;
+    const form = document.getElementById('uploadForm');
+    form.action = `/end_user/realignment/upload-signed-document/${realignmentId}/`;
+    document.getElementById('uploadModal').classList.remove('hidden');
+}
+
+function closeUploadModal() {
+    document.getElementById('uploadModal').classList.add('hidden');
+    document.getElementById('uploadForm').reset();
+    document.getElementById('fileInfo').innerHTML = '';
+    currentRealignmentId = null;
+}
+
+// Show file info when file is selected
+document.getElementById('signedDocument').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const fileInfo = document.getElementById('fileInfo');
+
+    if (file) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        fileInfo.innerHTML = `<strong>Selected:</strong> ${file.name} (${sizeMB} MB)`;
+
+        // Validate file size
+        if (file.size > 10 * 1024 * 1024) {
+            fileInfo.innerHTML += '<br><span class="text-red-600">⚠ File size exceeds 10MB limit</span>';
+        }
+    } else {
+        fileInfo.innerHTML = '';
+    }
+});
+
+// Close modal when clicking outside
+document.getElementById('uploadModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeUploadModal();
+    }
+});
 </script>
 {% endblock main-content %}

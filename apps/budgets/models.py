@@ -2698,14 +2698,15 @@ class PREBudgetRealignment(models.Model):
     STATUS_CHOICES = [
         ('Draft', 'Draft'),
         ('Pending', 'Pending'),
-        ('Approved', 'Approved'),
         ('Partially Approved', 'Partially Approved'),
+        ('Awaiting Admin Verification', 'Awaiting Admin Verification'),
+        ('Approved', 'Approved'),
         ('Rejected', 'Rejected'),
     ]
 
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="pre_realignment_requests")
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pre_realignment_approvals")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
     reason = models.TextField(blank=True)
 
     # Timestamps
@@ -2743,6 +2744,16 @@ class PREBudgetRealignment(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
         help_text="Scanned copy of signed budget realignment"
     )
+
+    # End user uploaded document (NEW - follows PR workflow)
+    end_user_uploaded_document = models.FileField(
+        upload_to='br_end_user_uploads/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text="Signed document uploaded by end user after partial approval"
+    )
+    end_user_uploaded_at = models.DateTimeField(null=True, blank=True)
 
     # Admin notes and rejection
     admin_notes = models.TextField(blank=True)

@@ -4046,6 +4046,96 @@ def handle_pre_realignment_admin_action(request, pk):
             except Exception as e:
                 messages.error(request, f'Error during final approval: {str(e)}')
 
+        elif action == 'verify_and_approve':
+            # Step 2b: Verify and Approve - For end user uploaded documents
+            # This is triggered when end user uploads signed document after partial approval
+
+            if realignment.status != 'Awaiting Admin Verification':
+                messages.error(request, 'This realignment is not awaiting verification.')
+                return redirect('pre_budget_realignment_detail', pk=pk)
+
+            if not realignment.end_user_uploaded_document:
+                messages.error(request, 'No uploaded document found to verify.')
+                return redirect('pre_budget_realignment_detail', pk=pk)
+
+            try:
+                with transaction.atomic():
+                    # Execute the budget transfer - similar to final_approve
+                    realignment.status = 'Approved'
+                    realignment.admin_approved_by = request.user
+                    realignment.approved_at = timezone.now()
+                    realignment.approved_by = request.user
+
+                    # Update source line item (deduct amounts)
+                    source_item = realignment.source_item
+                    if realignment.q1_amount:
+                        source_item.q1_amount -= realignment.q1_amount
+                    if realignment.q2_amount:
+                        source_item.q2_amount -= realignment.q2_amount
+                    if realignment.q3_amount:
+                        source_item.q3_amount -= realignment.q3_amount
+                    if realignment.q4_amount:
+                        source_item.q4_amount -= realignment.q4_amount
+                    source_item.save()
+
+                    # Update target line item (add amounts)
+                    target_item = realignment.target_item
+                    if realignment.q1_amount:
+                        target_item.q1_amount += realignment.q1_amount
+                    if realignment.q2_amount:
+                        target_item.q2_amount += realignment.q2_amount
+                    if realignment.q3_amount:
+                        target_item.q3_amount += realignment.q3_amount
+                    if realignment.q4_amount:
+                        target_item.q4_amount += realignment.q4_amount
+                    target_item.save()
+
+                    realignment.save()
+
+                    # Add transaction log for source (deduction)
+                    from apps.budgets.models import BudgetTransactionLog
+
+                    if realignment.source_pre.budget_allocation:
+                        BudgetTransactionLog.objects.create(
+                            allocation=realignment.source_pre.budget_allocation,
+                            transaction_type='REALIGNMENT_APPROVED',
+                            amount_change=-realignment.get_total_amount(),
+                            previous_balance=realignment.source_pre.budget_allocation.remaining_balance + realignment.get_total_amount(),
+                            new_balance=realignment.source_pre.budget_allocation.remaining_balance,
+                            related_document_type='BUDGET_REALIGNMENT',
+                            related_document_id=str(realignment.id),
+                            created_by=request.user,
+                            notes=f'Budget realignment verified & approved: Transferred ₱{realignment.get_total_amount():,.2f} from {realignment.source_item_display} to {realignment.target_item_display}'
+                        )
+
+                    # Log for target (addition)
+                    if realignment.target_pre.budget_allocation:
+                        BudgetTransactionLog.objects.create(
+                            allocation=realignment.target_pre.budget_allocation,
+                            transaction_type='REALIGNMENT_APPROVED',
+                            amount_change=realignment.get_total_amount(),
+                            previous_balance=realignment.target_pre.budget_allocation.remaining_balance - realignment.get_total_amount(),
+                            new_balance=realignment.target_pre.budget_allocation.remaining_balance,
+                            related_document_type='BUDGET_REALIGNMENT',
+                            related_document_id=str(realignment.id),
+                            created_by=request.user,
+                            notes=f'Budget realignment verified & approved: Received ₱{realignment.get_total_amount():,.2f} from {realignment.source_item_display} to {realignment.target_item_display}'
+                        )
+
+                    # Log audit trail
+                    log_audit_trail(
+                        request=request,
+                        action='VERIFY_AND_APPROVE',
+                        model_name='PREBudgetRealignment',
+                        record_id=realignment.id,
+                        detail=f'Verified end user document and approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.get_total_amount():,.2f})',
+                    )
+
+                    messages.success(request, 'Document verified and budget realignment approved successfully. Budget has been transferred.')
+
+            except Exception as e:
+                messages.error(request, f'Error during verification and approval: {str(e)}')
+
         elif action == 'reject':
             rejection_reason = request.POST.get('rejection_reason', '').strip()
 
@@ -4101,7 +4191,8 @@ def pre_budget_realignment_detail(request, pk):
         'signed_documents': signed_documents,
         'can_partial_approve': realignment.status == 'Pending',
         'can_final_approve': realignment.status == 'Partially Approved',
-        'can_reject': realignment.status in ['Pending', 'Partially Approved'],
+        'can_verify_and_approve': realignment.status == 'Awaiting Admin Verification' and realignment.end_user_uploaded_document,
+        'can_reject': realignment.status in ['Pending', 'Partially Approved', 'Awaiting Admin Verification'],
     }
 
     return render(request, 'admin_panel/pre_budget_realignment_detail.html', context)

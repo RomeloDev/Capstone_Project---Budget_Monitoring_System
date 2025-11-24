@@ -3385,19 +3385,43 @@ def pre_budget_realignment(request):
                 label = f"{item.category.name} - {item.item_name}"
 
             # Calculate quarterly data from NEW model structure
+            # IMPORTANT: Must account for consumed, reserved, and pending realignments
             quarters_json = {}
             total_remaining = Decimal('0')
 
-            for quarter in ['q1', 'q2', 'q3', 'q4']:
-                allocated = getattr(item, f'{quarter}_amount', Decimal('0'))
-                consumed = item.get_quarter_consumed(quarter)
-                remaining = allocated - consumed
+            for quarter_lower in ['q1', 'q2', 'q3', 'q4']:
+                quarter_upper = quarter_lower.upper()  # Convert to 'Q1', 'Q2', 'Q3', 'Q4' for model methods
+
+                # Use lowercase for model field access (q1_amount, q2_amount, etc.)
+                allocated = getattr(item, f'{quarter_lower}_amount', Decimal('0'))
+
+                # Use uppercase for model methods (expects 'Q1', 'Q2', etc.)
+                consumed = item.get_quarter_consumed(quarter_upper)
+                reserved = item.get_quarter_reserved(quarter_upper)
+
+                # Calculate pending realignment deductions for this line item
+                pending_realignments = PREBudgetRealignment.objects.filter(
+                    source_item_key=item_key,
+                    source_pre=item.pre,
+                    status__in=['Pending', 'Partially Approved', 'Awaiting Admin Verification'],
+                    requested_by=request.user
+                )
+
+                pending_amount = sum(
+                    getattr(r, f'{quarter_lower}_amount', Decimal('0'))
+                    for r in pending_realignments
+                )
+
+                # Calculate actual remaining amount (allocated - consumed - reserved - pending realignments)
+                remaining = allocated - consumed - reserved - pending_amount
                 total_remaining += remaining
 
-                quarters_json[quarter] = {
+                quarters_json[quarter_lower] = {
                     'allocated': float(allocated),
                     'consumed': float(consumed),
-                    'remaining': float(remaining)
+                    'reserved': float(reserved),
+                    'pending': float(pending_amount),
+                    'remaining': float(max(remaining, 0))
                 }
 
             # Only add line items with remaining budget
@@ -3548,6 +3572,79 @@ def pre_budget_realignment(request):
 
     return render(request, "end_user_app/pre_budget_realignment.html", context)
 
+
+@require_http_methods(["GET"])
+@role_required('end_user', login_url='/')
+def get_realtime_line_item_amounts(request):
+    """
+    AJAX endpoint to get real-time available amounts for a line item
+    Accounts for:
+    - Allocated amounts
+    - Consumed amounts (PR/AD allocations)
+    - Pending realignments (source deductions not yet executed)
+    - Partially approved realignments (source deductions not yet executed)
+    """
+    from django.http import JsonResponse
+
+    pre_id = request.GET.get('pre_id')
+    item_key = request.GET.get('item_key')
+
+    if not pre_id or not item_key:
+        return JsonResponse({'success': False, 'error': 'Missing pre_id or item_key'}, status=400)
+
+    try:
+        # Get the line item
+        line_item = PRELineItem.objects.get(id=item_key, pre_id=pre_id)
+
+        # Verify ownership
+        if line_item.pre.submitted_by != request.user:
+            return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+
+        quarterly_data = {}
+
+        for quarter_lower in ['q1', 'q2', 'q3', 'q4']:
+            quarter_upper = quarter_lower.upper()  # Convert to 'Q1', 'Q2', 'Q3', 'Q4' for model methods
+
+            # Get allocated amount (use lowercase for field access)
+            allocated = getattr(line_item, f'{quarter_lower}_amount', Decimal('0'))
+
+            # Get consumed and reserved amounts (use uppercase for model methods)
+            consumed = line_item.get_quarter_consumed(quarter_upper)
+            reserved = line_item.get_quarter_reserved(quarter_upper)
+
+            # Calculate pending realignment deductions
+            # Get realignments that are Pending, Partially Approved, or Awaiting Admin Verification (not yet executed)
+            pending_realignments = PREBudgetRealignment.objects.filter(
+                source_item_key=item_key,
+                source_pre=line_item.pre,
+                status__in=['Pending', 'Partially Approved', 'Awaiting Admin Verification'],
+                requested_by=request.user
+            )
+
+            pending_amount = sum(
+                getattr(r, f'{quarter_lower}_amount', Decimal('0'))
+                for r in pending_realignments
+            )
+
+            # Calculate TRUE remaining amount (allocated - consumed - reserved - pending realignments)
+            remaining = allocated - consumed - reserved - pending_amount
+
+            quarterly_data[quarter_lower] = {
+                'allocated': float(allocated),
+                'consumed': float(consumed),
+                'reserved': float(reserved),
+                'pending': float(pending_amount),
+                'remaining': float(max(remaining, 0))  # Don't show negative
+            }
+
+        return JsonResponse({'success': True, 'quarters': quarterly_data})
+
+    except PRELineItem.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Line item not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 @role_required('end_user', login_url='/')
 def realignment_history(request):
     """View for displaying user's budget realignment history"""
@@ -3611,6 +3708,70 @@ def download_realignment_pdf_enduser(request, pk):
     except Exception as e:
         messages.error(request, f"Error downloading PDF: {str(e)}")
         return redirect('realignment_history')
+
+
+@role_required('end_user', login_url='/')
+def upload_realignment_signed_document(request, pk):
+    """
+    End user uploads signed document after partial approval
+    Transitions status to 'Awaiting Admin Verification'
+    """
+    realignment = get_object_or_404(
+        PREBudgetRealignment,
+        pk=pk,
+        requested_by=request.user,
+        status='Partially Approved'
+    )
+
+    if request.method == 'POST':
+        uploaded_file = request.FILES.get('signed_document')
+
+        if not uploaded_file:
+            messages.error(request, "Please select a file to upload.")
+            return redirect('realignment_history')
+
+        # Validate file extension
+        allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
+        file_ext = uploaded_file.name.split('.')[-1].lower()
+
+        if file_ext not in allowed_extensions:
+            messages.error(request, f"Invalid file format. Allowed formats: {', '.join(allowed_extensions).upper()}")
+            return redirect('realignment_history')
+
+        # Validate file size (max 10MB)
+        max_size = 10 * 1024 * 1024  # 10MB in bytes
+        if uploaded_file.size > max_size:
+            messages.error(request, "File size exceeds 10MB limit. Please upload a smaller file.")
+            return redirect('realignment_history')
+
+        try:
+            # Save file and update status
+            realignment.end_user_uploaded_document = uploaded_file
+            realignment.end_user_uploaded_at = timezone.now()
+            realignment.status = 'Awaiting Admin Verification'
+            realignment.save()
+
+            # Log audit trail
+            log_audit_trail(
+                request=request,
+                action='UPDATE',
+                model_name='PREBudgetRealignment',
+                record_id=realignment.id,
+                detail=f"End user uploaded signed document for budget realignment #{realignment.id}"
+            )
+
+            messages.success(request, "Signed document uploaded successfully! Your request is now awaiting admin verification.")
+            return redirect('realignment_history')
+
+        except Exception as e:
+            messages.error(request, f"Error uploading document: {str(e)}")
+            return redirect('realignment_history')
+
+    # GET request - show upload form
+    return render(request, 'end_user_app/upload_realignment_document.html', {
+        'realignment': realignment
+    })
+
 
 @role_required('end_user', login_url='/')
 def download_activity_design_word(request, pk):

@@ -1,5 +1,6 @@
 {% extends "admin_base_template/dashboard.html" %}
 {% load humanize %}
+{% load custom_filters %}
 
 {% block title %}Budget Realignment Details - Request #{{ realignment.id }}{% endblock %}
 
@@ -71,6 +72,68 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             Reject
+          </button>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Awaiting Admin Verification Section (NEW) -->
+    {% if realignment.status == 'Awaiting Admin Verification' and realignment.end_user_uploaded_document %}
+    <section class="bg-purple-50 border-l-4 border-purple-500 p-6 rounded-lg shadow-md mb-6">
+      <div class="flex items-start justify-between">
+        <div class="flex-1">
+          <h2 class="text-lg font-semibold text-purple-800 mb-2 flex items-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Awaiting Verification - End User Document Uploaded
+          </h2>
+          <p class="text-purple-700 text-sm mb-4">
+            The end user has uploaded a signed document. Please review and verify the document below before fully approving the budget realignment.
+          </p>
+
+          <!-- Show uploaded document -->
+          <div class="bg-white p-4 rounded-lg border border-purple-200 mb-4">
+            <h3 class="font-semibold text-gray-800 mb-2">Uploaded Signed Document:</h3>
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-sm text-gray-600">
+                <div><strong>Uploaded by:</strong> {{ realignment.requested_by.get_full_name|default:realignment.requested_by.username }}</div>
+                <div><strong>Upload date:</strong> {{ realignment.end_user_uploaded_at|date:"M d, Y H:i" }}</div>
+                <div><strong>File:</strong> {{ realignment.end_user_uploaded_document.name|basename }}</div>
+              </div>
+              <a href="{{ realignment.end_user_uploaded_document.url }}" target="_blank"
+                 class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+                View Document
+              </a>
+            </div>
+          </div>
+
+          <!-- Verify & Approve Button -->
+          <form method="POST" action="{% url 'handle_pre_realignment_admin_action' realignment.id %}" class="mb-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="verify_and_approve">
+            <button type="submit"
+                    onclick="return confirm('Verify and fully approve this budget realignment? The budget transfer will be executed immediately and cannot be undone.')"
+                    class="w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold flex items-center justify-center">
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Verify & Fully Approve (Execute Budget Transfer)
+            </button>
+          </form>
+
+          <!-- Reject Option -->
+          <button onclick="openRejectModal()"
+                  class="w-full border-2 border-red-600 text-red-600 px-6 py-3 rounded-lg hover:bg-red-50 transition font-semibold">
+            <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Reject Document
           </button>
         </div>
       </div>
