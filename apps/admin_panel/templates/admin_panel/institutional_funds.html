@@ -172,8 +172,8 @@
                             <td class="py-2 px-4 border-b">{{ budget.id }}</td>
                             <td class="py-2 px-4 border-b">{{ budget.title }}</td>
                             <td class="py-2 px-4 border-b">{{ budget.fiscal_year }}</td>
-                            <td class="py-2 px-4 border-b">₱{{ budget.amount|intcomma }}</td>
-                            <td class="py-2 px-4 border-b">₱{{ budget.remaining_budget|intcomma }}</td>
+                            <td class="py-2 px-4 border-b">₱{{ budget.amount|floatformat:2|intcomma }}</td>
+                            <td class="py-2 px-4 border-b">₱{{ budget.remaining_budget|floatformat:2|intcomma }}</td>
                             <td class="py-2 px-4 border-b">
                                 {% if budget.supporting_documents.exists %}
                                     <button onclick="showDocuments({{ budget.id }})" 

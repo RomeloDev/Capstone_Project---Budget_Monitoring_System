@@ -1335,7 +1335,7 @@ def budget_allocation(request):
     if total_allocated > 0:
         utilization_rate = round((total_used / total_allocated) * 100, 1)
     
-    # Get all allocations for the table (not filtered by year)
+    # Get all allocations for the table
     # Annotate with dynamically calculated remaining balance (excluding PRE from used amount)
     from django.db.models import F, ExpressionWrapper, DecimalField
     allocations_list = NewBudgetAllocation.objects.select_related(
@@ -1346,7 +1346,11 @@ def budget_allocation(request):
             output_field=DecimalField()
         )
     ).order_by('-allocated_at')
-    
+
+    # Apply summary year filter to table data
+    if summary_year != 'all':
+        allocations_list = allocations_list.filter(approved_budget__fiscal_year=summary_year)
+
     # Apply table filters
     fiscal_year_filter = request.GET.get('fiscal_year')
     mfo_filter = request.GET.get('mfo')
@@ -2029,7 +2033,11 @@ def institutional_funds(request):
     
     # Get table budgets (with all table filters applied)
     approved_budgets_list = NewApprovedBudget.objects.order_by('-created_at')
-    
+
+    # Apply summary year filter to table data
+    if summary_year != 'all':
+        approved_budgets_list = approved_budgets_list.filter(fiscal_year=summary_year)
+
     # Apply table filters (keep your existing filter logic)
     fiscal_year_filter = request.GET.get('fiscal_year')
     amount_min = request.GET.get('amount_min')

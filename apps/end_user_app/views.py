@@ -4854,41 +4854,43 @@ def budget_overview(request):
     from django.db.models.functions import ExtractYear
     from datetime import datetime
 
-    # Get current year and year filter
+    # Get current year only (no year filter)
     current_year = str(datetime.now().year)
-    selected_year = request.GET.get('year', current_year)
 
-    # Get user's budget allocations with year filtering
-    base_allocations = NewBudgetAllocation.objects.filter(
+    # Get user's budget allocations - ONLY for current year
+    budget_allocations = NewBudgetAllocation.objects.filter(
         end_user=request.user,
-        is_active=True
+        is_active=True,
+        approved_budget__fiscal_year=current_year
     ).select_related('approved_budget')
 
-    # Get available years from budget allocations (based on fiscal_year)
-    available_years = (
-        base_allocations
-        .values_list('approved_budget__fiscal_year', flat=True)
-        .distinct()
-        .order_by('-approved_budget__fiscal_year')
+    # Get approved PREs for current year
+    approved_pres_current_year = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations,
+        status__in=['Approved', 'Partially Approved']
     )
 
-    # Apply year filter (filter by fiscal_year, not allocated_at)
-    if selected_year == 'all':
-        budget_allocations = base_allocations
-    else:
-        budget_allocations = base_allocations.filter(
-            approved_budget__fiscal_year=selected_year
-        )
+    # Calculate PRE grand total
+    pre_grand_total = sum(pre.total_amount for pre in approved_pres_current_year)
 
-    # Calculate totals across all allocations
-    total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+    # Calculate usage amounts
     total_pre_used = sum(ba.pre_amount_used for ba in budget_allocations)
     total_pr_used = sum(ba.pr_amount_used for ba in budget_allocations)
     total_ad_used = sum(ba.ad_amount_used for ba in budget_allocations)
-    # Total Used now only includes PR and AD (excluding PRE)
+    # Total Used only includes PR and AD (excluding PRE)
     total_used = total_pr_used + total_ad_used
-    total_remaining = total_allocated - total_used
-    utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+
+    # Determine total_allocated based on PRE approval
+    if pre_grand_total > 0:
+        # Use PRE grand total if there's an approved PRE
+        total_allocated = pre_grand_total
+        total_remaining = total_allocated - total_used
+        utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
+    else:
+        # Use budget allocated if no approved PRE
+        total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+        total_remaining = total_allocated - total_used
+        utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
 
     # Get counts
     pre_count = NewDepartmentPRE.objects.filter(
@@ -4935,20 +4937,38 @@ def budget_overview(request):
 
         quarterly_spending[quarter] = pr_spending + ad_spending
 
-    # Recent activity (last 10 transactions)
+    # Recent activity (last 10 transactions including PRE, PR, AD)
+    # Get recent PREs
+    recent_pres = NewDepartmentPRE.objects.filter(
+        budget_allocation__in=budget_allocations
+    ).exclude(status='Draft').order_by('-created_at')[:5]
+
     recent_prs = NewPurchaseRequest.objects.filter(
         budget_allocation__in=budget_allocations
-    ).exclude(status='Draft').order_by('-submitted_at')[:5]
+    ).exclude(status='Draft').order_by('-created_at')[:5]
 
     recent_ads = ActivityDesign.objects.filter(
         budget_allocation__in=budget_allocations
-    ).exclude(status='Draft').order_by('-submitted_at')[:5]
+    ).exclude(status='Draft').order_by('-created_at')[:5]
 
     # Combine and sort recent activity
     recent_activity = []
+
+    # Add PRE transactions
+    for pre in recent_pres:
+        recent_activity.append({
+            'date': pre.submitted_at or pre.created_at,
+            'type': 'PRE',
+            'number': f"{pre.department} - FY {pre.fiscal_year}",
+            'purpose': f"{pre.line_items.count()} Line Items",
+            'amount': pre.total_amount,
+            'status': pre.status
+        })
+
+    # Add PR transactions with fixed date
     for pr in recent_prs:
         recent_activity.append({
-            'date': pr.submitted_at,
+            'date': pr.submitted_at or pr.created_at,  # FIX: Use fallback to created_at
             'type': 'PR',
             'number': pr.pr_number,
             'purpose': pr.purpose[:50] + '...' if len(pr.purpose) > 50 else pr.purpose,
@@ -4956,9 +4976,10 @@ def budget_overview(request):
             'status': pr.status
         })
 
+    # Add AD transactions
     for ad in recent_ads:
         recent_activity.append({
-            'date': ad.submitted_at,
+            'date': ad.submitted_at or ad.created_at,
             'type': 'AD',
             'number': ad.ad_number,
             'purpose': ad.purpose[:50] + '...' if len(ad.purpose) > 50 else ad.purpose,
@@ -4978,13 +4999,13 @@ def budget_overview(request):
         'total_pre_used': total_pre_used,
         'total_pr_used': total_pr_used,
         'total_ad_used': total_ad_used,
+        'pre_grand_total': pre_grand_total,
+        'has_approved_pre': pre_grand_total > 0,
         'pre_count': pre_count,
         'pr_count': pr_count,
         'ad_count': ad_count,
         'quarterly_spending': quarterly_spending,
         'recent_activity': recent_activity,
-        'available_years': available_years,
-        'selected_year': selected_year,
         'current_year': current_year,
     }
 
