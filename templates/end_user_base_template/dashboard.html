@@ -150,18 +150,34 @@
             </li>
             {% comment %} Budget Re-alignment {% endcomment %}
             <li>
-                <a href="{% url "pre_budget_realignment" %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white 
+                <a href="{% url "pre_budget_realignment" %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white
                 {% if request.resolver_match.url_name == 'pre_budget_realignment' %}
                     bg-gray-700
                     {% else %}
-                        hover:bg-gray-100 dark:hover:bg-gray-700 
+                        hover:bg-gray-100 dark:hover:bg-gray-700
                     {% endif %}
                       group">
-                    <svg class="shrink-0 w-5 h-5 text-gray-500 transition duration-75 
+                    <svg class="shrink-0 w-5 h-5 text-gray-500 transition duration-75
                     {% if request.resolver_match.url_name == 'pre_budget_realignment' %}
                         dark:text-white
                     {% endif %} dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M142.9 142.9c-17.5 17.5-30.1 38-37.8 59.8c-5.9 16.7-24.2 25.4-40.8 19.5s-25.4-24.2-19.5-40.8C55.6 150.7 73.2 122 97.6 97.6c87.2-87.2 228.3-87.5 315.8-1L455 55c6.9-6.9 17.2-8.9 26.2-5.2s14.8 12.5 14.8 22.2l0 128c0 13.3-10.7 24-24 24l-8.4 0c0 0 0 0 0 0L344 224c-9.7 0-18.5-5.8-22.2-14.8s-1.7-19.3 5.2-26.2l41.1-41.1c-62.6-61.5-163.1-61.2-225.3 1zM16 312c0-13.3 10.7-24 24-24l7.6 0 .7 0L168 288c9.7 0 18.5 5.8 22.2 14.8s1.7 19.3-5.2 26.2l-41.1 41.1c62.6 61.5 163.1 61.2 225.3-1c17.5-17.5 30.1-38 37.8-59.8c5.9-16.7 24.2-25.4 40.8-19.5s25.4 24.2 19.5 40.8c-10.8 30.6-28.4 59.3-52.9 83.8c-87.2 87.2-228.3 87.5-315.8 1L57 457c-6.9 6.9-17.2 8.9-26.2 5.2S16 449.7 16 440l0-119.6 0-.7 0-7.6z"/></svg>
                     <span class="flex-1 ms-3 whitespace-nowrap">Budget Re-alignment</span>
+                </a>
+            </li>
+            {% comment %} Archive History {% endcomment %}
+            <li>
+                <a href="{% url "archive_history" %}" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white
+                {% if request.resolver_match.url_name == 'archive_history' %}
+                    bg-gray-700
+                    {% else %}
+                        hover:bg-gray-100 dark:hover:bg-gray-700
+                    {% endif %}
+                      group">
+                    <svg class="shrink-0 w-5 h-5 text-gray-500 transition duration-75
+                    {% if request.resolver_match.url_name == 'archive_history' %}
+                        dark:text-white
+                    {% endif %} dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M32 32l448 0c17.7 0 32 14.3 32 32l0 32c0 17.7-14.3 32-32 32L32 128C14.3 128 0 113.7 0 96L0 64C0 46.3 14.3 32 32 32zm0 128l448 0 0 256c0 35.3-28.7 64-64 64L96 480c-35.3 0-64-28.7-64-64l0-256zm128 80c0 8.8 7.2 16 16 16l160 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-160 0c-8.8 0-16 7.2-16 16z"/></svg>
+                    <span class="flex-1 ms-3 whitespace-nowrap">Archive History</span>
                 </a>
             </li>
             {% comment %} Settings {% endcomment %}

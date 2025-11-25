@@ -80,13 +80,30 @@ def user_dashboard(request):
             approved_budget__fiscal_year=selected_year
         )
 
+    # Get approved PREs for selected year (to calculate correct total allocated)
+    approved_pres_current_year = NewDepartmentPRE.all_objects.filter(
+        budget_allocation__in=budget_allocations,
+        status__in=['Approved', 'Partially Approved']
+    )
+
+    # Calculate PRE grand total (this reflects budget realignments and adjustments)
+    pre_grand_total = sum(pre.total_amount for pre in approved_pres_current_year)
+
     # Calculate totals
-    total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
     total_pre_used = sum(ba.pre_amount_used for ba in budget_allocations)
     total_pr_used = sum(ba.pr_amount_used for ba in budget_allocations)
     total_ad_used = sum(ba.ad_amount_used for ba in budget_allocations)
     # Total Used now only includes PR and AD (excluding PRE)
     total_used = total_pr_used + total_ad_used
+
+    # Determine total_allocated based on PRE approval (same logic as budget_overview)
+    if pre_grand_total > 0:
+        # Use PRE grand total if there's an approved PRE (reflects realignments)
+        total_allocated = pre_grand_total
+    else:
+        # Use budget allocated if no approved PRE
+        total_allocated = sum(ba.allocated_amount for ba in budget_allocations)
+
     total_remaining = total_allocated - total_used
     utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
     remaining_percentage = 100 - utilization_percentage
@@ -8073,16 +8090,26 @@ def archive_history(request):
         fiscal_years[fy]['total_used'] += (allocation.pr_amount_used + allocation.ad_amount_used)
         fiscal_years[fy]['allocation_count'] += 1
 
-    # Get document counts for each fiscal year
+    # Get document counts for each fiscal year and recalculate total_allocated based on PREs
     for fy_data in fiscal_years.values():
         fy = fy_data['fiscal_year']
         allocations_for_year = user_allocations.filter(approved_budget__fiscal_year=fy)
 
-        # Count PREs
-        fy_data['pre_count'] = NewDepartmentPRE.all_objects.filter(
+        # Get approved PREs for this year
+        approved_pres_for_year = NewDepartmentPRE.all_objects.filter(
             budget_allocation__in=allocations_for_year,
             status__in=['Approved', 'Partially Approved']
-        ).count()
+        )
+
+        # Count PREs
+        fy_data['pre_count'] = approved_pres_for_year.count()
+
+        # Recalculate total_allocated based on PRE grand total (same logic as dashboard)
+        pre_grand_total = sum(pre.total_amount for pre in approved_pres_for_year)
+        if pre_grand_total > 0:
+            # Use PRE grand total if there's an approved PRE (reflects realignments)
+            fy_data['total_allocated'] = pre_grand_total
+        # else: keep the allocated_amount sum calculated earlier
 
         # Count PRs
         fy_data['pr_count'] = NewPurchaseRequest.all_objects.filter(
@@ -8094,7 +8121,7 @@ def archive_history(request):
             budget_allocation__in=allocations_for_year
         ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
 
-        # Calculate remaining
+        # Recalculate remaining (in case total_allocated changed)
         fy_data['total_remaining'] = fy_data['total_allocated'] - fy_data['total_used']
 
         # Calculate utilization percentage

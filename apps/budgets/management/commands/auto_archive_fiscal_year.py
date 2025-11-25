@@ -1,12 +1,17 @@
 # bb_budget_monitoring_system/apps/budgets/management/commands/auto_archive_fiscal_year.py
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from apps.budgets.services import archive_fiscal_year
+from apps.budgets.services import (
+    archive_fiscal_year,
+    validate_fiscal_year_for_archive,
+    estimate_archive_size
+)
 from apps.budgets.models import ApprovedBudget
 from apps.users.models import User
 from datetime import datetime
 from django.core.mail import send_mail
 from django.conf import settings
+import time
 
 
 class Command(BaseCommand):
@@ -116,14 +121,47 @@ class Command(BaseCommand):
                 self.style.WARNING(f"   Amount: P{budget.amount:,.2f}")
             )
 
+            # STEP 1: Validate fiscal year
+            self.stdout.write(self.style.WARNING(f"\n   [1/4] Validating fiscal year..."))
+            validation = validate_fiscal_year_for_archive(fiscal_year)
+
+            if validation['blocking_issues']:
+                self.stdout.write(self.style.ERROR(f"   [ERROR] Validation failed:"))
+                for issue in validation['blocking_issues']:
+                    self.stdout.write(self.style.ERROR(f"      - {issue}"))
+                continue
+
+            if validation['warnings']:
+                self.stdout.write(self.style.WARNING(f"   [WARNING] Validation warnings:"))
+                for warning in validation['warnings']:
+                    self.stdout.write(self.style.WARNING(f"      - {warning}"))
+            else:
+                self.stdout.write(self.style.SUCCESS(f"   [SUCCESS] Validation passed"))
+
+            # STEP 2: Estimate archive size
+            self.stdout.write(self.style.WARNING(f"\n   [2/4] Estimating archive size..."))
+            try:
+                estimation = estimate_archive_size(fiscal_year)
+                self.stdout.write(self.style.SUCCESS(
+                    f"   [SUCCESS] Will archive {estimation['total_records']:,} records "
+                    f"(~{estimation['estimated_time_seconds']} seconds, "
+                    f"~{estimation['database_size_mb']:.2f} MB)"
+                ))
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f"   [WARNING] Could not estimate: {str(e)}"))
+                estimation = None
+
             if is_dry_run:
                 self.stdout.write(
-                    self.style.SUCCESS(f"   [DRY RUN] Would archive fiscal year {fiscal_year}")
+                    self.style.SUCCESS(f"\n   [DRY RUN] Would archive fiscal year {fiscal_year}")
                 )
                 continue
 
+            # STEP 3: Perform the archive
+            self.stdout.write(self.style.WARNING(f"\n   [3/4] Archiving records..."))
             try:
-                # Perform the archive
+                start_time = time.time()
+
                 archived_counts = archive_fiscal_year(
                     fiscal_year=fiscal_year,
                     archived_by=None,  # System user (automatic)
@@ -131,12 +169,15 @@ class Command(BaseCommand):
                     archive_type='FISCAL_YEAR'
                 )
 
+                end_time = time.time()
+                duration = end_time - start_time
+
                 # Update total counts
                 for key in total_archived:
                     total_archived[key] += archived_counts[key]
 
                 self.stdout.write(
-                    self.style.SUCCESS(f"   [SUCCESS] Successfully archived fiscal year {fiscal_year}:")
+                    self.style.SUCCESS(f"   [SUCCESS] Archive completed in {duration:.2f} seconds:")
                 )
                 self.stdout.write(
                     self.style.SUCCESS(f"      - Budgets: {archived_counts['approved_budgets']}")
@@ -153,6 +194,13 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.SUCCESS(f"      - ADs: {archived_counts['activity_designs']}")
                 )
+
+                # STEP 4: Performance feedback
+                if estimation and estimation['total_records'] > 0:
+                    actual_speed = estimation['total_records'] / duration if duration > 0 else 0
+                    self.stdout.write(
+                        self.style.SUCCESS(f"      - Performance: {actual_speed:.0f} records/second")
+                    )
 
             except Exception as e:
                 self.stdout.write(
@@ -200,7 +248,7 @@ class Command(BaseCommand):
                 self.send_admin_notifications(years_to_archive, total_archived, today)
 
     def send_admin_notifications(self, years_archived, counts, archive_date):
-        """Send email notifications to all admin users"""
+        """Send email notifications to all admin users with retry logic"""
         admin_users = User.objects.filter(is_admin=True, is_active=True, is_archived=False)
 
         if not admin_users.exists():
@@ -210,6 +258,8 @@ class Command(BaseCommand):
             return
 
         subject = f"Budget System: Fiscal Year{'s' if len(years_archived) > 1 else ''} {', '.join(years_archived)} Automatically Archived"
+
+        total_records = sum(counts.values())
 
         message = f"""
 Budget Monitoring System - Automatic Archive Notification
@@ -229,6 +279,7 @@ Summary:
 • Activity Designs: {counts['activity_designs']}
 
 Total Documents Archived: {counts['department_pres'] + counts['purchase_requests'] + counts['activity_designs']}
+Total Records Archived: {total_records:,}
 
 These records are now archived and will not appear in the active budget views.
 To view or restore archived data, please access the Archive Center in the admin panel.
@@ -239,18 +290,54 @@ This is an automated message from the Budget Monitoring System.
 
         admin_emails = list(admin_users.values_list('email', flat=True))
 
-        try:
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=admin_emails,
-                fail_silently=False,
-            )
-            self.stdout.write(
-                self.style.SUCCESS(f"   [SUCCESS] Email notifications sent to {len(admin_emails)} admin(s)")
-            )
-        except Exception as e:
-            self.stdout.write(
-                self.style.ERROR(f"   [ERROR] Failed to send email notifications: {str(e)}")
-            )
+        # Retry logic: Try up to 3 times with 5-second delays
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=admin_emails,
+                    fail_silently=False,
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(f"   [SUCCESS] Email notifications sent to {len(admin_emails)} admin(s)")
+                )
+                if attempt > 1:
+                    self.stdout.write(
+                        self.style.SUCCESS(f"   [INFO] Succeeded on attempt {attempt}/{max_retries}")
+                    )
+                return  # Success - exit function
+
+            except Exception as e:
+                if attempt < max_retries:
+                    self.stdout.write(
+                        self.style.WARNING(f"   [WARNING] Email attempt {attempt}/{max_retries} failed: {str(e)}")
+                    )
+                    self.stdout.write(
+                        self.style.WARNING(f"   [INFO] Retrying in 5 seconds...")
+                    )
+                    time.sleep(5)  # Wait before retry
+                else:
+                    # Final attempt failed
+                    self.stdout.write(
+                        self.style.ERROR(f"   [ERROR] All {max_retries} email attempts failed: {str(e)}")
+                    )
+
+                    # Create system notification as fallback
+                    try:
+                        from apps.budgets.models import SystemNotification
+                        SystemNotification.objects.create(
+                            notification_type='ARCHIVE_COMPLETE',
+                            title=f'Fiscal Year {", ".join(years_archived)} Archived',
+                            message=f'Successfully archived {total_records:,} records. Email notification failed.',
+                            users=admin_users
+                        )
+                        self.stdout.write(
+                            self.style.SUCCESS(f"   [SUCCESS] Created in-app notification as fallback")
+                        )
+                    except Exception as fallback_error:
+                        self.stdout.write(
+                            self.style.ERROR(f"   [ERROR] Fallback notification also failed: {str(fallback_error)}")
+                        )

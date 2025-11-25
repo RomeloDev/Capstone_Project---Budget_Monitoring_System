@@ -30,10 +30,10 @@
                 <select name="year"
                         id="year_filter"
                         onchange="this.form.submit()"
-                        class="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none shadow-sm transition-all text-gray-700 font-medium">
+                        class="border border-gray-300 rounded-lg px-7 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none shadow-sm transition-all text-gray-700 font-medium">
                     {% for year in available_fiscal_years %}
                         <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>
-                            FY {{ year }}{% if forloop.first %} (Current){% endif %}
+                            FY {{ year }}{% if forloop.first %} {% endif %}
                         </option>
                     {% empty %}
                         <option value="{{ selected_year }}">FY {{ selected_year }}</option>

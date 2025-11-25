@@ -63,64 +63,61 @@ def archive_fiscal_year(
             budget.save()
             archived_counts['approved_budgets'] = 1
 
-            # Get all related budget allocations
-            allocations = BudgetAllocation.all_objects.filter(
+            # Get current timestamp for consistent archiving
+            now = timezone.now()
+            cascade_reason = f"Cascaded from fiscal year {fiscal_year}"
+
+            # OPTIMIZED: Bulk archive all budget allocations
+            allocations_queryset = BudgetAllocation.all_objects.filter(
                 approved_budget=budget,
                 is_archived=False
             )
+            archived_counts['budget_allocations'] = allocations_queryset.update(
+                is_archived=True,
+                archived_at=now,
+                archived_by=archived_by,
+                archive_reason=cascade_reason,
+                archive_type=archive_type
+            )
 
-            # Archive each allocation and its related documents
-            for allocation in allocations:
-                # Archive the allocation
-                allocation.is_archived = True
-                allocation.archived_at = timezone.now()
-                allocation.archived_by = archived_by
-                allocation.archive_reason = f"Cascaded from fiscal year {fiscal_year}"
-                allocation.archive_type = archive_type
-                allocation.save()
-                archived_counts['budget_allocations'] += 1
+            # OPTIMIZED: Bulk archive all DepartmentPREs for this budget
+            pres_queryset = DepartmentPRE.all_objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=False
+            )
+            archived_counts['department_pres'] = pres_queryset.update(
+                is_archived=True,
+                archived_at=now,
+                archived_by=archived_by,
+                archive_reason=cascade_reason,
+                archive_type=archive_type
+            )
 
-                # Archive all DepartmentPREs for this allocation
-                pres = DepartmentPRE.all_objects.filter(
-                    budget_allocation=allocation,
-                    is_archived=False
-                )
-                for pre in pres:
-                    pre.is_archived = True
-                    pre.archived_at = timezone.now()
-                    pre.archived_by = archived_by
-                    pre.archive_reason = f"Cascaded from fiscal year {fiscal_year}"
-                    pre.archive_type = archive_type
-                    pre.save()
-                    archived_counts['department_pres'] += 1
+            # OPTIMIZED: Bulk archive all PurchaseRequests for this budget
+            prs_queryset = PurchaseRequest.all_objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=False
+            )
+            archived_counts['purchase_requests'] = prs_queryset.update(
+                is_archived=True,
+                archived_at=now,
+                archived_by=archived_by,
+                archive_reason=cascade_reason,
+                archive_type=archive_type
+            )
 
-                # Archive all PurchaseRequests for this allocation
-                prs = PurchaseRequest.all_objects.filter(
-                    budget_allocation=allocation,
-                    is_archived=False
-                )
-                for pr in prs:
-                    pr.is_archived = True
-                    pr.archived_at = timezone.now()
-                    pr.archived_by = archived_by
-                    pr.archive_reason = f"Cascaded from fiscal year {fiscal_year}"
-                    pr.archive_type = archive_type
-                    pr.save()
-                    archived_counts['purchase_requests'] += 1
-
-                # Archive all ActivityDesigns for this allocation
-                ads = ActivityDesign.all_objects.filter(
-                    budget_allocation=allocation,
-                    is_archived=False
-                )
-                for ad in ads:
-                    ad.is_archived = True
-                    ad.archived_at = timezone.now()
-                    ad.archived_by = archived_by
-                    ad.archive_reason = f"Cascaded from fiscal year {fiscal_year}"
-                    ad.archive_type = archive_type
-                    ad.save()
-                    archived_counts['activity_designs'] += 1
+            # OPTIMIZED: Bulk archive all ActivityDesigns for this budget
+            ads_queryset = ActivityDesign.all_objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=False
+            )
+            archived_counts['activity_designs'] = ads_queryset.update(
+                is_archived=True,
+                archived_at=now,
+                archived_by=archived_by,
+                archive_reason=cascade_reason,
+                archive_type=archive_type
+            )
 
             # Log to AuditTrail
             if archived_by:
@@ -472,3 +469,183 @@ def get_fiscal_years_list(include_archived: bool = False) -> List[Dict[str, any]
         })
 
     return fiscal_years
+
+
+def validate_fiscal_year_for_archive(fiscal_year: str) -> Dict[str, any]:
+    """
+    Validate if a fiscal year is ready for archiving.
+
+    Checks for:
+    - Future years (blocking)
+    - Pending documents (warning)
+    - Negative budget balances (blocking)
+    - Already archived (blocking)
+
+    Args:
+        fiscal_year: Year to validate (e.g., "2024")
+
+    Returns:
+        Dictionary with:
+        {
+            'ready': bool,
+            'warnings': list[str],
+            'blocking_issues': list[str],
+            'statistics': dict
+        }
+    """
+    from django.db.models import Q
+
+    warnings = []
+    blocking_issues = []
+    statistics = {}
+
+    # Check 1: Fiscal year exists and is not already archived
+    try:
+        budget = ApprovedBudget.objects.get(fiscal_year=fiscal_year)
+    except ApprovedBudget.DoesNotExist:
+        try:
+            # Check if it exists but is already archived
+            budget = ApprovedBudget.all_objects.get(fiscal_year=fiscal_year, is_archived=True)
+            blocking_issues.append(f"Fiscal year {fiscal_year} is already archived")
+            return {
+                'ready': False,
+                'warnings': warnings,
+                'blocking_issues': blocking_issues,
+                'statistics': {}
+            }
+        except ApprovedBudget.DoesNotExist:
+            blocking_issues.append(f"Fiscal year {fiscal_year} not found")
+            return {
+                'ready': False,
+                'warnings': warnings,
+                'blocking_issues': blocking_issues,
+                'statistics': {}
+            }
+
+    # Check 2: Not a future year
+    today = timezone.now()
+    current_year = today.year
+
+    try:
+        year_int = int(fiscal_year)
+        if year_int > current_year:
+            blocking_issues.append(f"Cannot archive future year {fiscal_year} (current year is {current_year})")
+        elif year_int == current_year:
+            # Check if we're past the fiscal year end (assuming fiscal year = calendar year)
+            if today.month < 12 or (today.month == 12 and today.day < 31):
+                warnings.append(f"Archiving current year {fiscal_year} before year end (current date: {today.strftime('%Y-%m-%d')})")
+    except ValueError:
+        blocking_issues.append(f"Invalid fiscal year format: {fiscal_year}")
+
+    # Check 3: Pending documents (warnings only, not blocking)
+    pending_pres = DepartmentPRE.objects.filter(
+        budget_allocation__approved_budget=budget,
+        status='Pending'
+    ).count()
+
+    pending_prs = PurchaseRequest.objects.filter(
+        budget_allocation__approved_budget=budget,
+        status='Pending'
+    ).count()
+
+    pending_ads = ActivityDesign.objects.filter(
+        budget_allocation__approved_budget=budget,
+        status='Pending'
+    ).count()
+
+    if pending_pres > 0:
+        warnings.append(f"{pending_pres} Department PRE(s) still pending approval")
+    if pending_prs > 0:
+        warnings.append(f"{pending_prs} Purchase Request(s) still pending approval")
+    if pending_ads > 0:
+        warnings.append(f"{pending_ads} Activity Design(s) still pending approval")
+
+    # Check 4: Negative budget balances (blocking)
+    if hasattr(budget, 'remaining_budget') and budget.remaining_budget < 0:
+        blocking_issues.append(
+            f"Budget has negative balance: ₱{budget.remaining_budget:,.2f}"
+        )
+
+    # Gather statistics
+    statistics = {
+        'fiscal_year': fiscal_year,
+        'budget_amount': budget.amount,
+        'remaining_budget': getattr(budget, 'remaining_budget', 0),
+        'total_allocations': BudgetAllocation.objects.filter(approved_budget=budget).count(),
+        'total_pres': DepartmentPRE.objects.filter(budget_allocation__approved_budget=budget).count(),
+        'total_prs': PurchaseRequest.objects.filter(budget_allocation__approved_budget=budget).count(),
+        'total_ads': ActivityDesign.objects.filter(budget_allocation__approved_budget=budget).count(),
+        'pending_pres': pending_pres,
+        'pending_prs': pending_prs,
+        'pending_ads': pending_ads,
+    }
+
+    return {
+        'ready': len(blocking_issues) == 0,
+        'warnings': warnings,
+        'blocking_issues': blocking_issues,
+        'statistics': statistics
+    }
+
+
+def estimate_archive_size(fiscal_year: str) -> Dict[str, any]:
+    """
+    Estimate the size and duration of an archive operation.
+
+    Args:
+        fiscal_year: Year to estimate (e.g., "2024")
+
+    Returns:
+        Dictionary with:
+        {
+            'total_records': int,
+            'estimated_time_seconds': int,
+            'database_size_kb': float,
+            'counts': dict
+        }
+
+    Raises:
+        ValueError: If fiscal year not found
+    """
+    try:
+        budget = ApprovedBudget.objects.get(fiscal_year=fiscal_year)
+    except ApprovedBudget.DoesNotExist:
+        raise ValueError(f"Fiscal year {fiscal_year} not found")
+
+    # Count all records that will be archived
+    counts = {
+        'budgets': 1,
+        'allocations': BudgetAllocation.objects.filter(
+            approved_budget=budget
+        ).count(),
+        'pres': DepartmentPRE.objects.filter(
+            budget_allocation__approved_budget=budget
+        ).count(),
+        'prs': PurchaseRequest.objects.filter(
+            budget_allocation__approved_budget=budget
+        ).count(),
+        'ads': ActivityDesign.objects.filter(
+            budget_allocation__approved_budget=budget
+        ).count(),
+    }
+
+    total_records = sum(counts.values())
+
+    # Estimation formulas (conservative estimates)
+    # With bulk updates: ~500 records per second (optimized)
+    # Without bulk updates: ~50 records per second (old method)
+    estimated_time = max(1, total_records / 500)  # Using optimized bulk update speed
+
+    # Average record size estimation: ~3KB per record (conservative)
+    estimated_size = (total_records * 3)  # in KB
+
+    return {
+        'total_records': total_records,
+        'estimated_time_seconds': int(estimated_time),
+        'database_size_kb': round(estimated_size, 2),
+        'database_size_mb': round(estimated_size / 1024, 2),
+        'counts': counts,
+        'fiscal_year': fiscal_year,
+        'budget_title': budget.title,
+        'budget_amount': budget.amount,
+    }
