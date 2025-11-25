@@ -195,15 +195,15 @@
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <button onclick="showDetails({{ request.id }})" 
-                                        class="text-blue-600 hover:text-blue-900 transition duration-200">
+                                <a href="{% url 'realignment_detail' pk=request.id %}"
+                                   class="text-blue-600 hover:text-blue-900 transition duration-200 font-medium">
                                     View Details
-                                </button>
+                                </a>
                             </td>
                         </tr>
 
-                        <!-- Hidden Details Row -->
-                        <tr id="details-{{ request.id }}" class="hidden bg-gray-50">
+                        <!-- REMOVED: Hidden Details Row - Now uses dedicated detail page -->
+                        <!-- <tr id="details-{{ request.id }}" class="hidden bg-gray-50">
                             <td colspan="5" class="px-6 py-4">
                                 <div class="bg-white p-4 rounded-lg border">
                                     <h4 class="font-semibold text-gray-900 mb-3">Request Details</h4>
@@ -294,7 +294,7 @@
                                     {% endif %}
                                 </div>
                             </td>
-                        </tr>
+                        </tr> -->
                         {% empty %}
                         <tr>
                             <td colspan="5" class="px-6 py-8 text-center text-gray-500">
@@ -411,6 +411,8 @@
 <script>
 let currentRealignmentId = null;
 
+// REMOVED: showDetails function - now uses dedicated detail page instead of inline toggle
+/*
 function showDetails(requestId) {
     const detailsRow = document.getElementById(`details-${requestId}`);
     if (detailsRow.classList.contains('hidden')) {
@@ -424,6 +426,7 @@ function showDetails(requestId) {
         detailsRow.classList.add('hidden');
     }
 }
+*/
 
 function openUploadModal(realignmentId) {
     currentRealignmentId = realignmentId;

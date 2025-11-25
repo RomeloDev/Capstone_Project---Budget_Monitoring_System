@@ -3950,11 +3950,22 @@ def handle_pre_realignment_admin_action(request, pk):
                     # Generate PDF from uploaded documents
                     pdf_file = generate_realignment_pdf_from_documents(realignment)
 
+                    # Update realignment status (even if PDF generation failed)
                     realignment.status = 'Partially Approved'
                     realignment.approved_by_admin = True
                     realignment.partial_approved_by = request.user
                     realignment.partially_approved_at = timezone.now()
-                    realignment.partially_approved_pdf = pdf_file
+
+                    # Only set PDF if generation succeeded
+                    if pdf_file:
+                        realignment.partially_approved_pdf = pdf_file
+                        pdf_success = True
+                    else:
+                        pdf_success = False
+                        # Log the failure but don't block the approval
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"PDF generation failed for realignment {realignment.id}, but approval continues")
 
                     # Add admin notes if provided
                     admin_notes = request.POST.get('admin_notes', '').strip()
@@ -3972,9 +3983,16 @@ def handle_pre_realignment_admin_action(request, pk):
                         detail=f'Partially approved budget realignment: {realignment.source_item_display} → {realignment.target_item_display} (₱{realignment.get_total_amount():,.2f})',
                     )
 
-                    messages.success(request, 'Budget realignment partially approved. PDF generated successfully. End user can now download and print for physical signature.')
+                    # Show appropriate message based on PDF generation result
+                    if pdf_success:
+                        messages.success(request, 'Budget realignment partially approved successfully. PDF generated and ready for download.')
+                    else:
+                        messages.warning(request, 'Budget realignment partially approved, but PDF generation failed. Admin can manually upload the PDF later or ask the end user to provide the original documents.')
 
             except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f'Error during partial approval for realignment {realignment.id}: {str(e)}', exc_info=True)
                 messages.error(request, f'Error during partial approval: {str(e)}')
 
         elif action == 'final_approve':
@@ -4196,6 +4214,41 @@ def pre_budget_realignment_detail(request, pk):
     }
 
     return render(request, 'admin_panel/pre_budget_realignment_detail.html', context)
+
+
+@role_required('admin', login_url='/admin/')
+def admin_preview_realignment_documents(request, pk):
+    """
+    Admin preview of Budget Realignment documents (print-friendly view).
+    Shows partially approved PDF, supporting documents, and signed documents.
+    Allows admin to preview and print without downloading.
+    """
+    realignment = get_object_or_404(
+        PREBudgetRealignment.objects.select_related(
+            'requested_by',
+            'source_pre',
+            'target_pre'
+        ).prefetch_related('supporting_documents'),
+        pk=pk
+    )
+
+    # Get quarterly breakdown
+    quarters = realignment.get_selected_quarters()
+
+    # Get supporting documents
+    supporting_documents = realignment.supporting_documents.filter(is_signed_copy=False).order_by('uploaded_at')
+    signed_documents = realignment.supporting_documents.filter(is_signed_copy=True).order_by('uploaded_at')
+
+    context = {
+        'realignment': realignment,
+        'quarters': quarters,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+    }
+
+    response = render(request, 'admin_panel/preview_realignment_documents.html', context)
+    response['X-Frame-Options'] = 'SAMEORIGIN'  # Allow PDF embedding
+    return response
 
 
 @role_required('admin', login_url='/admin/')

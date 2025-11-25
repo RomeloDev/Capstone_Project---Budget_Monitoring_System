@@ -472,16 +472,28 @@ def save_pre_pdf(pre):
 
 def generate_realignment_pdf_from_documents(realignment):
     """
-    Generate a combined PDF from all uploaded supporting documents for budget realignment
-    Returns a ContentFile that can be saved to partially_approved_pdf field
+    Generate a combined PDF from all uploaded supporting documents for budget realignment.
+    Converts Word/Excel documents to PDF using LibreOffice, images using PIL.
+    Returns a ContentFile that can be saved to partially_approved_pdf field.
+    Returns None if critical error occurs.
     """
     from PyPDF2 import PdfMerger, PdfReader
     from PIL import Image
     from reportlab.pdfgen import canvas as pdf_canvas
     import os
     import tempfile
+    import subprocess
+    from pathlib import Path
+    import logging
 
-    merger = PdfMerger()
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting PDF generation for realignment {realignment.id}")
+
+    try:
+        merger = PdfMerger()
+    except Exception as e:
+        logger.error(f"Failed to initialize PDF merger: {str(e)}")
+        return None
 
     # First, create a cover page with realignment details
     cover_buffer = BytesIO()
@@ -563,7 +575,7 @@ def generate_realignment_pdf_from_documents(realignment):
             y_position -= 18
 
     # Footer
-    c.setFont("Helvetica-Italic", 9)
+    c.setFont("Helvetica-Oblique", 9)
     c.drawCentredString(width / 2, 50, "Supporting documents attached below")
     c.drawCentredString(width / 2, 35, f"Generated: {timezone.now().strftime('%B %d, %Y %I:%M %p')}")
 
@@ -574,17 +586,33 @@ def generate_realignment_pdf_from_documents(realignment):
     # Add all supporting documents
     supporting_docs = realignment.supporting_documents.filter(is_signed_copy=False).order_by('uploaded_at')
 
+    if not supporting_docs.exists():
+        logger.info("No supporting documents found. Returning cover page only.")
+        # Return cover page only if no documents
+        output_buffer = BytesIO()
+        merger.write(output_buffer)
+        merger.close()
+        output_buffer.seek(0)
+
+        filename = f'BR_{realignment.id}_partially_approved_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+        return ContentFile(output_buffer.read(), name=filename)
+
+    doc_count = 0
     for doc in supporting_docs:
         try:
             file_path = doc.document.path
             file_ext = os.path.splitext(file_path)[1].lower()
+            logger.info(f"Processing document: {doc.file_name} (type: {file_ext})")
 
             if file_ext == '.pdf':
                 # Direct PDF append
+                logger.info(f"Appending PDF directly: {doc.file_name}")
                 merger.append(file_path)
+                doc_count += 1
 
             elif file_ext in ['.jpg', '.jpeg', '.png']:
                 # Convert image to PDF
+                logger.info(f"Converting image to PDF: {doc.file_name}")
                 img_buffer = BytesIO()
                 img = Image.open(file_path)
 
@@ -606,13 +634,30 @@ def generate_realignment_pdf_from_documents(realignment):
 
                 img_buffer.seek(0)
                 merger.append(img_buffer)
+                doc_count += 1
 
-            # Note: DOCX, XLSX would require conversion libraries like python-docx2pdf or similar
-            # For now, skipping non-PDF/image files
+            elif file_ext in ['.docx', '.doc', '.xlsx', '.xls']:
+                # Convert Word/Excel to PDF using LibreOffice
+                logger.info(f"Converting Office document to PDF using LibreOffice: {doc.file_name}")
+                pdf_content = _convert_office_to_pdf(file_path, file_ext)
+
+                if pdf_content:
+                    temp_pdf = BytesIO(pdf_content)
+                    merger.append(temp_pdf)
+                    doc_count += 1
+                    logger.info(f"Successfully converted {doc.file_name} to PDF")
+                else:
+                    logger.warning(f"Failed to convert {doc.file_name}, skipping document")
+
+            else:
+                logger.warning(f"Unsupported file format {file_ext} for {doc.file_name}, skipping")
 
         except Exception as e:
-            print(f"Error processing document {doc.file_name}: {str(e)}")
+            logger.error(f"Error processing document {doc.file_name}: {str(e)}", exc_info=True)
+            # Continue processing other documents even if one fails
             continue
+
+    logger.info(f"Successfully processed {doc_count} out of {supporting_docs.count()} documents")
 
     # Write to final buffer
     output_buffer = BytesIO()
@@ -623,4 +668,90 @@ def generate_realignment_pdf_from_documents(realignment):
     # Create filename and ContentFile
     filename = f'BR_{realignment.id}_partially_approved_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf'
 
+    logger.info(f"PDF generation completed for realignment {realignment.id}")
     return ContentFile(output_buffer.read(), name=filename)
+
+
+def _convert_office_to_pdf(file_path, file_ext):
+    """
+    Helper function to convert Word/Excel documents to PDF using LibreOffice.
+    Similar to PR pr_to_pdf_converter.py but as a utility function.
+
+    Args:
+        file_path: Path to the Word/Excel file
+        file_ext: File extension (.docx, .doc, .xlsx, .xls)
+
+    Returns:
+        PDF content as bytes, or None if conversion fails
+    """
+    import tempfile
+    import subprocess
+    from pathlib import Path
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            # Determine export filter based on file type
+            if file_ext in ['.docx', '.doc']:
+                export_filter = 'pdf:writer_pdf_Export'  # Writer PDF export
+            elif file_ext in ['.xlsx', '.xls']:
+                export_filter = 'pdf:calc_pdf_Export'  # Calc PDF export
+            else:
+                logger.error(f"Unsupported file extension for conversion: {file_ext}")
+                return None
+
+            # LibreOffice command
+            cmd = [
+                r"C:\Program Files\LibreOffice\program\soffice.exe",
+                '--headless',
+                '--invisible',
+                '--nocrashreport',
+                '--nodefault',
+                '--nofirststartwizard',
+                '--nolockcheck',
+                '--nologo',
+                '--norestore',
+                '--convert-to', export_filter,
+                '--outdir', temp_dir,
+                file_path
+            ]
+
+            logger.debug(f"Running LibreOffice conversion: {' '.join(cmd)}")
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60  # 60 second timeout
+            )
+
+            if result.returncode != 0:
+                logger.error(f"LibreOffice conversion failed with return code {result.returncode}")
+                logger.error(f"STDOUT: {result.stdout}")
+                logger.error(f"STDERR: {result.stderr}")
+                return None
+
+            # Find generated PDF
+            pdf_files = list(Path(temp_dir).glob('*.pdf'))
+            if not pdf_files:
+                logger.error("No PDF file generated by LibreOffice")
+                return None
+
+            pdf_path = pdf_files[0]
+            logger.debug(f"PDF generated successfully at: {pdf_path}")
+
+            # Read PDF content
+            with open(pdf_path, 'rb') as f:
+                return f.read()
+
+        except subprocess.TimeoutExpired:
+            logger.error("LibreOffice conversion timed out after 60 seconds")
+            return None
+        except FileNotFoundError:
+            logger.error("LibreOffice executable not found at C:\\Program Files\\LibreOffice\\program\\soffice.exe")
+            return None
+        except Exception as e:
+            logger.error(f"Error in Office to PDF conversion: {str(e)}", exc_info=True)
+            return None

@@ -24,6 +24,8 @@ urlpatterns = [
     path('view_budget/budget_details/<int:budget_id>/', views.budget_details, name='budget_details'),
     path('pre_budget_realignment/', views.pre_budget_realignment, name='pre_budget_realignment'),
     path('realignment_history/', views.realignment_history, name='realignment_history'),
+    path('realignment/<int:pk>/detail/', views.realignment_detail, name='realignment_detail'),
+    path('realignment/<int:pk>/preview/', views.preview_realignment_documents, name='preview_realignment_documents'),
     path('realignment/<int:pk>/download-pdf/', views.download_realignment_pdf_enduser, name='download_realignment_pdf_enduser'),
     # Budget Realignment - New workflow endpoints
     path('api/get-realtime-amounts/', views.get_realtime_line_item_amounts, name='get_realtime_line_item_amounts'),

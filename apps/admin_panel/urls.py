@@ -45,6 +45,7 @@ urlpatterns = [
 
     path('pre_budget_realignment/', views.pre_budget_realignment_admin, name='pre_budget_realignment_admin'),
     path('pre_budget_realignment/<int:pk>/', views.pre_budget_realignment_detail, name='pre_budget_realignment_detail'),
+    path('pre_budget_realignment/<int:pk>/preview/', views.admin_preview_realignment_documents, name='admin_preview_realignment_documents'),
     path('pre_budget_realignment/<int:pk>/action/', views.handle_pre_realignment_admin_action, name='handle_pre_realignment_admin_action'),
     path('pre_budget_realignment/<int:pk>/download-pdf/', views.download_realignment_pdf, name='download_realignment_pdf'),
     path('download-document/<int:document_id>/', views.download_document, name='download_document'),

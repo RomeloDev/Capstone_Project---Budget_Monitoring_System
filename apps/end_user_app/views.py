@@ -3531,9 +3531,17 @@ def pre_budget_realignment(request):
                     target_item_display=target_display,
                 )
 
-                # Save uploaded documents
+                # Save uploaded documents with conversion to PDF
+                from PIL import Image
+                from io import BytesIO
+                from django.core.files.base import ContentFile
+                import subprocess
+                import tempfile
+                from pathlib import Path
+
                 for uploaded_file in uploaded_files:
-                    BudgetRealignmentSupportingDocument.objects.create(
+                    # Create document record
+                    doc = BudgetRealignmentSupportingDocument.objects.create(
                         budget_realignment=realignment,
                         document=uploaded_file,
                         file_name=uploaded_file.name,
@@ -3541,6 +3549,90 @@ def pre_budget_realignment(request):
                         uploaded_by=request.user,
                         is_signed_copy=False
                     )
+
+                    # Convert to PDF based on file type
+                    file_ext = uploaded_file.name.split('.')[-1].lower()
+
+                    try:
+                        # Image conversion to PDF
+                        if file_ext in ['jpg', 'jpeg', 'png']:
+                            uploaded_file.seek(0)  # Reset file pointer
+                            img = Image.open(uploaded_file)
+
+                            # Handle different image modes
+                            if img.mode in ('RGBA', 'LA', 'P'):
+                                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                                if img.mode == 'P':
+                                    img = img.convert('RGBA')
+                                rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                                img = rgb_img
+                            elif img.mode != 'RGB':
+                                img = img.convert('RGB')
+
+                            # Convert to PDF
+                            pdf_buffer = BytesIO()
+                            img.save(pdf_buffer, format='PDF', resolution=100.0)
+                            pdf_buffer.seek(0)
+
+                            # Save converted PDF
+                            pdf_filename = f"{uploaded_file.name.rsplit('.', 1)[0]}_converted.pdf"
+                            doc.converted_pdf.save(pdf_filename, ContentFile(pdf_buffer.read()), save=True)
+
+                        # Office document conversion to PDF
+                        elif file_ext in ['docx', 'doc', 'xlsx', 'xls']:
+                            # Save uploaded file temporarily
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}') as temp_input:
+                                uploaded_file.seek(0)  # Reset file pointer
+                                for chunk in uploaded_file.chunks():
+                                    temp_input.write(chunk)
+                                temp_input_path = temp_input.name
+
+                            try:
+                                with tempfile.TemporaryDirectory() as temp_dir:
+                                    # Set export filter based on file type
+                                    if file_ext in ['docx', 'doc']:
+                                        export_filter = 'pdf:writer_pdf_Export'
+                                    else:  # xlsx, xls
+                                        export_filter = 'pdf:calc_pdf_Export'
+
+                                    # Run LibreOffice conversion
+                                    cmd = [
+                                        r"C:\Program Files\LibreOffice\program\soffice.exe",
+                                        '--headless',
+                                        '--invisible',
+                                        '--nocrashreport',
+                                        '--convert-to', export_filter,
+                                        '--outdir', temp_dir,
+                                        temp_input_path
+                                    ]
+
+                                    result = subprocess.run(
+                                        cmd,
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=60
+                                    )
+
+                                    if result.returncode == 0:
+                                        # Find the converted PDF
+                                        pdf_files = list(Path(temp_dir).glob('*.pdf'))
+                                        if pdf_files:
+                                            with open(pdf_files[0], 'rb') as pdf_file:
+                                                pdf_content = pdf_file.read()
+
+                                            # Save converted PDF
+                                            pdf_filename = f"{uploaded_file.name.rsplit('.', 1)[0]}_converted.pdf"
+                                            doc.converted_pdf.save(pdf_filename, ContentFile(pdf_content), save=True)
+                            finally:
+                                # Clean up temporary input file
+                                if os.path.exists(temp_input_path):
+                                    os.remove(temp_input_path)
+
+                    except Exception as e:
+                        # Log conversion error but don't fail the submission
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Failed to convert {uploaded_file.name} to PDF: {str(e)}")
 
                 # Log audit trail
                 log_audit_trail(
@@ -3688,6 +3780,78 @@ def realignment_history(request):
 
 
 @role_required('end_user', login_url='/')
+def realignment_detail(request, pk):
+    """
+    End user detailed view of a single budget realignment request.
+    Shows all request information, documents, timeline, and real-time budget data.
+    """
+    realignment = get_object_or_404(
+        PREBudgetRealignment.objects.select_related(
+            'requested_by', 'approved_by', 'partial_approved_by', 'admin_approved_by',
+            'source_pre', 'target_pre'
+        ).prefetch_related('supporting_documents'),
+        pk=pk,
+        requested_by=request.user
+    )
+
+    # Get quarterly breakdown
+    quarters = realignment.get_selected_quarters()
+
+    # Get source quarterly availability (real-time)
+    source_quarterly = realignment.get_source_quarterly_available()
+
+    # Get supporting documents
+    original_documents = realignment.supporting_documents.filter(is_signed_copy=False).order_by('uploaded_at')
+    signed_documents = realignment.supporting_documents.filter(is_signed_copy=True).order_by('uploaded_at')
+
+    context = {
+        'realignment': realignment,
+        'quarters': quarters,
+        'source_quarterly': source_quarterly,
+        'original_documents': original_documents,
+        'signed_documents': signed_documents,
+    }
+
+    return render(request, 'end_user_app/realignment_detail.html', context)
+
+
+@role_required('end_user', login_url='/')
+def preview_realignment_documents(request, pk):
+    """
+    Preview Budget Realignment documents for end user (print-friendly view).
+    Shows partially approved PDF, supporting documents, and signed documents.
+    Allows end user to preview and print without downloading.
+    """
+    realignment = get_object_or_404(
+        PREBudgetRealignment.objects.select_related(
+            'requested_by',
+            'source_pre',
+            'target_pre'
+        ).prefetch_related('supporting_documents'),
+        pk=pk,
+        requested_by=request.user
+    )
+
+    # Get quarterly breakdown
+    quarters = realignment.get_selected_quarters()
+
+    # Get supporting documents
+    supporting_documents = realignment.supporting_documents.filter(is_signed_copy=False).order_by('uploaded_at')
+    signed_documents = realignment.supporting_documents.filter(is_signed_copy=True).order_by('uploaded_at')
+
+    context = {
+        'realignment': realignment,
+        'quarters': quarters,
+        'supporting_documents': supporting_documents,
+        'signed_documents': signed_documents,
+    }
+
+    response = render(request, 'end_user_app/preview_realignment_documents.html', context)
+    response['X-Frame-Options'] = 'SAMEORIGIN'  # Allow PDF embedding
+    return response
+
+
+@role_required('end_user', login_url='/')
 def download_realignment_pdf_enduser(request, pk):
     """Download partially approved PDF for budget realignment (end user view)"""
     from django.http import FileResponse
@@ -3713,9 +3877,18 @@ def download_realignment_pdf_enduser(request, pk):
 @role_required('end_user', login_url='/')
 def upload_realignment_signed_document(request, pk):
     """
-    End user uploads signed document after partial approval
-    Transitions status to 'Awaiting Admin Verification'
+    End user uploads signed document after partial approval.
+    Converts images to PDF for preview compatibility.
+    Transitions status to 'Awaiting Admin Verification'.
     """
+    from apps.budgets.models import BudgetRealignmentSupportingDocument
+    from PIL import Image
+    from io import BytesIO
+    from django.core.files.base import ContentFile
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     realignment = get_object_or_404(
         PREBudgetRealignment,
         pk=pk,
@@ -3728,7 +3901,7 @@ def upload_realignment_signed_document(request, pk):
 
         if not uploaded_file:
             messages.error(request, "Please select a file to upload.")
-            return redirect('realignment_history')
+            return redirect('realignment_detail', pk=pk)
 
         # Validate file extension
         allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
@@ -3736,36 +3909,84 @@ def upload_realignment_signed_document(request, pk):
 
         if file_ext not in allowed_extensions:
             messages.error(request, f"Invalid file format. Allowed formats: {', '.join(allowed_extensions).upper()}")
-            return redirect('realignment_history')
+            return redirect('realignment_detail', pk=pk)
 
         # Validate file size (max 10MB)
         max_size = 10 * 1024 * 1024  # 10MB in bytes
         if uploaded_file.size > max_size:
             messages.error(request, "File size exceeds 10MB limit. Please upload a smaller file.")
-            return redirect('realignment_history')
+            return redirect('realignment_detail', pk=pk)
 
         try:
-            # Save file and update status
-            realignment.end_user_uploaded_document = uploaded_file
-            realignment.end_user_uploaded_at = timezone.now()
-            realignment.status = 'Awaiting Admin Verification'
-            realignment.save()
+            with transaction.atomic():
+                # Create supporting document record
+                doc = BudgetRealignmentSupportingDocument.objects.create(
+                    budget_realignment=realignment,
+                    document=uploaded_file,
+                    file_name=uploaded_file.name,
+                    file_size=uploaded_file.size,
+                    uploaded_by=request.user,
+                    is_signed_copy=True
+                )
 
-            # Log audit trail
-            log_audit_trail(
-                request=request,
-                action='UPDATE',
-                model_name='PREBudgetRealignment',
-                record_id=realignment.id,
-                detail=f"End user uploaded signed document for budget realignment #{realignment.id}"
-            )
+                # Convert images to PDF for preview compatibility
+                if file_ext in ['jpg', 'jpeg', 'png']:
+                    logger.info(f"Converting image {uploaded_file.name} to PDF")
+                    try:
+                        # Read image
+                        img = Image.open(uploaded_file)
 
-            messages.success(request, "Signed document uploaded successfully! Your request is now awaiting admin verification.")
-            return redirect('realignment_history')
+                        # Convert to RGB if necessary (for PNG with transparency)
+                        if img.mode in ('RGBA', 'LA', 'P'):
+                            # Create white background
+                            rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                            if img.mode == 'P':
+                                img = img.convert('RGBA')
+                            rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                            img = rgb_img
+                        elif img.mode != 'RGB':
+                            img = img.convert('RGB')
+
+                        # Save as PDF
+                        pdf_buffer = BytesIO()
+                        img.save(pdf_buffer, format='PDF', resolution=100.0)
+                        pdf_buffer.seek(0)
+
+                        # Save converted PDF
+                        pdf_filename = f"{uploaded_file.name.rsplit('.', 1)[0]}_converted.pdf"
+                        doc.converted_pdf.save(
+                            pdf_filename,
+                            ContentFile(pdf_buffer.read()),
+                            save=True
+                        )
+                        logger.info(f"Successfully converted {uploaded_file.name} to PDF")
+
+                    except Exception as e:
+                        logger.error(f"Failed to convert image to PDF: {str(e)}", exc_info=True)
+                        # Continue anyway - original image is still available
+
+                # Also save to the end_user_uploaded_document field for backward compatibility
+                realignment.end_user_uploaded_document = uploaded_file
+                realignment.end_user_uploaded_at = timezone.now()
+                realignment.status = 'Awaiting Admin Verification'
+                realignment.save()
+
+                # Log audit trail
+                log_audit_trail(
+                    request=request,
+                    action='UPDATE',
+                    model_name='PREBudgetRealignment',
+                    record_id=realignment.id,
+                    detail=f"End user uploaded signed document for budget realignment #{realignment.id}"
+                )
+
+                messages.success(request, "Signed document uploaded successfully! Your request is now awaiting admin verification.")
+                return redirect('realignment_detail', pk=pk)
 
         except Exception as e:
+            logger.error(f"Error uploading document: {str(e)}", exc_info=True)
             messages.error(request, f"Error uploading document: {str(e)}")
-            return redirect('realignment_history')
+            return redirect('realignment_detail', pk=pk)
 
     # GET request - show upload form
     return render(request, 'end_user_app/upload_realignment_document.html', {

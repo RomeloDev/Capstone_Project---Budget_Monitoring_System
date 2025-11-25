@@ -2861,7 +2861,9 @@ class PREBudgetRealignment(models.Model):
         return total_remaining
 
     def get_source_quarterly_available(self):
-        """Get available budget for each quarter in source"""
+        """Get available budget for each quarter in source with real-time data including reserved and pending amounts"""
+        from decimal import Decimal
+
         quarters = {}
         try:
             source_item = PRELineItem.objects.get(id=self.source_item_key, pre=self.source_pre)
@@ -2870,16 +2872,39 @@ class PREBudgetRealignment(models.Model):
 
         for quarter in ['q1', 'q2', 'q3', 'q4']:
             if source_item:
-                allocated = getattr(source_item, f'{quarter}_amount', 0)
-                consumed = source_item.get_quarter_consumed(quarter)
-                remaining = allocated - consumed
+                # Get allocated amount
+                allocated = getattr(source_item, f'{quarter}_amount', Decimal('0'))
+
+                # Get consumed amount (approved PRs/ADs/Realignments)
+                quarter_upper = quarter.upper()  # Convert to 'Q1', 'Q2', etc. for model methods
+                consumed = source_item.get_quarter_consumed(quarter_upper)
+
+                # Get reserved amount (pending PRs/ADs)
+                reserved = source_item.get_quarter_reserved(quarter_upper)
+
+                # Get pending realignment amounts (excluding current realignment)
+                pending_realignments = PREBudgetRealignment.objects.filter(
+                    source_item_key=str(source_item.id),
+                    source_pre=source_item.pre,
+                    status__in=['Pending', 'Partially Approved', 'Awaiting Admin Verification']
+                ).exclude(id=self.id)  # Exclude current realignment to avoid double-counting
+
+                pending_amount = sum(
+                    getattr(r, f'{quarter}_amount', Decimal('0'))
+                    for r in pending_realignments
+                )
+
+                # Calculate actual remaining amount
+                remaining = allocated - consumed - reserved - pending_amount
             else:
-                allocated = consumed = remaining = 0
+                allocated = consumed = reserved = pending_amount = remaining = Decimal('0')
 
             quarters[quarter] = {
                 'allocated': allocated,
                 'consumed': consumed,
-                'remaining': remaining,
+                'reserved': reserved,
+                'pending': pending_amount,
+                'remaining': max(remaining, Decimal('0')),  # Never show negative
             }
         return quarters
 
@@ -2997,6 +3022,12 @@ class BudgetRealignmentSupportingDocument(models.Model):
         validators=[FileExtensionValidator(
             allowed_extensions=['pdf', 'docx', 'doc', 'xlsx', 'xls', 'jpg', 'jpeg', 'png']
         )]
+    )
+    converted_pdf = models.FileField(
+        upload_to='br_converted_pdfs/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text="Auto-converted PDF for image/office document uploads"
     )
     file_name = models.CharField(max_length=255)
     file_size = models.BigIntegerField()

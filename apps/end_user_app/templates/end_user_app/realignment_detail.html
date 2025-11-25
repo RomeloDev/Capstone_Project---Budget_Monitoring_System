@@ -1,0 +1,515 @@
+{% extends "end_user_base_template/dashboard.html" %}
+{% load humanize %}
+
+{% block title %}Budget Realignment Details - Request #{{ realignment.id }}{% endblock %}
+
+{% block main-content %}
+<main class="content">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-8">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Budget Realignment Details</h1>
+                    <p class="text-gray-600">Request #{{ realignment.id }} - {{ realignment.source_item_display }} → {{ realignment.target_item_display }}</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <!-- Status Badge -->
+                    <span class="px-4 py-2 rounded-full text-sm font-semibold
+                        {% if realignment.status == 'Pending' %}bg-yellow-100 text-yellow-800
+                        {% elif realignment.status == 'Partially Approved' %}bg-blue-100 text-blue-800
+                        {% elif realignment.status == 'Awaiting Admin Verification' %}bg-purple-100 text-purple-800
+                        {% elif realignment.status == 'Approved' %}bg-green-100 text-green-800
+                        {% elif realignment.status == 'Rejected' %}bg-red-100 text-red-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ realignment.get_status_display }}
+                    </span>
+
+                    <!-- Back Button -->
+                    <a href="{% url 'realignment_history' %}"
+                       class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200 font-medium">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        Back to History
+                    </a>
+                </div>
+            </div>
+
+            <!-- Breadcrumb -->
+            <nav class="text-sm text-gray-600 mt-4">
+                <a href="{% url 'user_dashboard' %}" class="hover:text-blue-600">Dashboard</a>
+                <span class="mx-2">›</span>
+                <a href="{% url 'realignment_history' %}" class="hover:text-blue-600">Realignment History</a>
+                <span class="mx-2">›</span>
+                <span class="text-gray-900">Request #{{ realignment.id }}</span>
+            </nav>
+        </header>
+
+        <!-- Messages -->
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="text-white px-4 py-3 rounded-lg mb-2
+                {% if message.tags == 'error' %} bg-red-500
+                {% elif message.tags == 'success' %} bg-green-500
+                {% elif message.tags == 'warning' %} bg-yellow-500
+                {% else %} bg-gray-500 {% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Action Required Section (Partially Approved Status) -->
+        {% if realignment.status == 'Partially Approved' and realignment.partially_approved_pdf %}
+        <section class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-lg shadow-md mb-6">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-4 flex-1">
+                    <h3 class="text-lg font-medium text-yellow-800 mb-2">Action Required</h3>
+                    <p class="text-yellow-700 mb-4">
+                        Your realignment has been partially approved. Please follow these steps:
+                    </p>
+                    <ol class="list-decimal list-inside text-yellow-700 space-y-2 mb-4">
+                        <li>Download the partially approved PDF below</li>
+                        <li>Print the document and get it signed by the approving officer</li>
+                        <li>Scan the signed document</li>
+                        <li>Upload the signed document using the button below</li>
+                    </ol>
+                    <div class="flex gap-3">
+                        <a href="{% url 'download_realignment_pdf_enduser' realignment.id %}"
+                           class="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition font-medium">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Download PDF
+                        </a>
+                        <button onclick="openUploadModal()"
+                                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            Upload Signed Document
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Awaiting Verification Section -->
+        {% if realignment.status == 'Awaiting Admin Verification' and realignment.end_user_uploaded_document %}
+        <section class="bg-blue-50 border-l-4 border-blue-400 p-6 rounded-lg shadow-md mb-6">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg font-medium text-blue-800 mb-2">Document Submitted</h3>
+                    <p class="text-blue-700">
+                        Your signed document has been uploaded on {{ realignment.end_user_uploaded_at|date:"M d, Y H:i" }}.
+                        Awaiting admin verification and final approval.
+                    </p>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Rejected Section -->
+        {% if realignment.status == 'Rejected' and realignment.rejection_reason %}
+        <section class="bg-red-50 border-l-4 border-red-400 p-6 rounded-lg shadow-md mb-6">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-4 flex-1">
+                    <h3 class="text-lg font-medium text-red-800 mb-2">Request Rejected</h3>
+                    <p class="text-red-700 font-semibold mb-2">Reason:</p>
+                    <p class="text-red-600 whitespace-pre-line">{{ realignment.rejection_reason }}</p>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Request Information -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Request Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 mb-1">Requested By</h3>
+                    <p class="text-base text-gray-900">{{ realignment.requested_by.get_full_name }}</p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 mb-1">Department</h3>
+                    <p class="text-base text-gray-900">
+                        {% if realignment.source_pre.department %}
+                            {{ realignment.source_pre.department }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 mb-1">Submitted On</h3>
+                    <p class="text-base text-gray-900">
+                        {% if realignment.submitted_at %}
+                            {{ realignment.submitted_at|date:"F d, Y g:i A" }}
+                        {% else %}
+                            Not submitted
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transfer Details -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Budget Transfer Details</h2>
+
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex-1">
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                            <h3 class="text-sm font-medium text-blue-800 mb-1">Transfer FROM (Source)</h3>
+                            <p class="text-lg font-semibold text-blue-900">{{ realignment.source_item_display }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mx-4">
+                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                        </svg>
+                    </div>
+
+                    <div class="flex-1">
+                        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                            <h3 class="text-sm font-medium text-green-800 mb-1">Transfer TO (Target)</h3>
+                            <p class="text-lg font-semibold text-green-900">{{ realignment.target_item_display }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quarterly Breakdown -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Quarterly Breakdown</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {% for quarter_code, quarter_label, quarter_amount in quarters %}
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-600 mb-1">{{ quarter_label }}</h4>
+                        <p class="text-2xl font-bold text-blue-600">₱{{ quarter_amount|floatformat:2|intcomma }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Total Amount -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-lg font-semibold text-gray-800">Total Amount to Transfer:</span>
+                    <span class="text-3xl font-bold text-blue-600">₱{{ realignment.get_total_amount|floatformat:2|intcomma }}</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Source Budget Availability (Real-time) -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Source Category - Current Budget Status</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {% for quarter, data in source_quarterly.items %}
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-gray-600 mb-2">{{ quarter|upper }}</h4>
+                    <div class="space-y-1 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Allocated:</span>
+                            <span class="font-semibold">₱{{ data.allocated|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Consumed:</span>
+                            <span class="font-semibold text-red-600">₱{{ data.consumed|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Reserved:</span>
+                            <span class="font-semibold text-orange-600">₱{{ data.reserved|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Pending:</span>
+                            <span class="font-semibold text-yellow-600">₱{{ data.pending|floatformat:2|intcomma }}</span>
+                        </div>
+                        <div class="flex justify-between border-t pt-1">
+                            <span class="text-gray-600">Remaining:</span>
+                            <span class="font-semibold text-green-600">₱{{ data.remaining|floatformat:2|intcomma }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="mt-3 text-xs text-gray-500">
+                <p><strong>Note:</strong> Reserved = Pending PRs/ADs | Pending = Other pending realignments | Real-time data</p>
+            </div>
+        </section>
+
+        <!-- Reason -->
+        {% if realignment.reason %}
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-3">Reason for Realignment</h2>
+            <p class="text-gray-700 whitespace-pre-line bg-gray-50 p-4 rounded">{{ realignment.reason }}</p>
+        </section>
+        {% endif %}
+
+        <!-- Supporting Documents -->
+        {% if original_documents %}
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Supporting Documents</h2>
+                <a href="{% url 'preview_realignment_documents' realignment.id %}"
+                   class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    Preview & Print
+                </a>
+            </div>
+            <div class="space-y-2">
+                {% for doc in original_documents %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <div class="flex items-center">
+                        <svg class="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+                            <p class="text-sm text-gray-500">{{ doc.get_file_size_display }} - Uploaded {{ doc.uploaded_at|date:"M d, Y g:i A" }}</p>
+                        </div>
+                    </div>
+                    <a href="{{ doc.document.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 font-medium">
+                        View
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Signed/Approved Documents (if uploaded) -->
+        {% if signed_documents %}
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Signed/Approved Documents</h2>
+            <div class="space-y-2">
+                {% for doc in signed_documents %}
+                <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition">
+                    <div class="flex items-center">
+                        <svg class="w-6 h-6 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">{{ doc.file_name }}</p>
+                            <p class="text-sm text-gray-500">{{ doc.get_file_size_display }} - Uploaded {{ doc.uploaded_at|date:"M d, Y g:i A" }}</p>
+                        </div>
+                    </div>
+                    <a href="{{ doc.document.url }}" target="_blank" class="text-green-600 hover:text-green-800 font-medium">
+                        View
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Generated PDF (if available) -->
+        {% if realignment.partially_approved_pdf %}
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Generated PDF for Printing</h2>
+            <div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                <div class="flex items-center">
+                    <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-gray-900">Partially Approved PDF</p>
+                        <p class="text-sm text-gray-600">Generated on {{ realignment.partially_approved_at|date:"M d, Y g:i A" }}</p>
+                    </div>
+                </div>
+                <a href="{% url 'download_realignment_pdf_enduser' realignment.id %}"
+                   class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+                    Download PDF
+                </a>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Approval Timeline -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Approval Timeline</h2>
+            <div class="space-y-4">
+                <!-- Submitted -->
+                {% if realignment.submitted_at %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="font-semibold text-gray-900">Submitted</p>
+                        <p class="text-sm text-gray-600">{{ realignment.submitted_at|date:"F d, Y g:i A" }}</p>
+                        <p class="text-sm text-gray-500">By {{ realignment.requested_by.get_full_name }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Partially Approved -->
+                {% if realignment.partially_approved_at %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="font-semibold text-gray-900">Partially Approved</p>
+                        <p class="text-sm text-gray-600">{{ realignment.partially_approved_at|date:"F d, Y g:i A" }}</p>
+                        {% if realignment.partial_approved_by %}
+                        <p class="text-sm text-gray-500">By {{ realignment.partial_approved_by.get_full_name }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- End User Uploaded -->
+                {% if realignment.end_user_uploaded_at %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="font-semibold text-gray-900">Signed Document Uploaded</p>
+                        <p class="text-sm text-gray-600">{{ realignment.end_user_uploaded_at|date:"F d, Y g:i A" }}</p>
+                        <p class="text-sm text-gray-500">Awaiting admin verification</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Final Approved -->
+                {% if realignment.final_approved_at %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="font-semibold text-gray-900">Final Approved & Budget Executed</p>
+                        <p class="text-sm text-gray-600">{{ realignment.final_approved_at|date:"F d, Y g:i A" }}</p>
+                        {% if realignment.admin_approved_by %}
+                        <p class="text-sm text-gray-500">By {{ realignment.admin_approved_by.get_full_name }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Rejected -->
+                {% if realignment.status == 'Rejected' %}
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="font-semibold text-gray-900">Rejected</p>
+                        <p class="text-sm text-gray-600">{{ realignment.updated_at|date:"F d, Y g:i A" }}</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+</main>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-gray-900">Upload Signed Document</h3>
+            <button onclick="closeUploadModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <form method="POST" action="{% url 'upload_realignment_signed_document' realignment.id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Select Signed Document <span class="text-red-500">*</span>
+                </label>
+                <input type="file" name="signed_document" id="signedDocument"
+                       accept=".pdf,.jpg,.jpeg,.png"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       required>
+                <p class="text-xs text-gray-500 mt-1">Accepted formats: PDF, JPG, JPEG, PNG (Max 10MB)</p>
+                <div id="fileInfo" class="mt-2 text-sm text-gray-600"></div>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="closeUploadModal()"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                    Upload Document
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openUploadModal() {
+    document.getElementById('uploadModal').classList.remove('hidden');
+}
+
+function closeUploadModal() {
+    document.getElementById('uploadModal').classList.add('hidden');
+    document.getElementById('fileInfo').innerHTML = '';
+}
+
+// Show file info when file is selected
+document.getElementById('signedDocument').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const fileInfo = document.getElementById('fileInfo');
+
+    if (file) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        fileInfo.innerHTML = `<strong>Selected:</strong> ${file.name} (${sizeMB} MB)`;
+
+        // Validate file size
+        if (file.size > 10 * 1024 * 1024) {
+            fileInfo.innerHTML += '<br><span class="text-red-600">⚠ File size exceeds 10MB limit</span>';
+        }
+    } else {
+        fileInfo.innerHTML = '';
+    }
+});
+
+// Close modal when clicking outside
+document.getElementById('uploadModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeUploadModal();
+    }
+});
+</script>
+{% endblock main-content %}

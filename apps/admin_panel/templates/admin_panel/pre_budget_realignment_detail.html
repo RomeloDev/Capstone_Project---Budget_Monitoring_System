@@ -290,7 +290,7 @@
 
     <!-- Source Budget Availability -->
     <section class="bg-white p-6 rounded-lg shadow-md">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Source Category - Current Budget Status</h2>
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Source Category - Current Budget Status (Real-time)</h2>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         {% for quarter, data in source_quarterly.items %}
         <div class="border border-gray-200 rounded-lg p-4">
@@ -304,6 +304,14 @@
               <span class="text-gray-600">Consumed:</span>
               <span class="font-semibold text-red-600">₱{{ data.consumed|floatformat:2|intcomma }}</span>
             </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Reserved:</span>
+              <span class="font-semibold text-orange-600">₱{{ data.reserved|floatformat:2|intcomma }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Pending:</span>
+              <span class="font-semibold text-yellow-600">₱{{ data.pending|floatformat:2|intcomma }}</span>
+            </div>
             <div class="flex justify-between border-t pt-1">
               <span class="text-gray-600">Remaining:</span>
               <span class="font-semibold text-green-600">₱{{ data.remaining|floatformat:2|intcomma }}</span>
@@ -311,6 +319,9 @@
           </div>
         </div>
         {% endfor %}
+      </div>
+      <div class="mt-3 text-xs text-gray-500">
+        <p><strong>Note:</strong> Reserved = Pending PRs/ADs | Pending = Other pending realignments</p>
       </div>
     </section>
 
@@ -325,7 +336,17 @@
     <!-- Supporting Documents -->
     {% if original_documents %}
     <section class="bg-white p-6 rounded-lg shadow-md">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Supporting Documents (Original Submission)</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-800">Supporting Documents (Original Submission)</h2>
+        <a href="{% url 'admin_preview_realignment_documents' pk=realignment.id %}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+            </svg>
+            Preview & Print
+        </a>
+      </div>
       <div class="space-y-2">
         {% for doc in original_documents %}
         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
@@ -375,7 +396,17 @@
     <!-- Generated PDF -->
     {% if realignment.partially_approved_pdf %}
     <section class="bg-white p-6 rounded-lg shadow-md">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Generated PDF for Printing</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-800">Generated PDF for Printing</h2>
+        <a href="{% url 'admin_preview_realignment_documents' pk=realignment.id %}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+            </svg>
+            Preview & Print
+        </a>
+      </div>
       <div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
         <div class="flex items-center">
           <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
