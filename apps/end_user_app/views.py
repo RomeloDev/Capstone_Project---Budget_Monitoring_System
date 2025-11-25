@@ -68,8 +68,8 @@ def user_dashboard(request):
     current_year = str(datetime.now().year)
     selected_year = request.GET.get('year', current_year)
 
-    # Get user's budget allocations filtered by year
-    budget_allocations = NewBudgetAllocation.objects.filter(
+    # Get user's budget allocations filtered by year (include archived for historical viewing)
+    budget_allocations = NewBudgetAllocation.all_objects.filter(
         end_user=request.user,
         is_active=True
     ).select_related('approved_budget')
@@ -91,48 +91,48 @@ def user_dashboard(request):
     utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
     remaining_percentage = 100 - utilization_percentage
 
-    # Get document counts
-    pre_count = NewDepartmentPRE.objects.filter(
+    # Get document counts (include archived for historical viewing)
+    pre_count = NewDepartmentPRE.all_objects.filter(
         budget_allocation__in=budget_allocations,
         status__in=['Approved', 'Partially Approved']
     ).count()
 
-    pr_count = NewPurchaseRequest.objects.filter(
+    pr_count = NewPurchaseRequest.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
 
-    ad_count = ActivityDesign.objects.filter(
+    ad_count = ActivityDesign.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
 
     total_active_documents = pre_count + pr_count + ad_count
 
-    # Pending counts
-    pending_pre_count = NewDepartmentPRE.objects.filter(
+    # Pending counts (include archived for historical viewing)
+    pending_pre_count = NewDepartmentPRE.all_objects.filter(
         budget_allocation__in=budget_allocations,
         status='Pending'
     ).count()
 
-    pending_pr_count = NewPurchaseRequest.objects.filter(
+    pending_pr_count = NewPurchaseRequest.all_objects.filter(
         budget_allocation__in=budget_allocations,
         status='Pending'
     ).count()
 
-    pending_ad_count = ActivityDesign.objects.filter(
+    pending_ad_count = ActivityDesign.all_objects.filter(
         budget_allocation__in=budget_allocations,
         status='Pending'
     ).count()
 
-    # Recent activity - Get recent PREs, PRs, and ADs
-    recent_pres = NewDepartmentPRE.objects.filter(
+    # Recent activity - Get recent PREs, PRs, and ADs (include archived)
+    recent_pres = NewDepartmentPRE.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status='Draft').order_by('-submitted_at')[:5]
 
-    recent_prs = NewPurchaseRequest.objects.filter(
+    recent_prs = NewPurchaseRequest.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status='Draft').order_by('-submitted_at')[:5]
 
-    recent_ads = ActivityDesign.objects.filter(
+    recent_ads = ActivityDesign.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status='Draft').order_by('-submitted_at')[:5]
 
@@ -185,7 +185,7 @@ def user_dashboard(request):
         quarter_allocated = Decimal('0')
         quarter_consumed = Decimal('0')
 
-        approved_pres = NewDepartmentPRE.objects.filter(
+        approved_pres = NewDepartmentPRE.all_objects.filter(
             budget_allocation__in=budget_allocations,
             status__in=['Approved', 'Partially Approved']
         ).prefetch_related('line_items')
@@ -206,8 +206,8 @@ def user_dashboard(request):
             'utilization': quarter_utilization
         })
 
-    # Get available years for the year selector
-    available_years = NewBudgetAllocation.objects.filter(
+    # Get available years for the year selector (include archived years)
+    available_years = NewBudgetAllocation.all_objects.filter(
         end_user=request.user
     ).values_list('approved_budget__fiscal_year', flat=True).distinct().order_by('-approved_budget__fiscal_year')
 
@@ -5236,18 +5236,19 @@ def budget_overview(request):
     from django.db.models.functions import ExtractYear
     from datetime import datetime
 
-    # Get current year only (no year filter)
+    # Get current year and support year filtering for archived data
     current_year = str(datetime.now().year)
+    selected_year = request.GET.get('year', current_year)
 
-    # Get user's budget allocations - ONLY for current year
-    budget_allocations = NewBudgetAllocation.objects.filter(
+    # Get user's budget allocations - include archived for historical viewing
+    budget_allocations = NewBudgetAllocation.all_objects.filter(
         end_user=request.user,
         is_active=True,
-        approved_budget__fiscal_year=current_year
+        approved_budget__fiscal_year=selected_year
     ).select_related('approved_budget')
 
-    # Get approved PREs for current year
-    approved_pres_current_year = NewDepartmentPRE.objects.filter(
+    # Get approved PREs for selected year (include archived)
+    approved_pres_current_year = NewDepartmentPRE.all_objects.filter(
         budget_allocation__in=budget_allocations,
         status__in=['Approved', 'Partially Approved']
     )
@@ -5274,17 +5275,17 @@ def budget_overview(request):
         total_remaining = total_allocated - total_used
         utilization_percentage = (total_used / total_allocated * 100) if total_allocated > 0 else 0
 
-    # Get counts
-    pre_count = NewDepartmentPRE.objects.filter(
+    # Get counts (include archived for historical viewing)
+    pre_count = NewDepartmentPRE.all_objects.filter(
         budget_allocation__in=budget_allocations,
         status__in=['Approved', 'Partially Approved']
     ).count()
 
-    pr_count = NewPurchaseRequest.objects.filter(
+    pr_count = NewPurchaseRequest.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
 
-    ad_count = ActivityDesign.objects.filter(
+    ad_count = ActivityDesign.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
 
@@ -5319,17 +5320,17 @@ def budget_overview(request):
 
         quarterly_spending[quarter] = pr_spending + ad_spending
 
-    # Recent activity (last 10 transactions including PRE, PR, AD)
+    # Recent activity (last 10 transactions including PRE, PR, AD) - include archived
     # Get recent PREs
-    recent_pres = NewDepartmentPRE.objects.filter(
+    recent_pres = NewDepartmentPRE.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status='Draft').order_by('-created_at')[:5]
 
-    recent_prs = NewPurchaseRequest.objects.filter(
+    recent_prs = NewPurchaseRequest.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status='Draft').order_by('-created_at')[:5]
 
-    recent_ads = ActivityDesign.objects.filter(
+    recent_ads = ActivityDesign.all_objects.filter(
         budget_allocation__in=budget_allocations
     ).exclude(status='Draft').order_by('-created_at')[:5]
 
@@ -8026,3 +8027,93 @@ def end_user_preview_ad_documents(request, ad_id):
     response = render(request, 'end_user_app/preview_ad_documents.html', context)
     response['X-Frame-Options'] = 'SAMEORIGIN'  # Allow PDF embedding
     return response
+
+
+@role_required('end_user', login_url='/')
+def archive_history(request):
+    """
+    Archive History Page - Shows end user their budget history across all fiscal years
+    Displays fiscal years with archive status, allocation counts, and budget summary
+    Read-only view for historical reference
+    """
+    from decimal import Decimal
+
+    # Get all budget allocations for this user (including archived)
+    user_allocations = NewBudgetAllocation.all_objects.filter(
+        end_user=request.user
+    ).select_related('approved_budget')
+
+    # Group allocations by fiscal year
+    fiscal_years = {}
+    for allocation in user_allocations:
+        approved_budget = allocation.approved_budget
+        fy = approved_budget.fiscal_year
+
+        if fy not in fiscal_years:
+            fiscal_years[fy] = {
+                'fiscal_year': fy,
+                'is_archived': approved_budget.is_archived,
+                'archived_at': approved_budget.archived_at,
+                'is_active': approved_budget.is_active,
+                'total_allocated': Decimal('0'),
+                'total_pr_used': Decimal('0'),
+                'total_ad_used': Decimal('0'),
+                'total_used': Decimal('0'),
+                'total_remaining': Decimal('0'),
+                'allocation_count': 0,
+                'pre_count': 0,
+                'pr_count': 0,
+                'ad_count': 0,
+            }
+
+        # Aggregate data for this fiscal year
+        fiscal_years[fy]['total_allocated'] += allocation.allocated_amount
+        fiscal_years[fy]['total_pr_used'] += allocation.pr_amount_used
+        fiscal_years[fy]['total_ad_used'] += allocation.ad_amount_used
+        fiscal_years[fy]['total_used'] += (allocation.pr_amount_used + allocation.ad_amount_used)
+        fiscal_years[fy]['allocation_count'] += 1
+
+    # Get document counts for each fiscal year
+    for fy_data in fiscal_years.values():
+        fy = fy_data['fiscal_year']
+        allocations_for_year = user_allocations.filter(approved_budget__fiscal_year=fy)
+
+        # Count PREs
+        fy_data['pre_count'] = NewDepartmentPRE.all_objects.filter(
+            budget_allocation__in=allocations_for_year,
+            status__in=['Approved', 'Partially Approved']
+        ).count()
+
+        # Count PRs
+        fy_data['pr_count'] = NewPurchaseRequest.all_objects.filter(
+            budget_allocation__in=allocations_for_year
+        ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
+
+        # Count ADs
+        fy_data['ad_count'] = ActivityDesign.all_objects.filter(
+            budget_allocation__in=allocations_for_year
+        ).exclude(status__in=['Draft', 'Rejected', 'Cancelled']).count()
+
+        # Calculate remaining
+        fy_data['total_remaining'] = fy_data['total_allocated'] - fy_data['total_used']
+
+        # Calculate utilization percentage
+        if fy_data['total_allocated'] > 0:
+            fy_data['utilization_percentage'] = (fy_data['total_used'] / fy_data['total_allocated'] * 100)
+        else:
+            fy_data['utilization_percentage'] = 0
+
+    # Sort fiscal years by year (newest first)
+    fiscal_years_list = sorted(
+        fiscal_years.values(),
+        key=lambda x: x['fiscal_year'],
+        reverse=True
+    )
+
+    context = {
+        'fiscal_years': fiscal_years_list,
+        'department_name': request.user.department,
+        'user_fullname': request.user.fullname,
+    }
+
+    return render(request, 'end_user_app/archive_history.html', context)

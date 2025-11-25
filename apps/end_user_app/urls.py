@@ -63,6 +63,9 @@ urlpatterns = [
     path('budget/transactions/', views.transaction_history, name='transaction_history'),
     path('budget/history/', views.budget_history, name='budget_history'),
     path('budget/reports/', views.budget_reports, name='budget_reports'),
+
+    # Archive History
+    path('archive/history/', views.archive_history, name='archive_history'),
     path('budget/preview/', views.preview_budget_report, name='preview_budget_report'),
     path('budget/export/excel/', views.export_budget_excel, name='export_budget_excel'),
     path('budget/export/pdf/', views.export_budget_pdf, name='export_budget_pdf'),

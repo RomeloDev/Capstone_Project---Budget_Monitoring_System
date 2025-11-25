@@ -358,7 +358,9 @@ function showDetails(requestId) {
 
 // Auto-hide messages after 5 seconds
 document.addEventListener('DOMContentLoaded', function() {
-    const messages = document.querySelectorAll('[class*="bg-green-50"], [class*="bg-red-50"], [class*="bg-yellow-50"], [class*="bg-blue-50"]');
+    // Only target message divs that have both a background class AND contain message content
+    // This prevents matching buttons or other elements with hover:bg-* classes
+    const messages = document.querySelectorAll('section div.p-4.rounded-lg[class*="bg-"][class*="text-"][class*="border"]');
     messages.forEach(message => {
         if (message.textContent.trim()) {
             setTimeout(() => {

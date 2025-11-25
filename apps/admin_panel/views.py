@@ -17,7 +17,8 @@ from apps.budgets.models import (
     SystemNotification,
     BudgetTransactionLog,
     PREBudgetRealignment,
-    BudgetRealignmentSupportingDocument
+    BudgetRealignmentSupportingDocument,
+    PRELineItem
 )
 from django.contrib import messages
 from decimal import Decimal
@@ -4085,7 +4086,14 @@ def handle_pre_realignment_admin_action(request, pk):
                     realignment.approved_by = request.user
 
                     # Update source line item (deduct amounts)
-                    source_item = realignment.source_item
+                    try:
+                        source_item = PRELineItem.objects.get(
+                            id=realignment.source_item_key,
+                            pre=realignment.source_pre
+                        )
+                    except PRELineItem.DoesNotExist:
+                        raise ValueError(f"Source line item not found for ID {realignment.source_item_key}")
+
                     if realignment.q1_amount:
                         source_item.q1_amount -= realignment.q1_amount
                     if realignment.q2_amount:
@@ -4097,7 +4105,14 @@ def handle_pre_realignment_admin_action(request, pk):
                     source_item.save()
 
                     # Update target line item (add amounts)
-                    target_item = realignment.target_item
+                    try:
+                        target_item = PRELineItem.objects.get(
+                            id=realignment.target_item_key,
+                            pre=realignment.target_pre
+                        )
+                    except PRELineItem.DoesNotExist:
+                        raise ValueError(f"Target line item not found for ID {realignment.target_item_key}")
+
                     if realignment.q1_amount:
                         target_item.q1_amount += realignment.q1_amount
                     if realignment.q2_amount:

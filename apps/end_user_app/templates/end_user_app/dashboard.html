@@ -11,6 +11,55 @@
         <p class="text-gray-600">Quick overview of your budget status and recent activities</p>
     </header>
 
+    <!-- Year Selector Section -->
+    <section class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-md p-5 border border-blue-100">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-500 text-white rounded-full p-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">Fiscal Year</h3>
+                    <p class="text-sm text-gray-600">Select a year to view budget data</p>
+                </div>
+            </div>
+            <form method="GET" action="{% url 'user_dashboard' %}" class="flex items-center gap-3">
+                <label for="year_filter" class="text-sm font-medium text-gray-700">View Year:</label>
+                <select name="year"
+                        id="year_filter"
+                        onchange="this.form.submit()"
+                        class="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none shadow-sm transition-all text-gray-700 font-medium">
+                    {% for year in available_fiscal_years %}
+                        <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>
+                            FY {{ year }}{% if forloop.first %} (Current){% endif %}
+                        </option>
+                    {% empty %}
+                        <option value="{{ selected_year }}">FY {{ selected_year }}</option>
+                    {% endfor %}
+                </select>
+                {% if selected_year and available_fiscal_years and selected_year != available_fiscal_years.0 %}
+                    <a href="{% url 'user_dashboard' %}"
+                       class="text-sm text-blue-600 hover:text-blue-800 underline font-medium flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Reset to Current
+                    </a>
+                {% endif %}
+            </form>
+        </div>
+        {% if selected_year and available_fiscal_years and selected_year != available_fiscal_years.0 %}
+            <div class="mt-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Viewing historical data for Fiscal Year {{ selected_year }} (Archived)</span>
+            </div>
+        {% endif %}
+    </section>
+
     <!-- Key Metrics - 4 Cards -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Total Allocated -->
@@ -97,10 +146,10 @@
 
         <!-- Usage Breakdown -->
         <div class="mt-4 grid grid-cols-3 gap-4">
-            <div class="text-center p-3 bg-gray-50 rounded-lg">
+            {% comment %} <div class="text-center p-3 bg-gray-50 rounded-lg">
                 <p class="text-xs text-gray-500">PRE Usage</p>
                 <p class="text-lg font-semibold text-gray-700">₱{{ total_pre_used|floatformat:0|intcomma }}</p>
-            </div>
+            </div> {% endcomment %}
             <div class="text-center p-3 bg-gray-50 rounded-lg">
                 <p class="text-xs text-gray-500">PR Usage</p>
                 <p class="text-lg font-semibold text-gray-700">₱{{ total_pr_used|floatformat:0|intcomma }}</p>
