@@ -190,63 +190,66 @@ def unarchive_fiscal_year(
             budget.archived_at = None
             budget.archived_by = None
             budget.archive_reason = ""
+            budget.archive_type = ""  # Clear archive type
             budget.save()
             unarchived_counts['approved_budgets'] = 1
 
-            # Get all related budget allocations (including archived ones)
-            allocations = BudgetAllocation.all_objects.filter(
+            # OPTIMIZED: Bulk unarchive allocations (ONLY those archived by fiscal year cascade)
+            # This preserves manually archived items (nested state fix)
+            allocations_queryset = BudgetAllocation.all_objects.filter(
                 approved_budget=budget,
-                is_archived=True
+                is_archived=True,
+                archive_type='FISCAL_YEAR'  # Only restore fiscal year archived items
+            )
+            unarchived_counts['budget_allocations'] = allocations_queryset.update(
+                is_archived=False,
+                archived_at=None,
+                archived_by=None,
+                archive_reason="",
+                archive_type=""
             )
 
-            # Unarchive each allocation and its related documents
-            for allocation in allocations:
-                # Unarchive the allocation
-                allocation.is_archived = False
-                allocation.archived_at = None
-                allocation.archived_by = None
-                allocation.archive_reason = ""
-                allocation.save()
-                unarchived_counts['budget_allocations'] += 1
+            # OPTIMIZED: Bulk unarchive DepartmentPREs (ONLY fiscal year archived)
+            pres_queryset = DepartmentPRE.all_objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=True,
+                archive_type='FISCAL_YEAR'  # Only restore fiscal year archived items
+            )
+            unarchived_counts['department_pres'] = pres_queryset.update(
+                is_archived=False,
+                archived_at=None,
+                archived_by=None,
+                archive_reason="",
+                archive_type=""
+            )
 
-                # Unarchive all DepartmentPREs for this allocation
-                pres = DepartmentPRE.all_objects.filter(
-                    budget_allocation=allocation,
-                    is_archived=True
-                )
-                for pre in pres:
-                    pre.is_archived = False
-                    pre.archived_at = None
-                    pre.archived_by = None
-                    pre.archive_reason = ""
-                    pre.save()
-                    unarchived_counts['department_pres'] += 1
+            # OPTIMIZED: Bulk unarchive PurchaseRequests (ONLY fiscal year archived)
+            prs_queryset = PurchaseRequest.all_objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=True,
+                archive_type='FISCAL_YEAR'  # Only restore fiscal year archived items
+            )
+            unarchived_counts['purchase_requests'] = prs_queryset.update(
+                is_archived=False,
+                archived_at=None,
+                archived_by=None,
+                archive_reason="",
+                archive_type=""
+            )
 
-                # Unarchive all PurchaseRequests for this allocation
-                prs = PurchaseRequest.all_objects.filter(
-                    budget_allocation=allocation,
-                    is_archived=True
-                )
-                for pr in prs:
-                    pr.is_archived = False
-                    pr.archived_at = None
-                    pr.archived_by = None
-                    pr.archive_reason = ""
-                    pr.save()
-                    unarchived_counts['purchase_requests'] += 1
-
-                # Unarchive all ActivityDesigns for this allocation
-                ads = ActivityDesign.all_objects.filter(
-                    budget_allocation=allocation,
-                    is_archived=True
-                )
-                for ad in ads:
-                    ad.is_archived = False
-                    ad.archived_at = None
-                    ad.archived_by = None
-                    ad.archive_reason = ""
-                    ad.save()
-                    unarchived_counts['activity_designs'] += 1
+            # OPTIMIZED: Bulk unarchive ActivityDesigns (ONLY fiscal year archived)
+            ads_queryset = ActivityDesign.all_objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=True,
+                archive_type='FISCAL_YEAR'  # Only restore fiscal year archived items
+            )
+            unarchived_counts['activity_designs'] = ads_queryset.update(
+                is_archived=False,
+                archived_at=None,
+                archived_by=None,
+                archive_reason="",
+                archive_type=""
+            )
 
             # Log to AuditTrail
             AuditTrail.objects.create(

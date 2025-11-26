@@ -23,6 +23,8 @@ class AuditTrail(models.Model):
         ('LOGOUT', 'Logged Out'),
         ('APPROVE', 'Approved'),
         ('REJECT', 'Rejected'),
+        ('ARCHIVE', 'Archived'),
+        ('UNARCHIVE', 'Unarchived'),
         ('PASSWORD_RESET_REQUEST', 'Password Reset Requested'),
         ('PASSWORD_RESET_COMPLETE', 'Password Reset Completed'),
     )

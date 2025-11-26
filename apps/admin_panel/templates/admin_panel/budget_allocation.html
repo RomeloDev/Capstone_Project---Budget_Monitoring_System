@@ -166,6 +166,7 @@
                         <tr>
                             <th class="py-3 px-2 whitespace-nowrap text-xs">Department / User</th>
                             <th class="py-3 px-2 whitespace-nowrap text-right text-xs">Allocated</th>
+                            <th class="py-3 px-2 whitespace-nowrap text-right text-xs">Approved PRE Grand Total</th>
                             <th class="py-3 px-2 whitespace-nowrap text-right text-xs">Remaining</th>
                             <th class="py-3 px-2 whitespace-nowrap text-xs">Budget Used</th>
                             <th class="py-3 px-2 whitespace-nowrap text-center text-xs">Utilization Rate</th>
@@ -190,10 +191,15 @@
                                 ₱{{ allocation.allocated_amount|floatformat:0|intcomma }}
                             </td>
 
+                            <!-- Approved PRE Grand Total -->
+                            <td class="py-3 px-2 whitespace-nowrap text-right font-bold text-purple-700">
+                                ₱{{ allocation.get_pre_approved_total|floatformat:0|intcomma }}
+                            </td>
+
                             <!-- Remaining Balance -->
                             <td class="py-3 px-2 whitespace-nowrap text-right">
-                                <span class="{% if allocation.calculated_remaining <= 0 %}text-red-600{% else %}text-green-600{% endif %} font-bold">
-                                    ₱{{ allocation.calculated_remaining|floatformat:0|intcomma }}
+                                <span class="{% if allocation.get_available_pre_budget <= 0 %}text-red-600{% else %}text-green-600{% endif %} font-bold">
+                                    ₱{{ allocation.get_available_pre_budget|floatformat:0|intcomma }}
                                 </span>
                             </td>
 
@@ -208,10 +214,10 @@
 
                             <!-- Utilization Rate -->
                             <td class="py-3 px-2 whitespace-nowrap text-center">
-                                {% if allocation.allocated_amount > 0 %}
+                                {% if allocation.get_pre_approved_total > 0 %}
                                     {% load custom_filters %}
                                     {% with total_used=allocation.pr_amount_used|add:allocation.ad_amount_used %}
-                                    {% with utilization_decimal=total_used|calculate_percentage:allocation.allocated_amount %}
+                                    {% with utilization_decimal=total_used|calculate_percentage:allocation.get_pre_approved_total %}
                                     <span class="px-2 py-1 rounded text-xs font-semibold
                                         {% if utilization_decimal < 50 %}bg-green-100 text-green-800
                                         {% elif utilization_decimal < 80 %}bg-yellow-100 text-yellow-800
@@ -257,8 +263,7 @@
                                     class="inline-flex items-center px-3 py-1 bg-purple-600 text-white text-sm font-medium rounded hover:bg-purple-700 transition-colors"
                                     title="Preview Report">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                         </svg>
                                     </a>
                                 </div>

@@ -1324,11 +1324,16 @@ def budget_allocation(request):
         total_departments=Count('department', distinct=True)
     )
 
-    total_allocated = allocation_stats['total_allocated'] or Decimal('0')
+    # Calculate total allocated based on Approved PRE Grand Total (matches Budget Monitoring Dashboard)
+    total_allocated = sum(allocation.get_pre_approved_total() for allocation in summary_allocations)
+
     total_pr_used = allocation_stats['total_pr_used'] or Decimal('0')
     total_ad_used = allocation_stats['total_ad_used'] or Decimal('0')
     total_used = total_pr_used + total_ad_used
-    total_remaining = total_allocated - total_used
+
+    # Calculate total remaining based on Approved PRE Grand Total (matches Budget Monitoring Dashboard)
+    total_remaining = sum(allocation.get_available_pre_budget() for allocation in summary_allocations)
+
     total_departments = allocation_stats['total_departments'] or 0
 
     # Calculate utilization rate
@@ -6276,15 +6281,174 @@ def unarchive_fiscal_year_view(request, fiscal_year):
 def archive_statistics_ajax(request):
     """
     Get archive statistics (AJAX endpoint)
+    Supports optional fiscal_year parameter to get stats for a specific year
     """
     from apps.budgets.services import get_archive_statistics
+    from apps.budgets.models import (
+        ApprovedBudget, BudgetAllocation, DepartmentPRE,
+        PurchaseRequest, ActivityDesign
+    )
 
-    stats = get_archive_statistics()
+    # Check if fiscal_year parameter is provided
+    fiscal_year = request.GET.get('fiscal_year')
 
-    return JsonResponse({
-        'success': True,
-        'statistics': stats
-    })
+    if fiscal_year:
+        # Get statistics for specific fiscal year
+        try:
+            budget = ApprovedBudget.all_objects.get(fiscal_year=fiscal_year)
+
+            # Count items that will be affected by archiving this fiscal year
+            allocations_count = BudgetAllocation.objects.filter(
+                approved_budget=budget,
+                is_archived=False
+            ).count()
+
+            pres_count = DepartmentPRE.objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=False
+            ).count()
+
+            prs_count = PurchaseRequest.objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=False
+            ).count()
+
+            ads_count = ActivityDesign.objects.filter(
+                budget_allocation__approved_budget=budget,
+                is_archived=False
+            ).count()
+
+            return JsonResponse({
+                'success': True,
+                'fiscal_year': fiscal_year,
+                'counts': {
+                    'allocations': allocations_count,
+                    'pres': pres_count,
+                    'prs': prs_count,
+                    'ads': ads_count,
+                    'total': allocations_count + pres_count + prs_count + ads_count
+                }
+            })
+        except ApprovedBudget.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': f'Fiscal year {fiscal_year} not found'
+            }, status=404)
+    else:
+        # Get global statistics (original behavior)
+        stats = get_archive_statistics()
+        return JsonResponse({
+            'success': True,
+            'statistics': stats
+        })
+
+
+@role_required('admin', login_url='/admin/')
+def archive_fiscal_year_details(request, fiscal_year):
+    """
+    View detailed information about an archived fiscal year.
+    Shows a snapshot of the budget state at the time of archiving.
+    """
+    from apps.budgets.models import (
+        ApprovedBudget, BudgetAllocation, DepartmentPRE,
+        PurchaseRequest, ActivityDesign
+    )
+    from django.db.models import Sum, Q
+
+    try:
+        # Get the archived budget for this fiscal year
+        budget = ApprovedBudget.all_objects.get(fiscal_year=fiscal_year, is_archived=True)
+    except ApprovedBudget.DoesNotExist:
+        messages.error(request, f'Archived fiscal year {fiscal_year} not found.')
+        return redirect('archive_center')
+
+    # Get all archived data for this fiscal year using proper filters
+    # Query through the relationship: budget -> allocations -> pres/prs/ads
+    allocations = BudgetAllocation.all_objects.filter(
+        approved_budget=budget,
+        is_archived=True
+    ).select_related('approved_budget', 'end_user')
+
+    pres = DepartmentPRE.all_objects.filter(
+        budget_allocation__approved_budget=budget,
+        is_archived=True
+    ).select_related('budget_allocation__approved_budget')
+
+    prs = PurchaseRequest.all_objects.filter(
+        budget_allocation__approved_budget=budget,
+        is_archived=True
+    ).select_related('budget_allocation__approved_budget')
+
+    ads = ActivityDesign.all_objects.filter(
+        budget_allocation__approved_budget=budget,
+        is_archived=True
+    ).select_related('budget_allocation__approved_budget')
+
+    # Calculate summary statistics
+    total_allocated = allocations.aggregate(total=Sum('allocated_amount'))['total'] or 0
+
+    # Calculate total spent (PRs + ADs)
+    total_pr_spent = prs.filter(status='Approved').aggregate(total=Sum('total_amount'))['total'] or 0
+    total_ad_spent = ads.filter(status='Approved').aggregate(total=Sum('total_amount'))['total'] or 0
+    total_spent = total_pr_spent + total_ad_spent
+
+    # Calculate remaining balance
+    remaining_balance = budget.amount - total_allocated
+    unspent_from_allocations = total_allocated - total_spent
+
+    # Count documents by status
+    pres_approved = pres.filter(status='Approved').count()
+    pres_pending = pres.filter(status='Pending').count()
+    pres_rejected = pres.filter(status='Rejected').count()
+
+    prs_approved = prs.filter(status='Approved').count()
+    prs_pending = prs.filter(status='Pending').count()
+    prs_rejected = prs.filter(status='Rejected').count()
+
+    ads_approved = ads.filter(status='Approved').count()
+    ads_pending = ads.filter(status='Pending').count()
+    ads_rejected = ads.filter(status='Rejected').count()
+
+    # Prepare summary stats
+    summary_stats = {
+        'total_budget': budget.amount,
+        'total_allocated': total_allocated,
+        'total_spent': total_spent,
+        'remaining_balance': remaining_balance,
+        'unspent_from_allocations': unspent_from_allocations,
+        'allocation_percentage': (total_allocated / budget.amount * 100) if budget.amount > 0 else 0,
+        'spent_percentage': (total_spent / total_allocated * 100) if total_allocated > 0 else 0,
+    }
+
+    context = {
+        'budget': budget,
+        'fiscal_year': fiscal_year,
+        'allocations': allocations,
+        'pres': pres,
+        'prs': prs,
+        'ads': ads,
+        'summary_stats': summary_stats,
+        'pres_counts': {
+            'approved': pres_approved,
+            'pending': pres_pending,
+            'rejected': pres_rejected,
+            'total': pres.count(),
+        },
+        'prs_counts': {
+            'approved': prs_approved,
+            'pending': prs_pending,
+            'rejected': prs_rejected,
+            'total': prs.count(),
+        },
+        'ads_counts': {
+            'approved': ads_approved,
+            'pending': ads_pending,
+            'rejected': ads_rejected,
+            'total': ads.count(),
+        },
+    }
+
+    return render(request, 'admin_panel/archive_details.html', context)
 
 
 # ============================================================================

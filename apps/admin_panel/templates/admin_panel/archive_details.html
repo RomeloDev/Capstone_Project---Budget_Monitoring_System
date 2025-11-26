@@ -1,0 +1,380 @@
+{% extends "admin_base_template/dashboard.html" %}
+{% load humanize %}
+{% block title %}Archive Details - {{ fiscal_year }}{% endblock %}
+
+{% block main-content %}
+<div class="flex flex-col w-full min-h-screen bg-gradient-to-br from-gray-100">
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 text-white shadow-lg rounded-lg mb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="flex items-center mb-2">
+          <a href="{% url 'archive_center' %}" class="mr-4 hover:bg-white/20 p-2 rounded-lg transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+          </a>
+          <div>
+            <h1 class="text-2xl font-bold flex items-center">
+              <svg class="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              Fiscal Year {{ fiscal_year }} - Archive Details
+            </h1>
+            <p class="text-purple-100 mt-1 text-sm">
+              {{ budget.title }} | Archived {{ budget.archived_at|date:"F d, Y" }}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="hidden md:flex items-center space-x-4">
+        <div class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
+          <div class="text-xs text-purple-100">Total Budget</div>
+          <div class="font-semibold text-xl">₱{{ budget.amount|floatformat:2|intcomma }}</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Archive Information Banner -->
+  <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-lg">
+    <div class="flex items-center">
+      <svg class="w-6 h-6 text-yellow-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+      </svg>
+      <div>
+        <h3 class="font-semibold text-yellow-800">Archived Record (Read-Only)</h3>
+        <p class="text-sm text-yellow-700">
+          Archived by {{ budget.archived_by.get_full_name|default:"System" }} on {{ budget.archived_at|date:"F d, Y g:i A" }}
+          {% if budget.archive_reason %}| Reason: {{ budget.archive_reason }}{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Statistics Cards -->
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <!-- Total Budget Card -->
+    <div class="bg-white rounded-xl p-6 shadow-lg border-l-4 border-blue-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Budget</h3>
+          <div class="text-2xl font-bold text-gray-900 mt-2">₱{{ summary_stats.total_budget|floatformat:2|intcomma }}</div>
+          <p class="text-sm text-gray-500 mt-1">Approved amount</p>
+        </div>
+        <div class="bg-blue-100 rounded-full p-3">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Allocated Card -->
+    <div class="bg-white rounded-xl p-6 shadow-lg border-l-4 border-green-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Allocated</h3>
+          <div class="text-2xl font-bold text-gray-900 mt-2">₱{{ summary_stats.total_allocated|floatformat:2|intcomma }}</div>
+          <p class="text-sm text-gray-500 mt-1">{{ summary_stats.allocation_percentage|floatformat:1 }}% of budget</p>
+        </div>
+        <div class="bg-green-100 rounded-full p-3">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Spent Card -->
+    <div class="bg-white rounded-xl p-6 shadow-lg border-l-4 border-orange-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Spent</h3>
+          <div class="text-2xl font-bold text-gray-900 mt-2">₱{{ summary_stats.total_spent|floatformat:2|intcomma }}</div>
+          <p class="text-sm text-gray-500 mt-1">{{ summary_stats.spent_percentage|floatformat:1 }}% of allocated</p>
+        </div>
+        <div class="bg-orange-100 rounded-full p-3">
+          <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unspent Balance Card -->
+    <div class="bg-white rounded-xl p-6 shadow-lg border-l-4 border-purple-500">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-medium text-gray-600 uppercase tracking-wide">Unspent Balance</h3>
+          <div class="text-2xl font-bold text-gray-900 mt-2">₱{{ summary_stats.unspent_from_allocations|floatformat:2|intcomma }}</div>
+          <p class="text-sm text-gray-500 mt-1">From allocations</p>
+        </div>
+        <div class="bg-purple-100 rounded-full p-3">
+          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tabs Section -->
+  <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <!-- Tab Navigation -->
+    <div class="border-b border-gray-200">
+      <nav class="flex -mb-px">
+        <button onclick="switchTab('allocations')" id="tab-allocations" class="tab-button active px-6 py-4 text-sm font-medium border-b-2 border-purple-500 text-purple-600 focus:outline-none">
+          <span class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+            </svg>
+            Allocations ({{ allocations.count }})
+          </span>
+        </button>
+        <button onclick="switchTab('pres')" id="tab-pres" class="tab-button px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none">
+          <span class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            PREs ({{ pres_counts.total }})
+          </span>
+        </button>
+        <button onclick="switchTab('prs')" id="tab-prs" class="tab-button px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none">
+          <span class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            Purchase Requests ({{ prs_counts.total }})
+          </span>
+        </button>
+        <button onclick="switchTab('ads')" id="tab-ads" class="tab-button px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none">
+          <span class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+            </svg>
+            Activity Designs ({{ ads_counts.total }})
+          </span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="p-6">
+      <!-- Allocations Tab -->
+      <div id="content-allocations" class="tab-content">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Department Budget Allocations</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocated Amount</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archive Status</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for allocation in allocations %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ allocation.department }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">₱{{ allocation.allocated_amount|floatformat:2|intcomma }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full {% if allocation.archive_type == 'MANUAL' %}bg-red-100 text-red-800{% else %}bg-purple-100 text-purple-800{% endif %}">
+                    {% if allocation.archive_type == 'MANUAL' %}Manually Archived{% else %}FY Archived{% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="3" class="px-6 py-4 text-center text-gray-500">No allocations found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PREs Tab -->
+      <div id="content-pres" class="tab-content hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-800">Department PREs</h2>
+          <div class="flex space-x-2 text-sm">
+            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full">Approved: {{ pres_counts.approved }}</span>
+            <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">Pending: {{ pres_counts.pending }}</span>
+            <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full">Rejected: {{ pres_counts.rejected }}</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PRE ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archive Type</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for pre in pres %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">PRE-{{ pre.id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ pre.budget_allocation.department }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full {% if pre.status == 'Approved' %}bg-green-100 text-green-800{% elif pre.status == 'Pending' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {{ pre.status }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full {% if pre.archive_type == 'MANUAL' %}bg-red-100 text-red-800{% else %}bg-purple-100 text-purple-800{% endif %}">
+                    {% if pre.archive_type == 'MANUAL' %}Manually Archived{% else %}FY Archived{% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="4" class="px-6 py-4 text-center text-gray-500">No PREs found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Purchase Requests Tab -->
+      <div id="content-prs" class="tab-content hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-800">Purchase Requests</h2>
+          <div class="flex space-x-2 text-sm">
+            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full">Approved: {{ prs_counts.approved }}</span>
+            <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">Pending: {{ prs_counts.pending }}</span>
+            <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full">Rejected: {{ prs_counts.rejected }}</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PR ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archive Type</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for pr in prs %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">PR-{{ pr.id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ pr.budget_allocation.department }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ pr.total_amount|floatformat:2|intcomma }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full {% if pr.status == 'Approved' %}bg-green-100 text-green-800{% elif pr.status == 'Pending' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {{ pr.status }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full {% if pr.archive_type == 'MANUAL' %}bg-red-100 text-red-800{% else %}bg-purple-100 text-purple-800{% endif %}">
+                    {% if pr.archive_type == 'MANUAL' %}Manually Archived{% else %}FY Archived{% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="px-6 py-4 text-center text-gray-500">No purchase requests found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Activity Designs Tab -->
+      <div id="content-ads" class="tab-content hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-800">Activity Designs</h2>
+          <div class="flex space-x-2 text-sm">
+            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full">Approved: {{ ads_counts.approved }}</span>
+            <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">Pending: {{ ads_counts.pending }}</span>
+            <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full">Rejected: {{ ads_counts.rejected }}</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AD ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archive Type</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {% for ad in ads %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">AD-{{ ad.id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ ad.budget_allocation.department }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ ad.total_amount|floatformat:2|intcomma }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full {% if ad.status == 'Approved' %}bg-green-100 text-green-800{% elif ad.status == 'Pending' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {{ ad.status }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full {% if ad.archive_type == 'MANUAL' %}bg-red-100 text-red-800{% else %}bg-purple-100 text-purple-800{% endif %}">
+                    {% if ad.archive_type == 'MANUAL' %}Manually Archived{% else %}FY Archived{% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="px-6 py-4 text-center text-gray-500">No activity designs found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Back Button -->
+  <div class="mt-6 mb-6">
+    <a href="{% url 'archive_center' %}" class="inline-flex items-center px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg shadow-md transition-colors duration-200">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+      </svg>
+      Back to Archive Center
+    </a>
+  </div>
+</div>
+
+<script>
+function switchTab(tabName) {
+  // Hide all tab contents
+  const contents = document.querySelectorAll('.tab-content');
+  contents.forEach(content => {
+    content.classList.add('hidden');
+  });
+
+  // Remove active class from all buttons
+  const buttons = document.querySelectorAll('.tab-button');
+  buttons.forEach(button => {
+    button.classList.remove('active', 'border-purple-500', 'text-purple-600');
+    button.classList.add('border-transparent', 'text-gray-500');
+  });
+
+  // Show selected tab content
+  document.getElementById('content-' + tabName).classList.remove('hidden');
+
+  // Add active class to selected button
+  const activeButton = document.getElementById('tab-' + tabName);
+  activeButton.classList.remove('border-transparent', 'text-gray-500');
+  activeButton.classList.add('active', 'border-purple-500', 'text-purple-600');
+}
+</script>
+{% endblock %}

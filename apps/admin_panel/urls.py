@@ -109,6 +109,7 @@ urlpatterns = [
 
     # Archive Management
     path('archive/', views.archive_center, name='archive_center'),
+    path('archive/fiscal-year/<str:fiscal_year>/details/', views.archive_fiscal_year_details, name='archive_fiscal_year_details'),
     path('archive/fiscal-year/<str:fiscal_year>/archive/', views.archive_fiscal_year_view, name='archive_fiscal_year'),
     path('archive/fiscal-year/<str:fiscal_year>/unarchive/', views.unarchive_fiscal_year_view, name='unarchive_fiscal_year'),
     path('archive/statistics/', views.archive_statistics_ajax, name='archive_statistics_ajax'),

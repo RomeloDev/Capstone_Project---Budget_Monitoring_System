@@ -26,9 +26,25 @@ class ArchiveManager(models.Manager):
         return super().get_queryset()
 
     def fiscal_year_archived(self, fiscal_year):
-        """Return archived records for a specific fiscal year"""
-        return self.archived().filter(
-            Q(fiscal_year=fiscal_year) |  # For ApprovedBudget
-            Q(approved_budget__fiscal_year=fiscal_year) |  # For BudgetAllocation
-            Q(budget_allocation__approved_budget__fiscal_year=fiscal_year)  # For PRE, PR, AD
-        )
+        """
+        Return archived records for a specific fiscal year.
+
+        This method intelligently determines which filter to apply based on
+        the model's fields to avoid FieldError exceptions.
+        """
+        queryset = self.archived()
+        model = self.model
+
+        # Check which fields exist on this model and use the appropriate filter
+        if hasattr(model, 'fiscal_year'):
+            # For ApprovedBudget model
+            return queryset.filter(fiscal_year=fiscal_year)
+        elif hasattr(model, 'approved_budget'):
+            # For BudgetAllocation model
+            return queryset.filter(approved_budget__fiscal_year=fiscal_year)
+        elif hasattr(model, 'budget_allocation'):
+            # For DepartmentPRE, PurchaseRequest, ActivityDesign models
+            return queryset.filter(budget_allocation__approved_budget__fiscal_year=fiscal_year)
+        else:
+            # Fallback: return empty queryset if model structure is unexpected
+            return queryset.none()
