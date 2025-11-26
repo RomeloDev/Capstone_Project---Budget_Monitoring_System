@@ -67,13 +67,14 @@ def admin_dashboard(request):
             'approved_budget', 'end_user'
         ).filter(is_active=True)
 
-        # Get available years from budget allocations
+        # Get available years from ApprovedBudget (fiscal_year field)
+        # This ensures all years with approved budgets are shown, even if not yet allocated
         available_years = (
-            base_allocations
-            .annotate(year=ExtractYear('allocated_at'))
-            .values_list('year', flat=True)
+            NewApprovedBudget.objects
+            .filter(is_active=True, is_archived=False)
+            .values_list('fiscal_year', flat=True)
             .distinct()
-            .order_by('-year')
+            .order_by('-fiscal_year')
         )
 
         # Apply year filter to budget allocations
@@ -84,10 +85,19 @@ def admin_dashboard(request):
                 allocated_at__year=selected_year
             )
 
-        # Total Budget from filtered allocations
-        total_budget = budget_allocated.aggregate(
-            Sum('allocated_amount')
-        )['allocated_amount__sum'] or 0
+        # Total Budget from ApprovedBudget for the selected year
+        # This shows the total approved budget amount, not just allocated
+        if selected_year == 'all':
+            total_budget = NewApprovedBudget.objects.filter(
+                is_active=True,
+                is_archived=False
+            ).aggregate(Sum('amount'))['amount__sum'] or 0
+        else:
+            total_budget = NewApprovedBudget.objects.filter(
+                fiscal_year=selected_year,
+                is_active=True,
+                is_archived=False
+            ).aggregate(Sum('amount'))['amount__sum'] or 0
 
         # Pending Requests Count (PRE + PR + AD) - filtered by year
         if selected_year == 'all':
@@ -148,12 +158,12 @@ def admin_dashboard(request):
         pending_trend = "down" if total_pending_realignment_request < 10 else "up"
         approved_trend = "up"
 
-        # Chart data (group by department) - using NEW model
+        # Chart data (group by department) - using NEW model with year filter
         from django.db.models import F, ExpressionWrapper, DecimalField
 
+        # Use the already filtered budget_allocated queryset to respect year selection
         dept_agg = (
-            NewBudgetAllocation.objects
-            .filter(is_active=True)
+            budget_allocated
             .values('department')
             .annotate(
                 total_allocated=Sum('allocated_amount'),
@@ -4084,13 +4094,7 @@ def handle_pre_realignment_admin_action(request, pk):
 
             try:
                 with transaction.atomic():
-                    # Execute the budget transfer - similar to final_approve
-                    realignment.status = 'Approved'
-                    realignment.admin_approved_by = request.user
-                    realignment.approved_at = timezone.now()
-                    realignment.approved_by = request.user
-
-                    # Update source line item (deduct amounts)
+                    # Get source and target line items first
                     try:
                         source_item = PRELineItem.objects.get(
                             id=realignment.source_item_key,
@@ -4099,6 +4103,69 @@ def handle_pre_realignment_admin_action(request, pk):
                     except PRELineItem.DoesNotExist:
                         raise ValueError(f"Source line item not found for ID {realignment.source_item_key}")
 
+                    try:
+                        target_item = PRELineItem.objects.get(
+                            id=realignment.target_item_key,
+                            pre=realignment.target_pre
+                        )
+                    except PRELineItem.DoesNotExist:
+                        raise ValueError(f"Target line item not found for ID {realignment.target_item_key}")
+
+                    # CRITICAL VALIDATION: Check if source still has sufficient funds
+                    # (funds might have been consumed or realigned since partial approval)
+                    validation_errors = []
+                    for quarter_num, quarter_amount in enumerate([
+                        realignment.q1_amount,
+                        realignment.q2_amount,
+                        realignment.q3_amount,
+                        realignment.q4_amount
+                    ], 1):
+                        if quarter_amount and quarter_amount > 0:
+                            quarter_code = f'q{quarter_num}'
+                            quarter_upper = f'Q{quarter_num}'
+
+                            # Get current allocated amount
+                            allocated = getattr(source_item, f'{quarter_code}_amount', Decimal('0'))
+
+                            # Get consumed and reserved amounts
+                            consumed = source_item.get_quarter_consumed(quarter_upper)
+                            reserved = source_item.get_quarter_reserved(quarter_upper)
+
+                            # Calculate other pending realignments (excluding this one)
+                            other_pending = PREBudgetRealignment.objects.filter(
+                                source_item_key=realignment.source_item_key,
+                                source_pre=realignment.source_pre,
+                                status__in=['Pending', 'Partially Approved', 'Awaiting Admin Verification']
+                            ).exclude(id=realignment.id)
+
+                            pending_amount = sum(
+                                getattr(r, f'{quarter_code}_amount', Decimal('0'))
+                                for r in other_pending
+                            )
+
+                            # Calculate available funds
+                            available = allocated - consumed - reserved - pending_amount
+
+                            if available < quarter_amount:
+                                validation_errors.append(
+                                    f"Q{quarter_num}: Insufficient funds. "
+                                    f"Available: ₱{available:,.2f}, Required: ₱{quarter_amount:,.2f} "
+                                    f"(Allocated: ₱{allocated:,.2f}, Consumed: ₱{consumed:,.2f}, "
+                                    f"Reserved: ₱{reserved:,.2f}, Pending: ₱{pending_amount:,.2f})"
+                                )
+
+                    # If validation fails, abort the transaction
+                    if validation_errors:
+                        error_message = "Cannot approve realignment - insufficient funds:\n" + "\n".join(validation_errors)
+                        raise ValueError(error_message)
+
+                    # All validation passed - proceed with budget transfer
+                    realignment.status = 'Approved'
+                    realignment.admin_approved_by = request.user
+                    realignment.approved_at = timezone.now()
+                    realignment.approved_by = request.user
+
+                    # Update source line item (deduct amounts)
                     if realignment.q1_amount:
                         source_item.q1_amount -= realignment.q1_amount
                     if realignment.q2_amount:
@@ -4110,14 +4177,7 @@ def handle_pre_realignment_admin_action(request, pk):
                     source_item.save()
 
                     # Update target line item (add amounts)
-                    try:
-                        target_item = PRELineItem.objects.get(
-                            id=realignment.target_item_key,
-                            pre=realignment.target_pre
-                        )
-                    except PRELineItem.DoesNotExist:
-                        raise ValueError(f"Target line item not found for ID {realignment.target_item_key}")
-
+                    # (target_item already fetched during validation above)
                     if realignment.q1_amount:
                         target_item.q1_amount += realignment.q1_amount
                     if realignment.q2_amount:

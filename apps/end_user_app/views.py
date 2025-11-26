@@ -3508,15 +3508,45 @@ def pre_budget_realignment(request):
                     return redirect('pre_budget_realignment')
 
                 # Validate each quarter has sufficient funds in NEW structure
+                # IMPORTANT: Must check allocated - consumed - reserved - pending realignments
                 for quarter_num, quarter_amount in enumerate([q1_amount, q2_amount, q3_amount, q4_amount], 1):
                     if quarter_amount > 0:
                         quarter_code = f'q{quarter_num}'
+                        quarter_upper = quarter_code.upper()
+
+                        # Get allocated amount for this quarter
                         allocated = getattr(source_line_item, f'{quarter_code}_amount', Decimal('0'))
-                        consumed = source_line_item.get_quarter_consumed(quarter_code)
-                        available = allocated - consumed
+
+                        # Get consumed and reserved amounts
+                        consumed = source_line_item.get_quarter_consumed(quarter_upper)
+                        reserved = source_line_item.get_quarter_reserved(quarter_upper)
+
+                        # Calculate pending realignment deductions (CRITICAL: prevents race condition)
+                        # Check all pending realignments that would deduct from this source item
+                        pending_realignments = PREBudgetRealignment.objects.filter(
+                            source_item_key=source_item_key,
+                            source_pre=source_pre,
+                            status__in=['Pending', 'Partially Approved', 'Awaiting Admin Verification'],
+                            requested_by=request.user
+                        )
+
+                        pending_amount = sum(
+                            getattr(r, f'{quarter_code}_amount', Decimal('0'))
+                            for r in pending_realignments
+                        )
+
+                        # Calculate actual available funds (accounts for all commitments)
+                        available = allocated - consumed - reserved - pending_amount
 
                         if available < quarter_amount:
-                            messages.error(request, f"Insufficient funds for Q{quarter_num}. Available: ₱{available:,.2f}, Requested: ₱{quarter_amount:,.2f}")
+                            messages.error(
+                                request,
+                                f"Insufficient funds for Q{quarter_num}. "
+                                f"Available: ₱{available:,.2f} (Allocated: ₱{allocated:,.2f}, "
+                                f"Consumed: ₱{consumed:,.2f}, Reserved: ₱{reserved:,.2f}, "
+                                f"Pending: ₱{pending_amount:,.2f}), "
+                                f"Requested: ₱{quarter_amount:,.2f}"
+                            )
                             return redirect('pre_budget_realignment')
 
                 # Build display labels
@@ -3914,95 +3944,104 @@ def upload_realignment_signed_document(request, pk):
     )
 
     if request.method == 'POST':
-        uploaded_file = request.FILES.get('signed_document')
+        uploaded_files = request.FILES.getlist('signed_documents')  # Changed to getlist for multiple files
 
-        if not uploaded_file:
-            messages.error(request, "Please select a file to upload.")
+        if not uploaded_files:
+            messages.error(request, "Please select at least one file to upload.")
             return redirect('realignment_detail', pk=pk)
 
-        # Validate file extension
+        # Validate all files before processing
         allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
-        file_ext = uploaded_file.name.split('.')[-1].lower()
-
-        if file_ext not in allowed_extensions:
-            messages.error(request, f"Invalid file format. Allowed formats: {', '.join(allowed_extensions).upper()}")
-            return redirect('realignment_detail', pk=pk)
-
-        # Validate file size (max 10MB)
         max_size = 10 * 1024 * 1024  # 10MB in bytes
-        if uploaded_file.size > max_size:
-            messages.error(request, "File size exceeds 10MB limit. Please upload a smaller file.")
-            return redirect('realignment_detail', pk=pk)
+
+        for uploaded_file in uploaded_files:
+            file_ext = uploaded_file.name.split('.')[-1].lower()
+
+            if file_ext not in allowed_extensions:
+                messages.error(request, f"Invalid file format for '{uploaded_file.name}'. Allowed formats: {', '.join(allowed_extensions).upper()}")
+                return redirect('realignment_detail', pk=pk)
+
+            if uploaded_file.size > max_size:
+                messages.error(request, f"File '{uploaded_file.name}' exceeds 10MB limit. Please upload smaller files.")
+                return redirect('realignment_detail', pk=pk)
 
         try:
             with transaction.atomic():
-                # Create supporting document record
-                doc = BudgetRealignmentSupportingDocument.objects.create(
-                    budget_realignment=realignment,
-                    document=uploaded_file,
-                    file_name=uploaded_file.name,
-                    file_size=uploaded_file.size,
-                    uploaded_by=request.user,
-                    is_signed_copy=True
-                )
+                # Process each uploaded file
+                for uploaded_file in uploaded_files:
+                    file_ext = uploaded_file.name.split('.')[-1].lower()
 
-                # Convert images to PDF for preview compatibility
-                if file_ext in ['jpg', 'jpeg', 'png']:
-                    logger.info(f"Converting image {uploaded_file.name} to PDF")
-                    try:
-                        # Read image
-                        img = Image.open(uploaded_file)
+                    # Create supporting document record
+                    doc = BudgetRealignmentSupportingDocument.objects.create(
+                        budget_realignment=realignment,
+                        document=uploaded_file,
+                        file_name=uploaded_file.name,
+                        file_size=uploaded_file.size,
+                        uploaded_by=request.user,
+                        is_signed_copy=True
+                    )
 
-                        # Convert to RGB if necessary (for PNG with transparency)
-                        if img.mode in ('RGBA', 'LA', 'P'):
-                            # Create white background
-                            rgb_img = Image.new('RGB', img.size, (255, 255, 255))
-                            if img.mode == 'P':
-                                img = img.convert('RGBA')
-                            rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
-                            img = rgb_img
-                        elif img.mode != 'RGB':
-                            img = img.convert('RGB')
+                    # Convert images to PDF for preview compatibility
+                    if file_ext in ['jpg', 'jpeg', 'png']:
+                        logger.info(f"Converting image {uploaded_file.name} to PDF")
+                        try:
+                            # Reset file pointer
+                            uploaded_file.seek(0)
 
-                        # Save as PDF
-                        pdf_buffer = BytesIO()
-                        img.save(pdf_buffer, format='PDF', resolution=100.0)
-                        pdf_buffer.seek(0)
+                            # Read image
+                            img = Image.open(uploaded_file)
 
-                        # Save converted PDF
-                        pdf_filename = f"{uploaded_file.name.rsplit('.', 1)[0]}_converted.pdf"
-                        doc.converted_pdf.save(
-                            pdf_filename,
-                            ContentFile(pdf_buffer.read()),
-                            save=True
-                        )
-                        logger.info(f"Successfully converted {uploaded_file.name} to PDF")
+                            # Convert to RGB if necessary (for PNG with transparency)
+                            if img.mode in ('RGBA', 'LA', 'P'):
+                                # Create white background
+                                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                                if img.mode == 'P':
+                                    img = img.convert('RGBA')
+                                rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                                img = rgb_img
+                            elif img.mode != 'RGB':
+                                img = img.convert('RGB')
 
-                    except Exception as e:
-                        logger.error(f"Failed to convert image to PDF: {str(e)}", exc_info=True)
-                        # Continue anyway - original image is still available
+                            # Save as PDF
+                            pdf_buffer = BytesIO()
+                            img.save(pdf_buffer, format='PDF', resolution=100.0)
+                            pdf_buffer.seek(0)
 
-                # Also save to the end_user_uploaded_document field for backward compatibility
-                realignment.end_user_uploaded_document = uploaded_file
+                            # Save converted PDF
+                            pdf_filename = f"{uploaded_file.name.rsplit('.', 1)[0]}_converted.pdf"
+                            doc.converted_pdf.save(
+                                pdf_filename,
+                                ContentFile(pdf_buffer.read()),
+                                save=True
+                            )
+                            logger.info(f"Successfully converted {uploaded_file.name} to PDF")
+
+                        except Exception as e:
+                            logger.error(f"Failed to convert image to PDF: {str(e)}", exc_info=True)
+                            # Continue anyway - original image is still available
+
+                # Save the first uploaded file to end_user_uploaded_document for backward compatibility
+                realignment.end_user_uploaded_document = uploaded_files[0]
                 realignment.end_user_uploaded_at = timezone.now()
                 realignment.status = 'Awaiting Admin Verification'
                 realignment.save()
 
                 # Log audit trail
+                file_count = len(uploaded_files)
                 log_audit_trail(
                     request=request,
                     action='UPDATE',
                     model_name='PREBudgetRealignment',
                     record_id=realignment.id,
-                    detail=f"End user uploaded signed document for budget realignment #{realignment.id}"
+                    detail=f"End user uploaded {file_count} signed document{'s' if file_count > 1 else ''} for budget realignment #{realignment.id}"
                 )
 
-                messages.success(request, "Signed document uploaded successfully! Your request is now awaiting admin verification.")
+                messages.success(request, f"{file_count} signed document{'s' if file_count > 1 else ''} uploaded successfully! Your request is now awaiting admin verification.")
                 return redirect('realignment_detail', pk=pk)
 
         except Exception as e:
-            logger.error(f"Error uploading document: {str(e)}", exc_info=True)
-            messages.error(request, f"Error uploading document: {str(e)}")
+            logger.error(f"Error uploading documents: {str(e)}", exc_info=True)
+            messages.error(request, f"Error uploading documents: {str(e)}")
             return redirect('realignment_detail', pk=pk)
 
     # GET request - show upload form
