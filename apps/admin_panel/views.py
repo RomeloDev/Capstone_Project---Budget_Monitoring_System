@@ -645,7 +645,7 @@ def handle_departments_request(request, request_id):
                 # 4. Log audit trail
                 log_audit_trail(
                     request=request,
-                    action='APPROVE',
+                    action='PARTIALLY_APPROVED',
                     model_name='PurchaseRequest',
                     record_id=purchase_request.id,
                     detail=f'Purchase Request {purchase_request.pr_number} partially approved by Admin. '

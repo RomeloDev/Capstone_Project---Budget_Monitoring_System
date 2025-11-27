@@ -79,7 +79,7 @@ def convert_word_to_pdf(word_path):
                 '--nolockcheck',
                 '--nologo',
                 '--norestore',
-                '--convert-to', 'pdf:writer_pdf_Export',  # Writer PDF export
+                '--convert-to', 'pdf',  # Use simple PDF conversion (auto-detect)
                 '--outdir', temp_dir,
                 word_path
             ]
@@ -90,7 +90,7 @@ def convert_word_to_pdf(word_path):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120  # Increased timeout for larger documents
             )
 
             if result.returncode != 0:
@@ -111,7 +111,7 @@ def convert_word_to_pdf(word_path):
                 return f.read()
 
         except subprocess.TimeoutExpired:
-            logger.error("LibreOffice conversion timed out after 60 seconds")
+            logger.error("LibreOffice conversion timed out after 120 seconds")
             return None
         except Exception as e:
             logger.error(f"Error in Word to PDF conversion: {str(e)}", exc_info=True)

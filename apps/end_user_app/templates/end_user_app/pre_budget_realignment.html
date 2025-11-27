@@ -281,6 +281,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let sourceQuarters = {};
 
+    // Simplify line item labels by removing subcategory (middle detail)
+    function simplifyLineItemLabels() {
+        [sourceSelect, targetSelect].forEach(select => {
+            Array.from(select.options).forEach(option => {
+                if (option.value) { // Skip the default "-- Select --" option
+                    const text = option.textContent;
+                    // Extract the part before " - ₱" (amount)
+                    const parts = text.split(' - ₱');
+                    if (parts.length === 2) {
+                        const hierarchy = parts[0].split(' - ');
+                        if (hierarchy.length === 3) {
+                            // Remove middle part (subcategory)
+                            const simplified = `${hierarchy[0]} - ${hierarchy[2]}`;
+                            option.textContent = `${simplified} - ₱${parts[1]}`;
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    // Call the function to simplify labels on page load
+    simplifyLineItemLabels();
+
     // Handle source category change (WITH REALTIME AJAX)
     sourceSelect.addEventListener('change', async function() {
         const selectedValue = this.value;

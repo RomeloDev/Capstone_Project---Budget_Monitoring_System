@@ -82,6 +82,21 @@
         <div class="absolute bottom-0 left-0 w-64 h-64 bg-white opacity-5 rounded-full -ml-32 -mb-32"></div>
     </div>
 
+    <!-- Messages -->
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="text-white px-4 py-3 rounded-lg mb-2
+                {% if message.tags == 'error' %} bg-red-500
+                {% elif message.tags == 'success' %} bg-green-500
+                {% elif message.tags == 'warning' %} bg-yellow-500
+                {% else %} bg-gray-500 {% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
     <!-- Action Alert Based on Status -->
     {% if pre.status == 'Partially Approved' %}
     {% if pre.partially_approved_pdf or pre.original_excel_pdf %}

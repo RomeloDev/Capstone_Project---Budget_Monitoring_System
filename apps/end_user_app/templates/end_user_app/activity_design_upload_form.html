@@ -401,15 +401,24 @@ document.addEventListener('DOMContentLoaded', function() {
         const choices = [];
 
         lineItems.forEach(item => {
+            // Remove the middle detail (subcategory) from display
+            // Format: "Category - Subcategory - Item" -> "Category - Item"
+            let simplifiedDisplay = item.display;
+            const parts = item.display.split(' - ');
+            if (parts.length === 3) {
+                // Remove the middle part (subcategory)
+                simplifiedDisplay = `${parts[0]} - ${parts[2]}`;
+            }
+
             choices.push({
                 value: item.value,
-                label: `${item.display} - ${item.quarter} (Available: ₱${item.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`,
+                label: `${simplifiedDisplay} - ${item.quarter} (Available: ₱${item.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`,
                 customProperties: {
                     available: item.available,
                     quarter: item.quarter,
                     preDisplay: item.pre_display,
                     itemName: item.item_name,
-                    display: item.display,
+                    display: simplifiedDisplay,
                     preId: item.pre_id,
                     lineItemId: item.line_item_id
                 }
@@ -462,11 +471,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
         selectedLineItems.forEach((itemInfo, value) => {
             const item = itemInfo.data;
+
+            // Remove the middle detail (subcategory) from display
+            // Format: "Category - Subcategory - Item" -> "Category - Item"
+            let simplifiedDisplay = item.display;
+            const parts = item.display.split(' - ');
+            if (parts.length === 3) {
+                // Remove the middle part (subcategory)
+                simplifiedDisplay = `${parts[0]} - ${parts[2]}`;
+            }
+
             const div = document.createElement('div');
             div.className = 'flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg';
             div.innerHTML = `
                 <div class="flex-1">
-                    <p class="font-medium text-gray-900">${item.display} - ${item.quarter}</p>
+                    <p class="font-medium text-gray-900">${simplifiedDisplay} - ${item.quarter}</p>
                     <p class="text-sm text-gray-600">Available: ₱${item.available.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
                 </div>
                 <div class="flex items-center space-x-2">

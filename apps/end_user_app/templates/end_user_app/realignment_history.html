@@ -93,6 +93,21 @@
             </div>
         </section>
 
+        <!-- Messages -->
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="text-white px-4 py-3 rounded-lg mb-2
+                {% if message.tags == 'error' %} bg-red-500
+                {% elif message.tags == 'success' %} bg-green-500
+                {% elif message.tags == 'warning' %} bg-yellow-500
+                {% else %} bg-gray-500 {% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <!-- Filter Section -->
         <section class="bg-white p-6 rounded-lg shadow-md mb-8">
             <h2 class="text-lg font-semibold text-gray-800 mb-4">Filter Requests</h2>

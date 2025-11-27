@@ -479,6 +479,53 @@
 </div>
 
 <script>
+// Simplify line item displays by removing subcategory (middle detail)
+document.addEventListener('DOMContentLoaded', function() {
+    // Function to simplify display text
+    function simplifyDisplayText(text) {
+        // Split by " - " to get hierarchy parts
+        const parts = text.split(' - ');
+        if (parts.length === 3) {
+            // Remove middle part (subcategory)
+            return `${parts[0]} - ${parts[2]}`;
+        }
+        return text; // Return unchanged if not 3 parts
+    }
+
+    // Find and update all source and target displays
+    // Update page header subtitle
+    const headerSubtitle = document.querySelector('header p.text-gray-600');
+    if (headerSubtitle) {
+        const arrowIndex = headerSubtitle.textContent.indexOf(' → ');
+        if (arrowIndex !== -1) {
+            const beforeArrow = headerSubtitle.textContent.substring(0, arrowIndex);
+            const afterArrow = headerSubtitle.textContent.substring(arrowIndex + 3);
+
+            // Extract the request number and displays
+            const requestMatch = beforeArrow.match(/^(Request #\d+ - )(.*)/);
+            if (requestMatch) {
+                const requestPrefix = requestMatch[1];
+                const sourceDisplay = requestMatch[2];
+                const simplifiedSource = simplifyDisplayText(sourceDisplay);
+                const simplifiedTarget = simplifyDisplayText(afterArrow);
+                headerSubtitle.textContent = `${requestPrefix}${simplifiedSource} → ${simplifiedTarget}`;
+            }
+        }
+    }
+
+    // Update Transfer FROM (Source) display
+    const sourceDisplays = document.querySelectorAll('.bg-blue-50 .text-blue-900');
+    sourceDisplays.forEach(element => {
+        element.textContent = simplifyDisplayText(element.textContent);
+    });
+
+    // Update Transfer TO (Target) display
+    const targetDisplays = document.querySelectorAll('.bg-green-50 .text-green-900');
+    targetDisplays.forEach(element => {
+        element.textContent = simplifyDisplayText(element.textContent);
+    });
+});
+
 function openUploadModal() {
     document.getElementById('uploadModal').classList.remove('hidden');
 }

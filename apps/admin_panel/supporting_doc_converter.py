@@ -90,7 +90,7 @@ def convert_with_libreoffice(file_path):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120  # Increased timeout for larger documents
             )
 
             if result.returncode != 0:
@@ -117,7 +117,7 @@ def convert_with_libreoffice(file_path):
         except FileNotFoundError:
             raise Exception("LibreOffice not installed")
         except subprocess.TimeoutExpired:
-            raise Exception("Conversion timeout (>60s)")
+            raise Exception("Conversion timeout (>120s)")
 
 
 def convert_with_win32com(file_path, file_ext):
@@ -126,42 +126,50 @@ def convert_with_win32com(file_path, file_ext):
     """
     try:
         import win32com.client
+        import pythoncom
         import tempfile
 
-        pdf_path = tempfile.mktemp(suffix='.pdf')
+        # Initialize COM for this thread
+        pythoncom.CoInitialize()
 
-        if file_ext in ['xlsx', 'xls']:
-            # Excel conversion
-            excel = win32com.client.Dispatch("Excel.Application")
-            excel.Visible = False
-            excel.DisplayAlerts = False
+        try:
+            pdf_path = tempfile.mktemp(suffix='.pdf')
 
-            workbook = excel.Workbooks.Open(file_path)
-            workbook.ExportAsFixedFormat(0, pdf_path)  # 0 = PDF format
+            if file_ext in ['xlsx', 'xls']:
+                # Excel conversion
+                excel = win32com.client.Dispatch("Excel.Application")
+                excel.Visible = False
+                excel.DisplayAlerts = False
 
-            workbook.Close(False)
-            excel.Quit()
+                workbook = excel.Workbooks.Open(file_path)
+                workbook.ExportAsFixedFormat(0, pdf_path)  # 0 = PDF format
 
-        elif file_ext in ['docx', 'doc']:
-            # Word conversion
-            word = win32com.client.Dispatch("Word.Application")
-            word.Visible = False
+                workbook.Close(False)
+                excel.Quit()
 
-            doc = word.Documents.Open(file_path)
-            doc.SaveAs(pdf_path, FileFormat=17)  # 17 = PDF format
+            elif file_ext in ['docx', 'doc']:
+                # Word conversion
+                word = win32com.client.Dispatch("Word.Application")
+                word.Visible = False
 
-            doc.Close()
-            word.Quit()
+                doc = word.Documents.Open(file_path)
+                doc.SaveAs(pdf_path, FileFormat=17)  # 17 = PDF format
 
-        # Read PDF
-        if os.path.exists(pdf_path):
-            print(f"✅ PDF created with COM: {pdf_path}")
-            with open(pdf_path, 'rb') as f:
-                content = f.read()
-            os.remove(pdf_path)
-            return content
-        else:
-            raise Exception("PDF not created")
+                doc.Close()
+                word.Quit()
+
+            # Read PDF
+            if os.path.exists(pdf_path):
+                print(f"✅ PDF created with COM: {pdf_path}")
+                with open(pdf_path, 'rb') as f:
+                    content = f.read()
+                os.remove(pdf_path)
+                return content
+            else:
+                raise Exception("PDF not created")
+        finally:
+            # Uninitialize COM
+            pythoncom.CoUninitialize()
 
     except ImportError:
         raise Exception("pywin32 not installed or not on Windows")

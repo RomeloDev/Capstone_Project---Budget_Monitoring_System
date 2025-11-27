@@ -76,7 +76,7 @@ def convert_with_libreoffice_improved(excel_path):
                 '--nolockcheck',
                 '--nologo',
                 '--norestore',
-                '--convert-to', 'pdf:calc_pdf_Export',  # Specify calc PDF export filter
+                '--convert-to', 'pdf',  # Use simple PDF conversion (auto-detect format)
                 '--outdir', temp_dir,
                 excel_path
             ]
@@ -166,36 +166,44 @@ def convert_with_win32com(excel_path):
     """
     try:
         import win32com.client
+        import pythoncom
         import tempfile
-        
-        # Start Excel application
-        excel = win32com.client.Dispatch("Excel.Application")
-        excel.Visible = False
-        excel.DisplayAlerts = False
-        
-        # Open workbook
-        workbook = excel.Workbooks.Open(excel_path)
-        
-        # Generate PDF path
-        pdf_path = tempfile.mktemp(suffix='.pdf')
-        
-        # Export to PDF
-        workbook.ExportAsFixedFormat(0, pdf_path)  # 0 = PDF format
-        
-        # Close
-        workbook.Close(False)
-        excel.Quit()
-        
-        # Read PDF
-        if os.path.exists(pdf_path):
-            print(f"✅ PDF created with Excel COM: {pdf_path}")
-            with open(pdf_path, 'rb') as f:
-                content = f.read()
-            os.remove(pdf_path)  # Clean up
-            return content
-        else:
-            raise Exception("PDF not created")
-            
+
+        # Initialize COM for this thread
+        pythoncom.CoInitialize()
+
+        try:
+            # Start Excel application
+            excel = win32com.client.Dispatch("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+
+            # Open workbook
+            workbook = excel.Workbooks.Open(excel_path)
+
+            # Generate PDF path
+            pdf_path = tempfile.mktemp(suffix='.pdf')
+
+            # Export to PDF
+            workbook.ExportAsFixedFormat(0, pdf_path)  # 0 = PDF format
+
+            # Close
+            workbook.Close(False)
+            excel.Quit()
+
+            # Read PDF
+            if os.path.exists(pdf_path):
+                print(f"✅ PDF created with Excel COM: {pdf_path}")
+                with open(pdf_path, 'rb') as f:
+                    content = f.read()
+                os.remove(pdf_path)  # Clean up
+                return content
+            else:
+                raise Exception("PDF not created")
+        finally:
+            # Uninitialize COM
+            pythoncom.CoUninitialize()
+
     except ImportError:
         raise Exception("pywin32 not installed or not on Windows")
     except Exception as e:

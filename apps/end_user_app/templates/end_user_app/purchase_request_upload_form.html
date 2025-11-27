@@ -367,6 +367,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Helper function to simplify display text by removing subcategory (middle detail)
+    function simplifyDisplayText(text) {
+        // Split by " - " to get hierarchy parts
+        const parts = text.split(' - ');
+        if (parts.length === 3) {
+            // Remove middle part (subcategory)
+            return `${parts[0]} - ${parts[2]}`;
+        }
+        return text; // Return unchanged if not 3 parts
+    }
+
     // ✅ Populate Source of Fund with Choices.js
     function populateSourceOfFundChoices(lineItems) {
         if (lineItems.length === 0) {
@@ -377,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sourceOfFundChoice.disable();
             return;
         }
-        
+
         // ✅ Group by PRE and Line Item
         const preGroups = {};
         lineItems.forEach(item => {
@@ -392,20 +403,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             preGroups[groupKey].quarters.push(item);
         });
-        
+
         // Build choices array
         const choices = [
             { value: '', label: 'Select approved PRE line item and quarter', selected: true, disabled: false }
         ];
-        
+
         Object.keys(preGroups).forEach(groupKey => {
             const group = preGroups[groupKey];
-            
+
             // Add each quarter as a separate option
             group.quarters.forEach(quarterItem => {
+                // Simplify the display by removing subcategory
+                const simplifiedDisplay = simplifyDisplayText(quarterItem.display);
+
                 choices.push({
                     value: quarterItem.value,
-                    label: `${quarterItem.display} - ${quarterItem.quarter} (Available: ₱${quarterItem.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`,
+                    label: `${simplifiedDisplay} - ${quarterItem.quarter} (Available: ₱${quarterItem.available.toLocaleString('en-US', {minimumFractionDigits: 2})})`,
                     customProperties: {
                         available: quarterItem.available,
                         quarter: quarterItem.quarter,
@@ -414,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
         });
-        
+
         // Clear and set new choices
         sourceOfFundChoice.clearStore();
         sourceOfFundChoice.setChoices(choices, 'value', 'label', true);
