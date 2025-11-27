@@ -179,7 +179,7 @@
                     <p class="text-sm text-gray-600 mt-1">Complete list of all transactions within a date range</p>
                     <div class="mt-4">
                         <div class="space-y-3">
-                            <div class="grid grid-cols-2 gap-3">
+                            {% comment %} <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-700 mb-1">From</label>
                                     <input type="date" id="transaction_date_from" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
@@ -188,7 +188,7 @@
                                     <label class="block text-xs font-medium text-gray-700 mb-1">To</label>
                                     <input type="date" id="transaction_date_to" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                                 </div>
-                            </div>
+                            </div> {% endcomment %}
 
                             <!-- Preview Button -->
                             <a href="{% url 'preview_budget_report' %}?type=transaction" target="_blank"

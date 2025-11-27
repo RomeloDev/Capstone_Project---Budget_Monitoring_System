@@ -1334,15 +1334,15 @@ def budget_allocation(request):
         total_departments=Count('department', distinct=True)
     )
 
-    # Calculate total allocated based on Approved PRE Grand Total (matches Budget Monitoring Dashboard)
-    total_allocated = sum(allocation.get_pre_approved_total() for allocation in summary_allocations)
+    # Calculate total allocated based on the actual allocated_amount field
+    total_allocated = allocation_stats['total_allocated'] or Decimal('0')
 
     total_pr_used = allocation_stats['total_pr_used'] or Decimal('0')
     total_ad_used = allocation_stats['total_ad_used'] or Decimal('0')
     total_used = total_pr_used + total_ad_used
 
-    # Calculate total remaining based on Approved PRE Grand Total (matches Budget Monitoring Dashboard)
-    total_remaining = sum(allocation.get_available_pre_budget() for allocation in summary_allocations)
+    # Calculate total remaining based on allocated amount minus used amounts
+    total_remaining = total_allocated - total_used
 
     total_departments = allocation_stats['total_departments'] or 0
 
@@ -4021,7 +4021,72 @@ def handle_pre_realignment_admin_action(request, pk):
 
             try:
                 with transaction.atomic():
-                    # Save uploaded signed documents
+                    # Get source and target line items first for validation
+                    try:
+                        source_item = PRELineItem.objects.get(
+                            id=realignment.source_item_key,
+                            pre=realignment.source_pre
+                        )
+                    except PRELineItem.DoesNotExist:
+                        raise ValueError(f"Source line item not found for ID {realignment.source_item_key}")
+
+                    try:
+                        target_item = PRELineItem.objects.get(
+                            id=realignment.target_item_key,
+                            pre=realignment.target_pre
+                        )
+                    except PRELineItem.DoesNotExist:
+                        raise ValueError(f"Target line item not found for ID {realignment.target_item_key}")
+
+                    # CRITICAL VALIDATION: Re-check if source still has sufficient funds
+                    # (funds might have been consumed or realigned since partial approval)
+                    validation_errors = []
+                    for quarter_num, quarter_amount in enumerate([
+                        realignment.q1_amount,
+                        realignment.q2_amount,
+                        realignment.q3_amount,
+                        realignment.q4_amount
+                    ], 1):
+                        if quarter_amount and quarter_amount > 0:
+                            quarter_code = f'q{quarter_num}'
+                            quarter_upper = f'Q{quarter_num}'
+
+                            # Get current allocated amount
+                            allocated = getattr(source_item, f'{quarter_code}_amount', Decimal('0'))
+
+                            # Get consumed and reserved amounts
+                            consumed = source_item.get_quarter_consumed(quarter_upper)
+                            reserved = source_item.get_quarter_reserved(quarter_upper)
+
+                            # Calculate other pending realignments (excluding this one)
+                            other_pending = PREBudgetRealignment.objects.filter(
+                                source_item_key=realignment.source_item_key,
+                                source_pre=realignment.source_pre,
+                                status__in=['Pending', 'Partially Approved', 'Awaiting Admin Verification']
+                            ).exclude(id=realignment.id)
+
+                            pending_amount = sum(
+                                getattr(r, f'{quarter_code}_amount', Decimal('0'))
+                                for r in other_pending
+                            )
+
+                            # Calculate available funds
+                            available = allocated - consumed - reserved - pending_amount
+
+                            if available < quarter_amount:
+                                validation_errors.append(
+                                    f"Q{quarter_num}: Insufficient funds. "
+                                    f"Available: ₱{available:,.2f}, Required: ₱{quarter_amount:,.2f} "
+                                    f"(Allocated: ₱{allocated:,.2f}, Consumed: ₱{consumed:,.2f}, "
+                                    f"Reserved: ₱{reserved:,.2f}, Pending: ₱{pending_amount:,.2f})"
+                                )
+
+                    # If validation fails, abort the transaction
+                    if validation_errors:
+                        error_message = "Cannot approve realignment - insufficient funds:\n" + "\n".join(validation_errors)
+                        raise ValueError(error_message)
+
+                    # Validation passed - Save uploaded signed documents
                     for uploaded_file in uploaded_docs:
                         BudgetRealignmentSupportingDocument.objects.create(
                             budget_realignment=realignment,

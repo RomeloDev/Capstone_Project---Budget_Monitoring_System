@@ -249,7 +249,7 @@
                                     </div>
 
                                     <!-- Partially Approved - Upload UI -->
-                                    {% if request.status == 'Partially Approved' and request.partially_approved_pdf %}
+                                    {% comment %} {% if request.status == 'Partially Approved' and request.partially_approved_pdf %}
                                     <div class="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                                         <div class="flex items-start">
                                             <div class="flex-shrink-0">
@@ -286,7 +286,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    {% endif %}
+                                    {% endif %} {% endcomment %}
 
                                     <!-- Awaiting Admin Verification - Show Uploaded Document -->
                                     {% if request.status == 'Awaiting Admin Verification' and request.end_user_uploaded_document %}
