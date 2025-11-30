@@ -152,8 +152,8 @@
                                 </div>
                                 <div>
                                     <label for="q1_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
-                                    <input type="number" id="q1_amount" name="q1_amount" min="0" step="0.01" value="0"
-                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <input type="text" id="q1_amount" name="q1_amount" value="0" data-raw-value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm amount-input" disabled>
                                     <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q1">
                                         Realign all remaining
                                     </button>
@@ -171,8 +171,8 @@
                                 </div>
                                 <div>
                                     <label for="q2_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
-                                    <input type="number" id="q2_amount" name="q2_amount" min="0" step="0.01" value="0"
-                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <input type="text" id="q2_amount" name="q2_amount" value="0" data-raw-value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm amount-input" disabled>
                                     <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q2">
                                         Realign all remaining
                                     </button>
@@ -190,8 +190,8 @@
                                 </div>
                                 <div>
                                     <label for="q3_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
-                                    <input type="number" id="q3_amount" name="q3_amount" min="0" step="0.01" value="0"
-                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <input type="text" id="q3_amount" name="q3_amount" value="0" data-raw-value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm amount-input" disabled>
                                     <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q3">
                                         Realign all remaining
                                     </button>
@@ -209,8 +209,8 @@
                                 </div>
                                 <div>
                                     <label for="q4_amount" class="block text-sm text-gray-700 mb-1">Amount to transfer (₱)</label>
-                                    <input type="number" id="q4_amount" name="q4_amount" min="0" step="0.01" value="0"
-                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm" disabled>
+                                    <input type="text" id="q4_amount" name="q4_amount" value="0" data-raw-value="0"
+                                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm amount-input" disabled>
                                     <button type="button" class="mt-2 text-xs text-blue-600 hover:text-blue-800 realign-all-btn hidden" data-quarter="q4">
                                         Realign all remaining
                                     </button>
@@ -395,7 +395,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 checkbox.disabled = true;
                 checkbox.checked = false;
                 input.disabled = true;
-                input.value = 0;
+                input.value = '0';
+                input.dataset.rawValue = '0';
                 realignBtn.classList.add('hidden');
             }
         });
@@ -412,19 +413,71 @@ document.addEventListener('DOMContentLoaded', function() {
                 input.focus();
             } else {
                 input.disabled = true;
-                input.value = 0;
+                input.value = '0';
+                input.dataset.rawValue = '0';
             }
 
             updateTotalAmount();
         });
     });
 
-    // Handle amount inputs
+    // Format number with commas
+    function formatNumberWithCommas(value) {
+        // Remove all non-digit characters except decimal point
+        const cleanValue = value.replace(/[^\d.]/g, '');
+
+        // Split into integer and decimal parts
+        const parts = cleanValue.split('.');
+        let integerPart = parts[0];
+        const decimalPart = parts[1];
+
+        // Add commas to integer part
+        integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+        // Reconstruct the number
+        return decimalPart !== undefined ? `${integerPart}.${decimalPart}` : integerPart;
+    }
+
+    // Parse formatted number to raw float
+    function parseFormattedNumber(formattedValue) {
+        return parseFloat(formattedValue.replace(/,/g, '')) || 0;
+    }
+
+    // Handle amount inputs with comma formatting
     ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
         const input = document.getElementById(`${quarter}_amount`);
+
         input.addEventListener('input', function() {
+            // Get cursor position before formatting
+            const cursorPosition = this.selectionStart;
+            const oldLength = this.value.length;
+
+            // Store raw value
+            const rawValue = parseFormattedNumber(this.value);
+            this.dataset.rawValue = rawValue;
+
+            // Format with commas
+            const formattedValue = formatNumberWithCommas(this.value);
+            this.value = formattedValue;
+
+            // Restore cursor position accounting for added/removed commas
+            const newLength = this.value.length;
+            const lengthDiff = newLength - oldLength;
+            this.setSelectionRange(cursorPosition + lengthDiff, cursorPosition + lengthDiff);
+
             validateQuarterAmount(quarter);
             updateTotalAmount();
+        });
+
+        // Format on blur to ensure clean display
+        input.addEventListener('blur', function() {
+            const rawValue = parseFormattedNumber(this.value);
+            if (rawValue === 0) {
+                this.value = '0';
+            } else {
+                this.value = formatNumberWithCommas(rawValue.toFixed(2));
+            }
+            this.dataset.rawValue = rawValue;
         });
     });
 
@@ -438,7 +491,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             checkbox.checked = true;
             input.disabled = false;
-            input.value = parseFloat(quarterData.remaining || 0).toFixed(2);
+
+            // Format the value with commas
+            const rawValue = parseFloat(quarterData.remaining || 0);
+            input.value = formatNumberWithCommas(rawValue.toFixed(2));
+            input.dataset.rawValue = rawValue;
 
             validateQuarterAmount(quarter);
             updateTotalAmount();
@@ -449,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function validateQuarterAmount(quarter) {
         const input = document.getElementById(`${quarter}_amount`);
         const quarterData = sourceQuarters[quarter] || { remaining: 0 };
-        const amount = parseFloat(input.value) || 0;
+        const amount = parseFormattedNumber(input.value);
 
         if (amount > quarterData.remaining) {
             input.setCustomValidity(`Amount exceeds available budget for ${quarter.toUpperCase()} (₱${quarterData.remaining.toLocaleString()})`);
@@ -465,7 +522,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let total = 0;
         ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
             const input = document.getElementById(`${quarter}_amount`);
-            total += parseFloat(input.value) || 0;
+            total += parseFormattedNumber(input.value);
         });
 
         totalAmountDisplay.textContent = `₱${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -510,7 +567,18 @@ document.addEventListener('DOMContentLoaded', function() {
         let totalAmount = 0;
         ['q1', 'q2', 'q3', 'q4'].forEach(quarter => {
             const input = document.getElementById(`${quarter}_amount`);
-            totalAmount += parseFloat(input.value) || 0;
+            const rawValue = parseFormattedNumber(input.value);
+            totalAmount += rawValue;
+
+            // Create hidden input with raw value for form submission
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = `${quarter}_amount`;
+            hiddenInput.value = rawValue;
+            this.appendChild(hiddenInput);
+
+            // Remove name from visible input to avoid duplicate submission
+            input.removeAttribute('name');
         });
 
         if (totalAmount === 0) {
